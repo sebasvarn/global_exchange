@@ -1,6 +1,6 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-coreui-theme="auto">
 <head>
   <base href="./">
   <meta charset="utf-8">
@@ -97,7 +97,7 @@
         </li>
       
         <!-- Gestión de Clientes -->
-      <li class="nav-group {% if 'clientes' in request.resolver_match.app_name %}show{% endif %}">
+        <li class="nav-group {% if 'clientes' in request.resolver_match.app_name %}show{% endif %}">
         <a class="nav-link nav-group-toggle" href="#">
           <i class="nav-icon bi bi-building"></i>
           Clientes
@@ -117,8 +117,53 @@
               Nuevo Cliente
             </a>
           </li>
+        <!-- Tasas de Comisión -->
+        <li class="nav-item">
+          <a class="nav-link {% if 'comision' in request.resolver_match.app_name %}show{% endif %}" href="{% url 'clientes:comisiones_list' %}">
+            <span class="nav-icon"><i class="bi bi-percent"></i></span>
+            Tasas de Comisión
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.resolver_match.url_name == 'comision_create' %}active{% endif %}"
+             href="{% url 'clientes:comision_create' %}">
+            <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+            Nueva Tasa
+          </a>
+        </li>
         </ul>
       </li>
+
+        <!-- Gestión de Monedas -->
+        <li class="nav-group {% if 'monedas' in request.resolver_match.app_name %}show{% endif %}">
+          <a class="nav-link nav-group-toggle" href="#">
+            <i class="nav-icon bi bi-cash-coin"></i>
+            Monedas
+          </a>
+          <ul class="nav-group-items compact">
+            <li class="nav-item">
+              <a class="nav-link {% if request.resolver_match.url_name == 'monedas_list' %}active{% endif %}"
+                 href="{% url 'monedas:monedas_list' %}">
+                <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+                Lista de Monedas
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link {% if request.resolver_match.url_name == 'moneda_create' %}active{% endif %}"
+                 href="{% url 'monedas:moneda_create' %}">
+                <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+                Nueva Moneda
+              </a>
+            </li>
+          <li class="nav-item">
+              <a class="nav-link {% if request.resolver_match.url_name == 'moneda_create' %}active{% endif %}"
+                 href="{% url 'monedas:dashboard_tasas' %}">
+                <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+                Tasas de Cambio
+              </a>
+            </li>
+          </ul>
+        </li>
 
         <!-- Configuración -->
         <li class="nav-title">Sistema</li>
@@ -138,6 +183,14 @@
               <a class="nav-link" href="#">
                 <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
                 Seguridad
+              </a>
+            </li>
+            
+            <!-- Métodos de Pago -->
+            <li class="nav-item">
+              <a class="nav-link {% if 'payment' in request.resolver_match.app_name %}active{% endif %}" href="{% url 'payments:payment_methods_by_client' %}">
+                <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+                Métodos de Pago
               </a>
             </li>
           </ul>
@@ -196,7 +249,7 @@
           {% if request.user.is_authenticated %}
             <!-- Notificaciones -->
             <li class="nav-item">
-              <a class="nav-link" href="#" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Notificaciones">
+              <a class="nav-link position-relative" href="#" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Notificaciones">
                 <i class="bi bi-bell fs-5"></i>
                 <span class="badge rounded-pill badge-sm bg-danger position-absolute top-0 end-0">3</span>
               </a>
@@ -223,14 +276,38 @@
                     <i class="bi bi-moon me-3"></i>Oscuro
                   </button>
                 </li>
-                <li>
-                  <button class="dropdown-item d-flex align-items-center active" type="button" data-coreui-theme-value="auto">
-                    <i class="bi bi-circle-half me-3"></i>Auto
-                  </button>
-                </li>
               </ul>
             </li>
+            <script>
+              function updateThemeActive() {
+                const theme = document.documentElement.getAttribute('data-coreui-theme');
+                document.querySelectorAll('[data-coreui-theme-value]').forEach(function(btn) {
+                  btn.classList.remove('active');
+                  if (btn.getAttribute('data-coreui-theme-value') === theme) {
+                    btn.classList.add('active');
+                  }
+                });
+              }
 
+              // Guardar el tema seleccionado en localStorage
+              document.querySelectorAll('[data-coreui-theme-value]').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                  var theme = btn.getAttribute('data-coreui-theme-value');
+                  document.documentElement.setAttribute('data-coreui-theme', theme);
+                  localStorage.setItem('coreui-theme', theme);
+                  updateThemeActive();
+                });
+              });
+
+              // Al cargar la página, aplicar el tema guardado
+              document.addEventListener('DOMContentLoaded', function() {
+                var savedTheme = localStorage.getItem('coreui-theme');
+                if (savedTheme) {
+                  document.documentElement.setAttribute('data-coreui-theme', savedTheme);
+                }
+                updateThemeActive();
+              });
+            </script>
             <!-- Separador -->
             <li class="nav-item py-1">
               <div class="vr h-100 mx-2 text-body text-opacity-75"></div>

@@ -6,6 +6,9 @@ Define la configuración y el nombre de la app para Django.
 
 from django.apps import AppConfig
 
+"""
+Configuración de la aplicación usuarios.
+"""
 
 class UsuariosConfig(AppConfig):
     """

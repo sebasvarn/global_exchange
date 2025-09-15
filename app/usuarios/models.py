@@ -7,6 +7,7 @@ Define el modelo de usuario y el gestor de usuarios basado en email.
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
+from commons.enums import EstadoRegistroEnum
 
 class UserManager(BaseUserManager):
     """
@@ -66,6 +67,12 @@ class User(AbstractUser):
 
     username = None
     email = models.EmailField(unique=True)
+    estado = models.CharField(
+        max_length=20,
+        choices=[(e.value, e.name.title()) for e in EstadoRegistroEnum],
+        default=EstadoRegistroEnum.ACTIVO.value,
+        help_text="Estado del usuario (activo, eliminado, suspendido, etc.)"
+    )
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []
@@ -96,15 +103,27 @@ class User(AbstractUser):
     def has_any_role(self, *role_names) -> bool:
         return self.user_roles.filter(role__name__in=role_names).exists()
 
-    def get_roles(self) -> list[str]:
-        # Corregido: era user_role, debe ser user_roles
-        return list(self.user_roles.values_list("role__name", flat=True))
+    def get_roles(self):
+        # Devuelve solo los roles no eliminados
+        return [ur.role for ur in self.user_roles.select_related('role').all() if ur.role.estado == EstadoRegistroEnum.ACTIVO.value]
 
 class Role(models.Model):
+    """
+    Modelo que representa un rol en el sistema.
+    """
     name = models.CharField(max_length=50, unique=True)
     description = models.TextField(blank=True)
+    estado = models.CharField(
+        max_length=20,
+        choices=[(e.value, e.name.title()) for e in EstadoRegistroEnum],
+        default=EstadoRegistroEnum.ACTIVO.value,
+        help_text="Estado del rol (activo, eliminado, suspendido, etc.)"
+    )
 
     def __str__(self):
+        """
+        Retorna el nombre del rol.
+        """
         return self.name
 
     class Meta:
@@ -113,6 +132,9 @@ class Role(models.Model):
 
 
 class UserRole(models.Model):
+    """
+    Modelo que representa la relación entre usuario y rol.
+    """
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="user_roles")
     role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name="user_roles")
     assigned_at = models.DateTimeField(auto_now_add=True)
@@ -123,4 +145,7 @@ class UserRole(models.Model):
         verbose_name_plural = "Roles de Usuario"
 
     def __str__(self):
+        """
+        Retorna la relación usuario → rol en formato legible.
+        """
         return f"{self.user.email} → {self.role.name}"

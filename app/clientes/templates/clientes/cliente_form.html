@@ -1,18 +1,150 @@
 {% extends "base.html" %}
-{% block title %}{% if cliente %}Editar Cliente{% else %}Nuevo Cliente{% endif %}{% endblock %}
+{% load static %}
+
+{% block title %}
+  {% if cliente %}Editar Cliente - {{ cliente.nombre }}{% else %}Nuevo Cliente{% endif %}
+{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'usuarios:dashboard' %}">Inicio</a>
+<a href="{% url 'clientes:clientes_list' %}" class="breadcrumb-item">Clientes</a>
+<span class="breadcrumb-item active">
+  {% if cliente %}Editar Cliente{% else %}Nuevo Cliente{% endif %}
+</span>
+{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-  <h2>{% if cliente %}Editar Cliente{% else %}Nuevo Cliente{% endif %}</h2>
+<div class="container-fluid">
+  <div class="row justify-content-center">
+    <div class="col-md-8">
+      <div class="card">
+        <div class="card-header">
+          <strong>
+            {% if cliente %}
+              <i class="bi bi-pencil"></i> Editar Cliente: {{ cliente.nombre }}
+            {% else %}
+              <i class="bi bi-person-plus"></i> Crear Nuevo Cliente
+            {% endif %}
+          </strong>
+          <div class="card-header-actions">
+            <a href="{% url 'clientes:clientes_list' %}" class="btn btn-sm btn-secondary">
+              <i class="bi bi-arrow-left"></i> Volver
+            </a>
+          </div>
+        </div>
+        <div class="card-body">
+          <form method="post">
+            {% csrf_token %}
 
-  <form method="post">
-    {% csrf_token %}
-    {{ form.as_p }}
+            <div class="row">
+              <div class="col-md-8">
+                <div class="mb-3">
+                  <label for="{{ form.nombre.id_for_label }}" class="form-label">
+                    <strong>Nombre *</strong>
+                  </label>
+                  {{ form.nombre }}
+                  {% if form.nombre.errors %}
+                    <div class="invalid-feedback d-block">
+                      {{ form.nombre.errors.0 }}
+                    </div>
+                  {% endif %}
+                  <div class="form-text">
+                    Nombre legal o comercial del cliente
+                  </div>
+                </div>
+              </div>
 
-    <button type="submit" class="btn btn-success">
-      <i class="bi bi-check-circle"></i> Guardar
-    </button>
-    <a href="{% url 'clientes:clientes_list' %}" class="btn btn-secondary">Cancelar</a>
-  </form>
+              <div class="col-md-4">
+                <div class="mb-3">
+                  <label for="{{ form.tipo.id_for_label }}" class="form-label">
+                    <strong>Categoría</strong>
+                  </label>
+                  {{ form.tipo }}
+                  {% if form.tipo.errors %}
+                    <div class="invalid-feedback d-block">
+                      {{ form.tipo.errors.0 }}
+                    </div>
+                  {% endif %}
+                  <div class="form-text">
+                    Clasificación: Minorista, Corporativo o VIP
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label"><strong>Usuarios Disponibles</strong></label>
+                <div class="list-group">
+                    {% for usuario in form.fields.usuarios.queryset %}
+                      <label class="list-group-item d-flex align-items-center">
+                        <input class="form-check-input me-2" type="checkbox"
+                               name="usuarios"
+                               id="usuario_{{ usuario.pk }}"
+                               value="{{ usuario.pk }}"
+                               {% if usuario in form.initial.usuarios %}checked{% endif %}>
+                        <span>
+                          <strong>{{ usuario.email }}</strong>
+                          {% if usuario.is_active %}
+                            <span class="badge bg-success ms-2">Activo</span>
+                          {% else %}
+                            <span class="badge bg-danger ms-2">Inactivo</span>
+                          {% endif %}
+                        </span>
+                      </label>
+                    {% empty %}
+                      <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        No hay usuarios disponibles para asignar.
+                      </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+
+            <!-- Mostrar errores generales -->
+            {% if form.non_field_errors %}
+              <div class="alert alert-danger">
+                {{ form.non_field_errors }}
+              </div>
+            {% endif %}
+
+            {% if cliente %}
+              <!-- Info extra para cliente existente -->
+              <div class="row mb-4">
+                <div class="col-md-6">
+                  <div class="card border-info">
+                    <div class="card-body">
+                      <h6 class="card-title">
+                        <i class="bi bi-info-circle text-info"></i>
+                        Información del Cliente
+                      </h6>
+                      <p class="card-text">
+                        <strong>ID:</strong> {{ cliente.id }}<br>
+                        <strong>Categoría:</strong> {{ cliente.get_tipo_display }}<br>
+                        <strong>Usuarios asociados:</strong> {{ cliente.usuarios.count }}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            {% endif %}
+
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-primary">
+                {% if cliente %}
+                  <i class="bi bi-check-lg"></i> Actualizar Cliente
+                {% else %}
+                  <i class="bi bi-person-plus"></i> Crear Cliente
+                {% endif %}
+              </button>
+              <a href="{% url 'clientes:clientes_list' %}" class="btn btn-secondary">
+                <i class="bi bi-x-lg"></i> Cancelar
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}

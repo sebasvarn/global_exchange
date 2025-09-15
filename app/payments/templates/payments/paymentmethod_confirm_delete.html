@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4">
+    <h2>Eliminar Método de Pago</h2>
+    <p>¿Estás seguro que deseas eliminar el método de pago <strong>{{ method.name }}</strong>?</p>
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">Eliminar</button>
+    <a href="{% url 'payments:payment_methods_by_client' %}" class="btn btn-secondary">Cancelar</a>
+    </form>
+</div>
+{% endblock %}

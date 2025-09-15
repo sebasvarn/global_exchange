@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4">
+    <h4 class="fw-bold mb-4">Métodos de Pago por Cliente</h4>
+    <div class="row g-4">
+        {% for cliente in clientes %}
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">{{ cliente.nombre }}</h5>
+                    <h6 class="card-subtitle mb-2 text-muted">{{ cliente.get_tipo_display }}</h6>
+                    <hr>
+                    <div>
+                        <strong>Métodos de Pago:</strong>
+                        <ul class="list-unstyled mb-3">
+                            {% for metodo in cliente.metodos_pago.all %}
+                            <li class="d-flex align-items-center mb-1">
+                                {% if metodo.payment_type == 'cuenta_bancaria' %}
+                                    <span class="me-2">Cuenta bancaria: {{ metodo.banco }} - {{ metodo.numero_cuenta }}</span>
+                                {% elif metodo.payment_type == 'billetera' %}
+                                    <span class="me-2">Billetera: {{ metodo.proveedor_billetera }} - {{ metodo.billetera_email_telefono }}</span>
+                                {% elif metodo.payment_type == 'tarjeta' %}
+                                    <span class="me-2">Tarjeta: {{ metodo.tarjeta_nombre }} - {{ metodo.tarjeta_numero }}</span>
+                                {% else %}
+                                    <span class="me-2">Método de pago {{ metodo.pk }}</span>
+                                {% endif %}
+                                <a href="{% url 'payments:paymentmethod_update' metodo.pk %}" class="btn btn-outline-warning btn-sm ms-auto me-1" title="Editar"><i class="bi bi-pencil"></i></a>
+                                <a href="{% url 'payments:paymentmethod_delete' metodo.pk %}" class="btn btn-outline-danger btn-sm" title="Eliminar"><i class="bi bi-trash"></i></a>
+                            </li>
+                            {% empty %}
+                            <li class="text-muted">Sin métodos de pago</li>
+                            {% endfor %}
+                        </ul>
+                        <a href="{% url 'payments:paymentmethod_create' %}?cliente={{ cliente.id }}" class="btn btn-outline-success w-100"><i class="bi bi-plus-lg"></i> Añadir Método</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="alert alert-info text-center">No tienes clientes vinculados.</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

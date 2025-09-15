@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Monedas{% endblock %}
+{% block content %}
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Monedas</h2>
+    <a href="{% url 'monedas:moneda_create' %}" class="btn btn-primary">
+      <i class="bi bi-plus-circle"></i> Nueva Moneda
+    </a>
+  </div>
+
+  <table class="table table-bordered table-hover">
+    <thead class="table-light">
+      <tr>
+        <th>Base</th>
+        <th>Código</th>
+        <th>Nombre</th>
+        <th>Símbolo</th>
+        <th>Dec.</th>
+        <th>Activa</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in monedas %}
+      <tr>
+        <td class="text-center">{% if m.es_base %}⭐{% endif %}</td>
+        <td><strong>{{ m.codigo }}</strong></td>
+        <td>{{ m.nombre }}</td>
+        <td>{{ m.simbolo }}</td>
+        <td>{{ m.decimales }}</td>
+        <td>{{ m.activa|yesno:"Sí,No" }}</td>
+        <td>
+          <a href="{% url 'monedas:moneda_edit' m.id %}" class="btn btn-sm btn-warning">Editar</a>
+          <a href="{% url 'monedas:moneda_delete' m.id %}" class="btn btn-sm btn-danger">Eliminar</a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="7" class="text-center text-muted">No hay monedas registradas</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

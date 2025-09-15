@@ -103,13 +103,14 @@
 
           <!-- Acciones -->
           <div class="mt-4 d-flex gap-2 justify-content-center">
-            <form method="post" class="d-inline" id="deleteForm">
-              {% csrf_token %}
-              <button type="submit" class="btn btn-danger" id="confirm-delete">
-                <i class="bi bi-trash"></i>
-                Sí, Eliminar Rol "{{ role.name }}"
-              </button>
-            </form>
+            <a href="#"
+               class="btn btn-danger"
+               data-coreui-toggle="modal"
+               data-coreui-target="#confirmDeleteModal"
+               data-message="¿Está absolutamente seguro que deseas eliminar el rol '{{ role.name }}'?"
+               data-url="{% url 'usuarios:rol_delete' role.id %}">
+              <i class="bi bi-trash"></i> Sí, Eliminar Rol "{{ role.name }}"
+            </a>
             <a href="{% url 'usuarios:roles_list' %}" class="btn btn-secondary">
               <i class="bi bi-x-lg"></i>
               Cancelar
@@ -146,6 +147,35 @@
   </div>
 </div>
 
+
+<!-- Modal de Confirmacion -->
+<div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-danger">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title">
+          <i class="bi bi-exclamation-triangle"></i> Confirmar Eliminación
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-coreui-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p id="confirmDeleteMessage">¿Estás seguro que deseas eliminar este rol?</p>
+      </div>
+      <div class="modal-footer">
+        <form id="confirmDeleteForm" method="post">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-danger" id="confirmDeleteBtn">
+            <i class="bi bi-trash"></i> Eliminar
+          </button>
+          <button type="button" class="btn btn-secondary" data-coreui-dismiss="modal">
+            <i class="bi bi-x-lg"></i> Cancelar
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
 <style>
 .max-height-200 {
   max-height: 200px;
@@ -155,63 +185,46 @@
 
 {% block extra_js %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const deleteForm = document.getElementById('deleteForm');
-    const deleteButton = document.getElementById('confirm-delete');
+document.addEventListener('DOMContentLoaded', () => {
+  const modal = document.getElementById('confirmDeleteModal');
+  const messageEl = document.getElementById('confirmDeleteMessage');
+  const form = document.getElementById('confirmDeleteForm');
+  const deleteButton = document.getElementById('confirmDeleteBtn');
 
-    if (deleteForm && deleteButton) {
-        deleteForm.addEventListener('submit', function(e) {
-            e.preventDefault();
+  if (!modal) return;
 
-            const roleName = "{{ role.name }}";
-            const usersCount = {{ role.user_roles.count }};
+  modal.addEventListener('show.coreui.modal', e => {
+    const button = e.relatedTarget;
+    if (!button) return;
 
-            let confirmMessage = `¿Está absolutamente seguro?\n\nEsto eliminará permanentemente el rol "${roleName}"`;
+    const message = button.getAttribute('data-message');
+    const url = button.getAttribute('data-url');
 
-            if (usersCount > 0) {
-                confirmMessage += ` y afectará a ${usersCount} usuario(s) que tienen este rol asignado`;
-            }
+    messageEl.textContent = message;
+    form.setAttribute('action', url);
 
-            confirmMessage += ".\n\nEsta acción NO se puede deshacer.";
+    // Countdown seguridad
+    deleteButton.disabled = true;
+    let countdown = 5;
+    const originalText = '<i class="bi bi-trash"></i> Eliminar';
 
-            if (confirm(confirmMessage)) {
-                // Cambiar el texto del botón para mostrar que se está procesando
-                deleteButton.innerHTML = '<i class="bi bi-hourglass-split"></i> Eliminando...';
-                deleteButton.disabled = true;
-
-                // Enviar el formulario
-                this.submit();
-            }
-        });
+    function updateButton() {
+      if (countdown > 0) {
+        deleteButton.innerHTML = `<i class="bi bi-clock"></i> Espere ${countdown}s`;
+        countdown--;
+        setTimeout(updateButton, 1000);
+      } else {
+        deleteButton.innerHTML = originalText;
+        deleteButton.disabled = false;
+      }
     }
+    updateButton();
+  });
 
-    // Efecto de countdown opcional para dar tiempo a reconsiderar (solo si hay usuarios asignados)
-    const usersCount = {{ role.user_roles.count }};
-    if (usersCount > 0) {
-        let countdown = 5;
-        const originalText = deleteButton.innerHTML;
-
-        function updateButton() {
-            if (countdown > 0) {
-                deleteButton.innerHTML = `<i class="bi bi-clock"></i> Espere ${countdown}s (${usersCount} usuarios serán afectados)`;
-                deleteButton.disabled = true;
-                countdown--;
-                setTimeout(updateButton, 1000);
-            } else {
-                deleteButton.innerHTML = originalText;
-                deleteButton.disabled = false;
-            }
-        }
-
-        // Iniciar countdown solo si hay usuarios asignados
-        updateButton();
-    }
-
-    // Inicializar tooltips
-    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-    const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl);
-    });
+  modal.addEventListener('hidden.coreui.modal', () => {
+    deleteButton.innerHTML = '<i class="bi bi-trash"></i> Eliminar';
+    deleteButton.disabled = false;
+  });
 });
 </script>
 {% endblock %}

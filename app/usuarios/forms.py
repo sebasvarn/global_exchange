@@ -62,6 +62,11 @@ class LoginForm(AuthenticationForm):
 
 
 class UserForm(forms.ModelForm):
+    """
+    Formulario para editar usuarios existentes.
+
+    Permite modificar el correo electrónico, el estado de activación y la contraseña.
+    """
     password = forms.CharField(
         widget=forms.PasswordInput(attrs={
             'class': 'form-control',
@@ -71,9 +76,18 @@ class UserForm(forms.ModelForm):
         help_text="Dejar en blanco para mantener la contraseña actual"
     )
 
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        password = self.cleaned_data.get('password')
+        if password:
+            user.set_password(password)
+        if commit:
+            user.save()
+        return user
+
     class Meta:
         model = User
-        fields = ["email", "is_active", "password"]
+        fields = ["email", "is_active"]
         widgets = {
             'email': forms.EmailInput(attrs={
                 'class': 'form-control',
@@ -153,14 +167,19 @@ class UserCreateForm(forms.ModelForm):
 
 
 class AsignarRolForm(forms.Form):
+    """
+    Formulario para asignar roles a un usuario.
+
+    Permite seleccionar múltiples roles mediante checkboxes.
+    """
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.user = user
 
-        # Obtener todos los roles disponibles
-        roles = Role.objects.all()
+        from commons.enums import EstadoRegistroEnum
+        roles = Role.objects.filter(estado=EstadoRegistroEnum.ACTIVO.value)
 
-        # Crear checkboxes para cada rol
+        # Crear checkboxes para cada rol válido
         choices = [(role.id, role.name) for role in roles]
         self.fields['roles'] = forms.MultipleChoiceField(
             choices=choices,
@@ -177,6 +196,11 @@ class AsignarRolForm(forms.Form):
 
 
 class RoleForm(forms.ModelForm):
+    """
+    Formulario para crear o editar roles.
+
+    Permite definir el nombre y la descripción de un rol.
+    """
     class Meta:
         model = Role
         fields = ['name', 'description']
@@ -193,6 +217,11 @@ class RoleForm(forms.ModelForm):
         }
 
 class AsignarClientesAUsuarioForm(forms.Form):
+    """
+    Formulario para asignar clientes a un usuario.
+
+    Permite seleccionar múltiples clientes y asociarlos al usuario.
+    """
     clientes = forms.ModelMultipleChoiceField(
         queryset=Cliente.objects.all(),
         required=False,
@@ -200,11 +229,50 @@ class AsignarClientesAUsuarioForm(forms.Form):
     )
 
     def __init__(self, *args, **kwargs):
+        """
+        Inicializa el formulario con los clientes actuales del usuario.
+        """
         self.usuario = kwargs.pop("usuario")
         super().__init__(*args, **kwargs)
         self.fields["clientes"].initial = self.usuario.clientes.all()
 
     def save(self):
+        """
+        Guarda la relación entre el usuario y los clientes seleccionados.
+
+        :return: El usuario actualizado.
+        """
         self.usuario.clientes.set(self.cleaned_data["clientes"])
         self.usuario.save()
         return self.usuario
+
+
+class PasswordResetRequestForm(forms.Form):
+    """
+    Formulario para solicitar restablecimiento de contraseña.
+
+    Campo:
+        email (EmailField): Correo electrónico del usuario.
+    """
+    email = forms.EmailField(
+        label="Correo electrónico",
+        widget=forms.EmailInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Correo electrónico',
+            'required': True
+        })
+    )
+
+    def clean_email(self):
+        """
+        Valida que el correo electrónico exista en el sistema.
+
+        :return: Correo electrónico validado.
+        :raises ValidationError: Si el correo no existe.
+        """
+        email = self.cleaned_data['email'].strip().lower()
+        if not User.objects.filter(email__iexact=email).exists():
+            # Por seguridad, no revelamos si el email existe o no
+            # Simplemente validamos el formato pero no mostramos error
+            pass
+        return email

@@ -32,7 +32,13 @@
               <div class="card-body">
                 <h1>Iniciar Sesión</h1>
                 <p class="text-body-secondary">Ingresá a tu cuenta</p>
-
+                {% if messages %}
+                  {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} mt-2" role="alert">
+                      {{ message }}
+                    </div>
+                  {% endfor %}
+                {% endif %}
                 <form method="post">
                   {% csrf_token %}
 
@@ -67,10 +73,10 @@
                   <!-- Botones de acción -->
                   <div class="row">
                     <div class="col-6">
-                      <button class="btn btn-primary px-4" type="submit">Ingresar</button>
+                        <button class="btn btn-primary px-4" type="submit">Ingresar</button>
                     </div>
-                    <div class="col-6 text-end">
-                      <button class="btn btn-link px-0" type="button">¿Olvidaste tu contraseña?</button>
+                    <div class="text-end mt-2">
+                        <a href="{% url 'usuarios:password_reset' %}" class="btn btn-link px-0">¿Olvidaste tu contraseña?</a>
                     </div>
                   </div>
                 </form>

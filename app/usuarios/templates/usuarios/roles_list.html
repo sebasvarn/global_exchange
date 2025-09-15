@@ -22,6 +22,15 @@
             <a href="{% url 'usuarios:usuarios_list' %}" class="btn btn-sm btn-info">
               <i class="bi bi-people"></i> Ver Usuarios
             </a>
+            {% if show_deleted %}
+              <a href="?show_deleted=0" class="btn btn-sm btn-secondary">
+                <i class="bi bi-eye-slash"></i> Ocultar eliminados
+              </a>
+            {% else %}
+              <a href="?show_deleted=1" class="btn btn-sm btn-secondary">
+                <i class="bi bi-eye"></i> Ver eliminados
+              </a>
+            {% endif %}
           </div>
         </div>
         <div class="card-body">
@@ -39,7 +48,7 @@
                 </thead>
                 <tbody>
                   {% for role in roles %}
-                    <tr>
+                    <tr {% if role.estado == 'eliminado' %}class="table-danger"{% endif %}>
                       <td><strong>{{ role.id }}</strong></td>
                       <td>
                         <span class="badge bg-primary">{{ role.name }}</span>
@@ -66,12 +75,21 @@
                              title="Editar rol">
                             <i class="bi bi-pencil"></i>
                           </a>
-                          <a href="{% url 'usuarios:rol_delete' role.id %}" 
-                             class="btn btn-sm btn-outline-danger" 
-                             data-bs-toggle="tooltip" 
-                             title="Eliminar rol">
-                            <i class="bi bi-trash"></i>
-                          </a>
+                          {% if role.estado == 'eliminado' %}
+                            <a href="{% url 'usuarios:role_restore' role.id %}"
+                               class="btn btn-sm btn-outline-success"
+                               data-bs-toggle="tooltip"
+                               title="Restaurar rol">
+                              <i class="bi bi-arrow-counterclockwise"></i>
+                            </a>
+                          {% else %}
+                            <a href="{% url 'usuarios:rol_delete' role.id %}" 
+                               class="btn btn-sm btn-outline-danger" 
+                               data-bs-toggle="tooltip" 
+                               title="Eliminar rol">
+                              <i class="bi bi-trash"></i>
+                            </a>
+                          {% endif %}
                         </div>
                       </td>
                     </tr>

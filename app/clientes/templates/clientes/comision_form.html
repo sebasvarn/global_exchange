@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}{% if obj %}Editar{% else %}Nueva{% endif %} Tasa{% endblock %}
+
+{% block content %}
+<h1 class="h4 mb-3">{% if obj %}Editar{% else %}Nueva{% endif %} Tasa de Comisión</h1>
+
+<form method="post" class="card p-3">
+  {% csrf_token %}
+  <div class="row g-3">
+    <div class="col-md-4">
+      <label class="form-label">Segmento</label>
+      {{ form.tipo_cliente }}
+      {{ form.tipo_cliente.errors }}
+    </div>
+
+    <div class="col-md-3">
+      <label class="form-label">% Comisión</label>
+      {{ form.porcentaje }}
+      {{ form.porcentaje.errors }}
+    </div>
+
+    <div class="col-md-3">
+      <label class="form-label">Vigente desde</label>
+      {{ form.vigente_desde }}
+      {{ form.vigente_desde.errors }}
+    </div>
+
+    <div class="col-md-3">
+      <label class="form-label">Vigente hasta</label>
+      {{ form.vigente_hasta }}
+      {{ form.vigente_hasta.errors }}
+    </div>
+
+    <div class="col-md-3">
+      <label class="form-label">Estado</label>
+      {{ form.estado }}
+      {{ form.estado.errors }}
+    </div>
+  </div>
+
+  <div class="mt-3 d-flex gap-2">
+    <button class="btn btn-primary">Guardar</button>
+    <a class="btn btn-outline-secondary" href="{% url 'clientes:comisiones_list' %}">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

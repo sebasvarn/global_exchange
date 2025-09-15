@@ -5,6 +5,9 @@ import sys
 
 
 def main():
+    """
+    Ejecuta tareas administrativas de Django desde la línea de comandos.
+    """
     """Run administrative tasks."""
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "global_exchange.settings.dev")
     try:

@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4">
+    <h2>{% if method %}Editar{% else %}Nuevo{% endif %} Método de Pago</h2>
+    <form method="post">
+        {% csrf_token %}
+        {% if cliente %}
+            <div class="mb-3">
+                <label class="form-label fw-bold">Cliente</label>
+                <input type="text" class="form-control" value="{{ cliente.nombre }}" readonly>
+            </div>
+        {% endif %}
+        <div class="mb-3">
+            <label for="id_payment_type" class="form-label fw-bold">Tipo de Método de Pago</label>
+            {{ form.payment_type }}
+        </div>
+        <div id="campos-tarjeta" style="display:none;">
+            <div class="mb-3"><label class="form-label">Nombre en tarjeta</label>{{ form.tarjeta_nombre }}</div>
+            <div class="mb-3"><label class="form-label">Número de tarjeta</label>{{ form.tarjeta_numero }}</div>
+            <div class="mb-3"><label class="form-label">Fecha de vencimiento</label>{{ form.tarjeta_vencimiento }}</div>
+            <div class="mb-3"><label class="form-label">CVV/CVC</label>{{ form.tarjeta_cvv }}</div>
+            <div class="mb-3"><label class="form-label">Marca de tarjeta</label>{{ form.tarjeta_marca }}</div>
+        </div>
+        <div id="campos-cuenta" style="display:none;">
+            <div class="mb-3"><label class="form-label">Nombre del titular</label>{{ form.titular_cuenta }}</div>
+            <div class="mb-3"><label class="form-label">Tipo de cuenta</label>{{ form.tipo_cuenta }}</div>
+            <div class="mb-3"><label class="form-label">Banco</label>{{ form.banco }}</div>
+            <div class="mb-3"><label class="form-label">Número de cuenta o IBAN</label>{{ form.numero_cuenta }}</div>
+        </div>
+        <div id="campos-billetera" style="display:none;">
+            <div class="mb-3"><label class="form-label">Proveedor</label>{{ form.proveedor_billetera }}</div>
+            <div class="mb-3"><label class="form-label">Email o teléfono asociado</label>{{ form.billetera_email_telefono }}</div>
+            <div class="mb-3"><label class="form-label">Nombre del titular (opcional)</label>{{ form.billetera_titular }}</div>
+        </div>
+        <!-- campos-generales eliminados: ya no existen en el modelo ni en el form -->
+        <button type="submit" class="btn btn-success">Guardar</button>
+    <a href="{% url 'payments:payment_methods_by_client' %}" class="btn btn-secondary">Cancelar</a>
+        <script>
+        function mostrarCamposPorTipo(tipo) {
+            document.getElementById('campos-tarjeta').style.display = (tipo === 'tarjeta') ? '' : 'none';
+            document.getElementById('campos-cuenta').style.display = (tipo === 'cuenta_bancaria') ? '' : 'none';
+            document.getElementById('campos-billetera').style.display = (tipo === 'billetera') ? '' : 'none';
+        }
+        const selectTipo = document.getElementById('id_payment_type');
+        if (selectTipo) {
+            selectTipo.addEventListener('change', function() {
+                mostrarCamposPorTipo(this.value);
+            });
+            // Mostrar campos correctos al cargar
+            mostrarCamposPorTipo(selectTipo.value);
+        }
+        </script>
+    </form>
+</div>
+{% endblock %}

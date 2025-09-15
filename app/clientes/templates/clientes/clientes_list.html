@@ -1,50 +1,178 @@
 {% extends "base.html" %}
+{% load static %}
+
 {% block title %}Lista de Clientes{% endblock %}
 
-{% block content %}
-<div class="container mt-4">
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2>Clientes</h2>
-    <a href="{% url 'clientes:cliente_create' %}" class="btn btn-primary">
-      <i class="bi bi-plus-circle"></i> Nuevo Cliente
-    </a>
-  </div>
+{% block breadcrumb %}
+<a href="{% url 'usuarios:dashboard' %}">Inicio</a>
+<span class="breadcrumb-item active">Clientes</span>
+{% endblock %}
 
-  <table class="table table-bordered table-hover">
-    <thead class="table-light">
-      <tr>
-        <th>Nombre</th>
-        <th>Categoría</th>
-        <th>Usuarios</th>
-        <th>Acciones</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for c in clientes %}
-      <tr>
-        <td>{{ c.nombre }}</td>
-        <td>{{ c.get_tipo_display }}</td>
-        <td>
-          {% for u in c.usuarios.all %}
-            <span class="badge bg-info">{{ u.email }}</span>
-          {% empty %}
-            <span class="text-muted">Sin usuarios</span>
-          {% endfor %}
-        </td>
-        <td>
-          <a href="{% url 'clientes:cliente_edit' c.id %}" class="btn btn-sm btn-warning">Editar</a>
-          <a href="{% url 'clientes:cliente_delete' c.id %}" class="btn btn-sm btn-danger">Eliminar</a>
-          <a href="{% url 'clientes:asignar_usuarios' c.id %}" class="btn btn-sm btn-info">
-            <i class="bi bi-person-plus"></i> Asignar Usuarios
-          </a>
-        </td>
-      </tr>
-      {% empty %}
-      <tr>
-        <td colspan="4" class="text-center text-muted">No hay clientes registrados</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+{% block content %}
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header">
+          <strong>Clientes Registrados</strong>
+          <div class="card-header-actions">
+            <a href="{% url 'clientes:cliente_create' %}" class="btn btn-sm btn-success me-2">
+              <i class="bi bi-building-add"></i> Nuevo Cliente
+            </a>
+            {% if show_deleted %}
+              <a href="?show_deleted=0" class="btn btn-sm btn-secondary">
+                <i class="bi bi-eye-slash"></i> Ocultar eliminados
+              </a>
+            {% else %}
+              <a href="?show_deleted=1" class="btn btn-sm btn-secondary">
+                <i class="bi bi-eye"></i> Ver eliminados
+              </a>
+            {% endif %}
+          </div>
+        </div>
+        <div class="card-body">
+          {% if clientes %}
+            <div class="table-responsive">
+              <table class="table table-striped table-hover">
+                <thead class="table-light">
+                  <tr>
+                    <th>ID</th>
+                    <th>Nombre</th>
+                    <th>Categoría</th>
+                    <th>Usuarios Asociados</th>
+                    <th class="text-center">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for c in clientes %}
+                    <tr {% if c.estado == 'eliminado' %}class="table-danger"{% endif %}>
+                      <td><strong>{{ c.id }}</strong></td>
+                      <td>{{ c.nombre }}</td>
+                      <td>{{ c.get_tipo_display }}</td>
+                      <td>
+                        {% for u in c.usuarios.all %}
+                          <span class="badge bg-info me-1">{{ u.email }}</span>
+                        {% empty %}
+                          <span class="text-muted">Sin usuarios</span>
+                        {% endfor %}
+                      </td>
+                      <td class="text-center">
+                        <div class="btn-group" role="group">
+                          <a href="{% url 'clientes:cliente_edit' c.id %}"
+                             class="btn btn-sm btn-outline-warning"
+                             data-bs-toggle="tooltip"
+                             title="Editar cliente">
+                            <i class="bi bi-pencil"></i>
+                          </a>
+                          {% if c.estado == 'eliminado' %}
+                            <a href="{% url 'clientes:cliente_restore' c.id %}"
+                               class="btn btn-sm btn-outline-success"
+                               data-bs-toggle="tooltip"
+                               title="Restaurar cliente">
+                              <i class="bi bi-arrow-counterclockwise"></i>
+                            </a>
+                          {% else %}
+                            <a href="{% url 'clientes:cliente_delete' c.id %}"
+                               class="btn btn-sm btn-outline-danger"
+                               data-bs-toggle="tooltip"
+                               title="Eliminar cliente">
+                              <i class="bi bi-trash"></i>
+                            </a>
+                          {% endif %}
+                          <a href="{% url 'clientes:asignar_usuarios' c.id %}"
+                             class="btn btn-sm btn-outline-info"
+                             data-bs-toggle="tooltip"
+                             title="Asignar usuarios">
+                            <i class="bi bi-person-plus"></i>
+                          </a>
+                        </div>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Estadísticas -->
+            <div class="row mt-4">
+              <div class="col-md-4">
+                <div class="card text-bg-primary">
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div>
+                        <h5 class="card-title mb-0">Total Clientes</h5>
+                        <h2 class="mb-0">{{ clientes|length }}</h2>
+                      </div>
+                      <i class="bi bi-building fs-1 opacity-75"></i>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="card text-bg-success">
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div>
+                        <h5 class="card-title mb-0">Clientes Activos</h5>
+                        <h2 class="mb-0" id="clientes-activos">0</h2>
+                      </div>
+                      <i class="bi bi-check-circle fs-1 opacity-75"></i>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="card text-bg-danger">
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div>
+                        <h5 class="card-title mb-0">Clientes Eliminados</h5>
+                        <h2 class="mb-0" id="clientes-eliminados">0</h2>
+                      </div>
+                      <i class="bi bi-trash fs-1 opacity-75"></i>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          {% else %}
+            <div class="alert alert-info">
+              <i class="bi bi-info-circle me-2"></i>
+              No hay clientes registrados en el sistema.
+              <a href="{% url 'clientes:cliente_create' %}" class="btn btn-sm btn-primary ms-2">
+                Crear primer cliente
+              </a>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Contar clientes activos y eliminados
+    const rows = document.querySelectorAll('tbody tr');
+    let activeCount = 0;
+    let deletedCount = 0;
+
+    rows.forEach(row => {
+        if (row.classList.contains('table-danger')) {
+            deletedCount++;
+        } else {
+            activeCount++;
+        }
+    });
+
+    document.getElementById('clientes-activos').textContent = activeCount;
+    document.getElementById('clientes-eliminados').textContent = deletedCount;
+
+    // Inicializar tooltips
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(el => new bootstrap.Tooltip(el));
+});
+</script>
 {% endblock %}

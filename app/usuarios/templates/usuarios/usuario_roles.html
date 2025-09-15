@@ -11,7 +11,7 @@
         <div class="card-header">
           <strong>Roles del Usuario</strong>
           <div class="card-header-actions">
-            <a href="{% url 'usuarios:asignar_rol_a_usuario' usuario.id %}" class="btn btn-sm btn-primary">
+            <a href="{% url 'usuarios:asignar_rol' usuario.id %}" class="btn btn-sm btn-primary">
               <i class="cil-settings"></i> Modificar Roles
             </a>
             <a href="{% url 'usuarios:usuarios_list' %}" class="btn btn-sm btn-secondary">
@@ -29,9 +29,9 @@
                     <strong>Email:</strong> {{ usuario.email }}<br>
                     <strong>Estado:</strong> 
                     {% if usuario.is_active %}
-                      <span class="badge badge-success">Activo</span>
+                      <span>Activo</span>
                     {% else %}
-                      <span class="badge badge-danger">Inactivo</span>
+                      <span>Inactivo</span>
                     {% endif %}<br>
                     <strong>Fecha de registro:</strong> {{ usuario.date_joined|date:"d/m/Y H:i" }}
                   </p>
@@ -57,7 +57,7 @@
                       {% for user_role in roles_usuario %}
                         <tr>
                           <td>
-                            <span class="badge badge-primary">{{ user_role.role.name }}</span>
+                            <span>{{ user_role.role.name }}</span>
                           </td>
                           <td>{{ user_role.role.description|default:"Sin descripción" }}</td>
                           <td>{{ user_role.assigned_at|date:"d/m/Y H:i" }}</td>
@@ -70,7 +70,7 @@
                 <div class="alert alert-warning">
                   <i class="cil-warning"></i>
                   Este usuario no tiene roles asignados.
-                  <a href="{% url 'usuarios:asignar_rol_a_usuario' usuario.id %}" class="btn btn-sm btn-primary ml-2">
+                  <a href="{% url 'usuarios:asignar_rol' usuario.id %}" class="btn btn-sm btn-primary ml-2">
                     Asignar Roles
                   </a>
                 </div>

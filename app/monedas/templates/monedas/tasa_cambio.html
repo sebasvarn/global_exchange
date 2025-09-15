@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% load monedas_extra %}
+{% block title %}Tasas de Cambio - Global Exchange{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="card shadow">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+      <h4 class="mb-0">Tasas de cambio</h4>
+      <div class="small">
+        {% if system_base %}
+          <span class="badge bg-light text-dark">Base del sistema: <strong>{{ system_base }}</strong></span>
+        {% endif %}
+        {% if api_base %}
+          <span class="badge bg-warning text-dark ms-2">Base (fuente): <strong>{{ api_base }}</strong></span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card-body">
+      {% if ultima_actualizacion %}
+        <p class="text-muted mb-3">
+          Última actualización:
+          <strong>
+            {% if ultima_actualizacion|stringformat:"s"|slice:":1" == "2" %}
+              {# cadena ISO #}
+              {{ ultima_actualizacion|date:"d/m/Y H:i" }}
+            {% else %}
+              {{ ultima_actualizacion|date:"d/m/Y H:i" }}
+            {% endif %}
+          </strong>
+        </p>
+      {% endif %}
+
+      <div class="table-responsive">
+        <table class="table table-bordered table-hover align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Moneda</th>
+              <th class="text-end">Compra</th>
+              <th class="text-end">Venta</th>
+              <th class="text-center">Variación</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for tasa in tasas %}
+            <tr>
+              <td>
+                <strong>{{ tasa.moneda.codigo }}</strong><br>
+                <small class="text-muted">{{ tasa.moneda.nombre }}</small>
+              </td>
+              <td class="fw-bold text-success text-end">
+                {{ tasa.moneda.simbolo }} {{ tasa.compra|money:tasa.moneda.decimales }}
+              </td>
+              <td class="fw-bold text-danger text-end">
+                {{ tasa.moneda.simbolo }} {{ tasa.venta|money:tasa.moneda.decimales }}
+              </td>
+              <td class="text-center">
+                {% if tasa.variacion > 0 %}
+                  <span class="text-success">▲ {{ tasa.variacion }}%</span>
+                {% elif tasa.variacion < 0 %}
+                  <span class="text-danger">▼ {{ tasa.variacion }}%</span>
+                {% else %}
+                  <span class="text-warning">→ {{ tasa.variacion }}%</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="4" class="text-center text-muted">No hay tasas disponibles.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

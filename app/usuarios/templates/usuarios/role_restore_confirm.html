@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Restaurar Rol{% endblock %}
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-6">
+      <div class="card border-success">
+        <div class="card-header bg-success text-white">
+          <h4 class="mb-0"><i class="bi bi-arrow-counterclockwise"></i> Restaurar Rol</h4>
+        </div>
+        <div class="card-body">
+          <p>¿Estás seguro que deseas restaurar el rol <strong>{{ role.name }}</strong>?</p>
+          <form method="post">
+            {% csrf_token %}
+            <div class="d-flex gap-2">
+              <button type="submit" class="btn btn-success">
+                <i class="bi bi-arrow-counterclockwise"></i> Restaurar
+              </button>
+              <a href="{% url 'usuarios:roles_list' %}" class="btn btn-secondary">
+                <i class="bi bi-x-lg"></i> Cancelar
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

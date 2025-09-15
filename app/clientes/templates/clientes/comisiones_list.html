@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Tasas de Comisión{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h4 mb-0">Tasas de Comisión</h1>
+  <a class="btn btn-primary" href="{% url 'clientes:comision_create' %}">Nueva tasa</a>
+</div>
+
+<form class="mb-3" method="get">
+  <input type="hidden" name="show_deleted" value="{% if show_deleted %}0{% else %}1{% endif %}">
+  <button class="btn btn-sm btn-outline-secondary" type="submit">
+    {% if show_deleted %}Ocultar eliminadas{% else %}Mostrar eliminadas{% endif %}
+  </button>
+</form>
+
+<div class="table-responsive">
+<table class="table table-striped align-middle">
+  <thead>
+    <tr>
+      <th>Segmento</th>
+      <th>% Comisión</th>
+      <th>Desde</th>
+      <th>Hasta</th>
+      <th>Estado</th>
+      <th class="text-end">Acciones</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in items %}
+    <tr>
+      <td>{{ r.get_tipo_cliente_display }}</td>
+      <td>{{ r.porcentaje }}%</td>
+      <td>{{ r.vigente_desde|date:"d/m/Y" }}</td>
+      <td>{% if r.vigente_hasta %}{{ r.vigente_hasta|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+      <td>{{ r.estado }}</td>
+      <td class="text-end">
+        <a class="btn btn-sm btn-outline-primary" href="{% url 'clientes:comision_edit' r.pk %}">Editar</a>
+        {% if r.estado == "ELIMINADO" %}
+          <a class="btn btn-sm btn-outline-success" href="{% url 'clientes:comision_restore' r.pk %}">Restaurar</a>
+        {% else %}
+          <a class="btn btn-sm btn-outline-danger" href="{% url 'clientes:comision_delete' r.pk %}">Eliminar</a>
+        {% endif %}
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="6" class="text-center text-muted">Sin registros</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

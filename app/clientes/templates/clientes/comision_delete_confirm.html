@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Eliminar Tasa{% endblock %}
+{% block content %}
+<h1 class="h5">Eliminar Tasa de Comisión</h1>
+<p>¿Confirmás eliminar lógicamente <strong>{{ obj }}</strong>?</p>
+<form method="post">{% csrf_token %}
+  <button class="btn btn-danger">Eliminar</button>
+  <a class="btn btn-outline-secondary" href="{% url 'clientes:comisiones_list' %}">Cancelar</a>
+</form>
+{% endblock %}

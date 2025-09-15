@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Eliminar Cliente - {{ cliente.nombre }}{% endblock %}
+
+{% block breadcrumb %}
+<a href="{% url 'usuarios:dashboard' %}">Inicio</a>
+<a href="{% url 'clientes:clientes_list' %}" class="breadcrumb-item">Clientes</a>
+<span class="breadcrumb-item active">Eliminar Cliente</span>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <div class="row justify-content-center">
+    <div class="col-md-8">
+      <div class="card border-danger">
+        <div class="card-header bg-danger text-white">
+          <strong>
+            <i class="bi bi-exclamation-triangle"></i>
+            Confirmar Eliminación de Cliente
+          </strong>
+          <div class="card-header-actions">
+            <a href="{% url 'clientes:clientes_list' %}" class="btn btn-sm btn-outline-light">
+              <i class="bi bi-arrow-left"></i> Volver
+            </a>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            <strong>¡Atención!</strong> Esta acción eliminará el cliente y puede afectar a usuarios asociados.
+          </div>
+
+          <h5>¿Está seguro que desea eliminar el cliente "<strong>{{ cliente.nombre }}</strong>"?</h5>
+
+          <div class="row mt-4">
+            <div class="col-md-6">
+              <div class="card">
+                <div class="card-body">
+                  <h6 class="card-title">Información del Cliente</h6>
+                  <p class="card-text">
+                    <strong>Nombre:</strong> {{ cliente.nombre }}<br>
+                    <strong>Categoría:</strong> {{ cliente.get_tipo_display }}<br>
+                    <strong>Usuarios asociados:</strong> {{ cliente.usuarios.count }}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {% if cliente.usuarios.exists %}
+              <div class="col-md-6">
+                <div class="card border-warning">
+                  <div class="card-body">
+                    <h6 class="card-title text-warning">
+                      <i class="bi bi-exclamation-circle"></i>
+                      Usuarios Afectados
+                    </h6>
+                    <p class="card-text">Este cliente tiene usuarios asociados:</p>
+                    <div class="mb-2">
+                      {% for u in cliente.usuarios.all %}
+                        <span class="badge bg-info me-1 mb-1">{{ u.email }}</span>
+                      {% endfor %}
+                    </div>
+                    <small class="text-muted">
+                      Estos usuarios perderán acceso a operar con este cliente.
+                    </small>
+                  </div>
+                </div>
+              </div>
+            {% endif %}
+          </div>
+
+          <!-- Advertencias adicionales -->
+          <div class="row mt-3">
+            <div class="col-12">
+              <div class="alert alert-warning">
+                <h6 class="alert-heading">
+                  <i class="bi bi-info-circle"></i>
+                  Consecuencias de la eliminación:
+                </h6>
+                <ul class="mb-0">
+                  <li>El cliente será marcado como eliminado</li>
+                  <li>Los usuarios asociados perderán vínculo con este cliente</li>
+                  <li>No se podrán realizar operaciones en su nombre</li>
+                  <li>Esta acción no se puede revertir</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-4 d-flex gap-2">
+            <a href="#"
+               class="btn btn-danger"
+               data-coreui-toggle="modal"
+               data-coreui-target="#confirmDeleteModal"
+               data-message="¿Está absolutamente seguro que deseas eliminar el cliente '{{ cliente.nombre }}'?"
+               data-url="{% url 'clientes:cliente_delete' cliente.id %}">
+              <i class="bi bi-trash"></i> Sí, Eliminar Cliente
+            </a>
+            <a href="{% url 'clientes:clientes_list' %}" class="btn btn-secondary">
+              <i class="bi bi-x-lg"></i>
+              Cancelar
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Confirmacion -->
+<div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-danger">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title">
+          <i class="bi bi-exclamation-triangle"></i> Confirmar Eliminación
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-coreui-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p id="confirmDeleteMessage">¿Estás seguro que deseas eliminar este cliente?</p>
+      </div>
+      <div class="modal-footer">
+        <form id="confirmDeleteForm" method="post">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-danger" id="confirmDeleteBtn">
+            <i class="bi bi-trash"></i> Eliminar
+          </button>
+          <button type="button" class="btn btn-secondary" data-coreui-dismiss="modal">
+            <i class="bi bi-x-lg"></i> Cancelar
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const modal = document.getElementById('confirmDeleteModal');
+  const messageEl = document.getElementById('confirmDeleteMessage');
+  const form = document.getElementById('confirmDeleteForm');
+  const deleteButton = document.getElementById('confirmDeleteBtn');
+
+  if (!modal) return;
+
+  modal.addEventListener('show.coreui.modal', e => {
+    const button = e.relatedTarget;
+    if (!button) return;
+
+    const message = button.getAttribute('data-message');
+    const url = button.getAttribute('data-url');
+
+    messageEl.textContent = message;
+    form.setAttribute('action', url);
+
+    // Countdown seguridad
+    deleteButton.disabled = true;
+    let countdown = 5;
+    const originalText = '<i class="bi bi-trash"></i> Eliminar';
+
+    function updateButton() {
+      if (countdown > 0) {
+        deleteButton.innerHTML = `<i class="bi bi-clock"></i> Espere ${countdown}s`;
+        countdown--;
+        setTimeout(updateButton, 1000);
+      } else {
+        deleteButton.innerHTML = originalText;
+        deleteButton.disabled = false;
+      }
+    }
+    updateButton();
+  });
+
+  modal.addEventListener('hidden.coreui.modal', () => {
+    deleteButton.innerHTML = '<i class="bi bi-trash"></i> Eliminar';
+    deleteButton.disabled = false;
+  });
+});
+</script>
+{% endblock %}

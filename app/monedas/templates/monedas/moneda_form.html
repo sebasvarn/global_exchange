@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}{% if moneda %}Editar Moneda{% else %}Nueva Moneda{% endif %}{% endblock %}
+{% block content %}
+<div class="container mt-4">
+  <h2>{% if moneda %}Editar Moneda{% else %}Nueva Moneda{% endif %}</h2>
+
+  <form method="post" class="mt-3">
+    {% csrf_token %}
+    <div class="row g-3">
+      <div class="col-md-3">
+        <label class="form-label">Código ISO</label>
+        {{ form.codigo }}
+        {% for e in form.codigo.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="col-md-5">
+        <label class="form-label">Nombre</label>
+        {{ form.nombre }}
+        {% for e in form.nombre.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Símbolo</label>
+        {{ form.simbolo }}
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Decimales</label>
+        {{ form.decimales }}
+      </div>
+      <div class="col-md-4 form-check ms-2">
+        {{ form.activa }} <label class="form-check-label">Activa</label>
+      </div>
+      <div class="col-md-4 form-check ms-2">
+        {{ form.es_base }} <label class="form-check-label">Moneda base</label>
+      </div>
+    </div>
+
+    <div class="mt-3 d-flex gap-2">
+      <button type="submit" class="btn btn-success"><i class="bi bi-check-circle"></i> Guardar</button>
+      <a href="{% url 'monedas:monedas_list' %}" class="btn btn-secondary">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

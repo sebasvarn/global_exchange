@@ -21,4 +21,4 @@ Thumbs.db
 .idea/
 
 # Build de Sphinx
-docs/build/
+app/docs/build/

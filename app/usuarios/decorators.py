@@ -9,9 +9,10 @@ def role_required(*required_roles):
     """
     Decorador que requiere que el usuario tenga al menos uno de los roles especificados.
 
-    Uso:
-    @role_required("Admin")
-    @role_required("Admin", "Moderator")
+    Ejemplo::
+
+        @role_required("Admin")
+        @role_required("Admin", "Moderator")
     """
 
     def decorator(view_func):
@@ -46,10 +47,11 @@ def admin_required(view_func):
     """
     Decorador que requiere rol de Admin.
 
-    Uso:
-    @admin_required
-    def my_view(request):
-        ...
+    Ejemplo::
+
+        @admin_required
+        def my_view(request):
+            ...
     """
     return role_required("Admin")(view_func)
 
@@ -59,10 +61,11 @@ def role_required_or_owner(required_role):
     Decorador que permite acceso si el usuario tiene el rol requerido
     o si es el propietario del objeto (para vistas que modifican perfil propio).
 
-    Uso:
-    @role_required_or_owner("Admin")
-    def edit_user(request, user_id):
-        ...
+    Ejemplo::
+
+        @role_required_or_owner("Admin")
+        def edit_user(request, user_id):
+            ...
     """
 
     def decorator(view_func):

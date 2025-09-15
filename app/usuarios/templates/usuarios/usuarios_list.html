@@ -19,9 +19,18 @@
             <a href="{% url 'usuarios:usuario_create' %}" class="btn btn-sm btn-success me-2">
               <i class="bi bi-person-plus"></i> Nuevo Usuario
             </a>
-            <a href="{% url 'usuarios:roles_list' %}" class="btn btn-sm btn-info">
+            <a href="{% url 'usuarios:roles_list' %}" class="btn btn-sm btn-info me-2">
               <i class="bi bi-shield-check"></i> Gestionar Roles
             </a>
+            {% if show_deleted %}
+              <a href="?show_deleted=0" class="btn btn-sm btn-secondary">
+                <i class="bi bi-eye-slash"></i> Ocultar eliminados
+              </a>
+            {% else %}
+              <a href="?show_deleted=1" class="btn btn-sm btn-secondary">
+                <i class="bi bi-eye"></i> Ver eliminados
+              </a>
+            {% endif %}
           </div>
         </div>
         <div class="card-body">
@@ -40,15 +49,17 @@
                 </thead>
                 <tbody>
                   {% for usuario in usuarios %}
-                    <tr>
+                    <tr {% if usuario.estado == 'eliminado' %}class="table-danger"{% endif %}>
                       <td><strong>{{ usuario.id }}</strong></td>
                       <td>{{ usuario.email }}</td>
                       <td>
-                        {% if usuario.is_active %}
+                        {% if usuario.estado == 'eliminado' %}
+                          <span class="badge bg-secondary ms-1">Eliminado</span>
+                        {% elif usuario.is_active %}
                           <span class="badge bg-success">Activo</span>
                         {% else %}
                           <span class="badge bg-danger">Inactivo</span>
-                        {% endif %}
+                        {% endif %}<br>
                       </td>
                       <td>
                         {% for role in usuario.get_roles %}
@@ -78,12 +89,21 @@
                              title="Editar usuario">
                             <i class="bi bi-pencil"></i>
                           </a>
-                          <a href="{% url 'usuarios:usuario_delete' usuario.id %}"
-                             class="btn btn-sm btn-outline-danger"
-                             data-bs-toggle="tooltip"
-                             title="Eliminar usuario">
-                            <i class="bi bi-trash"></i>
-                          </a>
+                          {% if usuario.estado == 'eliminado' %}
+                            <a href="{% url 'usuarios:usuario_restore' usuario.id %}"
+                               class="btn btn-sm btn-outline-success"
+                               data-bs-toggle="tooltip"
+                               title="Restaurar usuario">
+                              <i class="bi bi-arrow-counterclockwise"></i>
+                            </a>
+                          {% else %}
+                            <a href="{% url 'usuarios:usuario_delete' usuario.id %}"
+                               class="btn btn-sm btn-outline-danger"
+                               data-bs-toggle="tooltip"
+                               title="Eliminar usuario">
+                              <i class="bi bi-trash"></i>
+                            </a>
+                          {% endif %}
                         </div>
                       </td>
                     </tr>
