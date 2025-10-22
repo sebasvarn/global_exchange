@@ -15,7 +15,27 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
-from .models import Moneda, TasaCambio
+from .models import Moneda, TasaCambio, PrecioBaseComision
+class PrecioBaseComisionForm(forms.ModelForm):
+    class Meta:
+        model = PrecioBaseComision
+        fields = ['moneda', 'precio_base', 'comision_compra', 'comision_venta']
+        labels = {
+            'moneda': 'Moneda',
+            'precio_base': 'Precio base',
+            'comision_compra': 'Comisión de compra',
+            'comision_venta': 'Comisión de venta',
+        }
+        widgets = {
+            'moneda': forms.Select(attrs={'class': 'form-select'}),
+            'precio_base': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0.01'}),
+            'comision_compra': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
+            'comision_venta': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['moneda'].queryset = Moneda.objects.filter(activa=True, es_base=False)
 
 
 class MonedaForm(forms.ModelForm):

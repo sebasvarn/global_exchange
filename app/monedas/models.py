@@ -41,6 +41,24 @@ class MonedaManager(models.Manager):
     def all_with_inactive(self):
         return super().get_queryset()
 
+class PrecioBaseComision(models.Model):
+    """
+    Modelo para almacenar precio base y comisiones por moneda registrada.
+    """
+    moneda = models.ForeignKey('Moneda', on_delete=models.CASCADE, related_name='precios_comisiones')
+    precio_base = models.DecimalField('Precio base', max_digits=12, decimal_places=2)
+    comision_compra = models.DecimalField('Comisión de compra', max_digits=10, decimal_places=2)
+    comision_venta = models.DecimalField('Comisión de venta', max_digits=10, decimal_places=2)
+    fecha_creacion = models.DateTimeField('Fecha de creación', auto_now_add=True)
+    fecha_actualizacion = models.DateTimeField('Última actualización', auto_now=True)
+
+    class Meta:
+        verbose_name = 'Precio base y comisión'
+        verbose_name_plural = 'Precios base y comisiones'
+        unique_together = ('moneda',)
+
+    def __str__(self):
+        return f'{self.moneda.codigo} - Base: {self.precio_base} | Compra: {self.comision_compra}% | Venta: {self.comision_venta}%'
 
 class Moneda(models.Model):
     """
@@ -137,7 +155,7 @@ class TasaCambio(models.Model):
     moneda = models.ForeignKey(Moneda, on_delete=models.CASCADE, related_name='tasas')
     compra = models.DecimalField('Compra', max_digits=12, decimal_places=2)
     venta = models.DecimalField('Venta', max_digits=12, decimal_places=2)
-    variacion = models.DecimalField('Variación %', max_digits=5, decimal_places=2, default=0,
+    variacion = models.DecimalField('Variación %', max_digits=7, decimal_places=2, default=0,
                                     editable=False)
 
     base_codigo = models.CharField('Base de cotización', max_length=3, validators=[ISO4217], default='PYG')

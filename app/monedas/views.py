@@ -21,14 +21,13 @@ CRUD TasaCambio:
 - tasa_delete
 - tasa_marcar_activa
 """
-
 from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, permission_required
 from django.db import transaction
 from django.shortcuts import render, get_object_or_404, redirect
-from .forms import MonedaForm, TasaCambioForm
-from .models import Moneda, TasaCambio
+from .forms import MonedaForm, TasaCambioForm, PrecioBaseComisionForm
+from .models import Moneda, TasaCambio, PrecioBaseComision
 from clientes.models import TasaComision
 from usuarios.decorators import role_required
 from django.http import JsonResponse
@@ -220,15 +219,16 @@ def tasas_list(request):
     moneda_id = request.GET.get('moneda')
     solo_activas = request.GET.get('solo_activas') == '1'
 
-    qs = TasaCambio.objects.select_related('moneda').all().order_by('-fecha_creacion')
+    # Mostrar los registros de la tabla TasaCambio
+    tasas_qs = TasaCambio.objects.select_related('moneda').order_by('-fecha_creacion')
     if moneda_id:
-        qs = qs.filter(moneda_id=moneda_id)
+        tasas_qs = tasas_qs.filter(moneda_id=moneda_id)
     if solo_activas:
-        qs = qs.filter(activa=True)
-
+        tasas_qs = tasas_qs.filter(activa=True)
+    tasas = list(tasas_qs)
     monedas = Moneda.objects.all().filter(activa=True, es_base=False).order_by('codigo')
     ctx = {
-        'tasas': qs,
+        'tasas': tasas,
         'monedas': monedas,
         'moneda_id': moneda_id or '',
         'solo_activas': solo_activas,
@@ -240,26 +240,17 @@ def tasas_list(request):
 @transaction.atomic
 def tasa_create(request):
     """
-    Crear nueva tasa de cambio. 
-    Siempre se guarda activa y no automática.
-
-    :param request: Objeto HttpRequest
-    :type request: HttpRequest
-    :return: Renderizado de formulario o redirección
-    :rtype: HttpResponse
+    Crear nueva cotización usando PrecioBaseComision.
     """
-    form = TasaCambioForm(request.POST or None)
+    form = PrecioBaseComisionForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
         try:
-            tasa = form.save(commit=False)
-            tasa.es_automatica = False
-            tasa.activa = True
-            tasa.save()
-            messages.success(request, 'Tasa de cambio creada correctamente.')
-            return redirect('monedas:tasas_list')
+            registro = form.save()
+            messages.success(request, 'Cotización creada correctamente.')
+            return redirect('monedas:precios_comisiones_list')
         except Exception as e:
-            messages.error(request, f'No se pudo crear la tasa: {e}')
-    return render(request, 'monedas/tasa_form.html', {'form': form})
+            messages.error(request, f'No se pudo crear la cotización: {e}')
+    return render(request, 'monedas/precio_comision_form.html', {'form': form})
 
 
 @login_required
@@ -330,3 +321,34 @@ def tasa_marcar_activa(request, tasa_id):
     tasa.save()
     messages.success(request, f'Tasa {tasa.id} marcada como activa para {tasa.moneda.codigo}.')
     return redirect('monedas:tasas_list')
+
+@login_required
+def precios_comisiones_list(request):
+    """
+    Listado de precios base y comisiones por moneda.
+    """
+    precios_comisiones = PrecioBaseComision.objects.select_related('moneda').all().order_by('moneda__codigo')
+    return render(request, 'monedas/precios_comisiones_list.html', {'precios_comisiones': precios_comisiones})
+
+@login_required
+@transaction.atomic
+def precio_comision_create(request):
+    form = PrecioBaseComisionForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        obj = form.save()
+        from django.contrib import messages
+        messages.success(request, 'Registro creado correctamente.')
+        return redirect('monedas:precios_comisiones_list')
+    return render(request, 'monedas/precio_comision_form.html', {'form': form})
+
+@login_required
+@transaction.atomic
+def precio_comision_edit(request, pk):
+    obj = get_object_or_404(PrecioBaseComision, pk=pk)
+    form = PrecioBaseComisionForm(request.POST or None, instance=obj)
+    if request.method == 'POST' and form.is_valid():
+        obj = form.save()
+        from django.contrib import messages
+        messages.success(request, 'Registro editado correctamente.')
+        return redirect('monedas:precios_comisiones_list')
+    return render(request, 'monedas/precio_comision_form.html', {'form': form, 'precio_comision': obj})

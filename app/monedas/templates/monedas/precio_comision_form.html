@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}{% if precio_comision %}Editar{% else %}Nuevo precio base y comisiones{% endif %}{% endblock %}
+{% block content %}
+<div class="card card-outline card-primary">
+  <div class="card-header">
+  <strong>{% if precio_comision %}Editar{% else %}Nuevo precio base y comisiones{% endif %}</strong>
+  </div>
+  <div class="card-body">
+    <form method="post" novalidate>
+      {% csrf_token %}
+      <div class="row g-3">
+        <div class="col-md-3">
+            <label class="form-label">{{ form.moneda.label }}</label>
+            {% if precio_comision %}
+              <div class="form-control-plaintext">{{ precio_comision.moneda.nombre }}</div>
+              <input type="hidden" name="moneda" value="{{ precio_comision.moneda.id }}">
+            {% else %}
+              {{ form.moneda }}
+            {% endif %}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">{{ form.precio_base.label }}</label>
+          {{ form.precio_base }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">{{ form.comision_compra.label }}</label>
+          {{ form.comision_compra }}
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">{{ form.comision_venta.label }}</label>
+          {{ form.comision_venta }}
+        </div>
+      </div>
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger mt-3">{{ form.non_field_errors }}</div>
+      {% endif %}
+      <div class="mt-3">
+        <button class="btn btn-primary">Guardar</button>
+        <a href="{% url 'monedas:precios_comisiones_list' %}" class="btn btn-outline-secondary">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
