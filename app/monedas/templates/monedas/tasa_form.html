@@ -1,11 +1,11 @@
 {% extends 'base.html' %}
 {% load usuarios_extras %}
-{% block title %}{% if tasa %}Editar{% else %}Nueva{% endif %} Tasa{% endblock %}
+{% block title %}{% if tasa %}Editar{% else %}Nueva Cotización{% endif %}{% endblock %}
 {% block content %}
 {% if request.user|has_any_permission:'comisiones.edit, cotizaciones.create' %}
   <div class="card card-outline card-primary">
     <div class="card-header">
-      <strong>{% if tasa %}Editar{% else %}Nueva{% endif %} tasa de cambio</strong>
+  <strong>{% if tasa %}Editar{% else %}Nueva Cotización{% endif %}</strong>
     </div>
     <div class="card-body">
       <form method="post" novalidate>

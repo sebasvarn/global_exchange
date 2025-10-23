@@ -24,4 +24,9 @@ urlpatterns = [
     path('tasas/<int:tasa_id>/editar/', views.tasa_edit, name='tasa_edit'),
     path('tasas/<int:tasa_id>/eliminar/', views.tasa_delete, name='tasa_delete'),
     path('tasas/<int:tasa_id>/activar/', views.tasa_marcar_activa, name='tasa_marcar_activa'),
+
+    # Precios base y comisiones
+    path('precios-comisiones/', views.precios_comisiones_list, name='precios_comisiones_list'),
+    path('precios-comisiones/nuevo/', views.precio_comision_create, name='precio_comision_create'),
+    path('precios-comisiones/<int:pk>/editar/', views.precio_comision_edit, name='precio_comision_edit'),
 ]

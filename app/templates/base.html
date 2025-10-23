@@ -224,8 +224,8 @@
         </li>
       {% endif %}
       <!-- Gestión de Monedas y Cotizaciones -->
-      {% if request.user|has_any_permission:'monedas.list, monedas.create, cotizaciones.list, cotizaciones.create' %}
-        <li class="nav-group {% if 'monedas' in request.resolver_match.app_name %}show{% endif %}">
+      {% if request.user|has_any_permission:'monedas.list, monedas.create' %}
+      <li class="nav-group {% if 'monedas' in request.resolver_match.app_name and request.resolver_match.url_name != 'tasas_list' and request.resolver_match.url_name != 'precios_comisiones_list' and request.resolver_match.url_name != 'tasa_create' %}show{% endif %}">
           <a class="nav-link nav-group-toggle" href="#">
             <i class="nav-icon bi bi-cash-coin"></i>
             Monedas
@@ -251,9 +251,11 @@
             {% endif %}
           </ul>
         </li>
-        {% if request.user|has_any_permission:'cotizaciones.list, cotizaciones.create' %}
+      {% endif %}
+
+      {% if request.user|has_any_permission:'cotizaciones.list, cotizaciones.create' %}
         <li class="nav-divider"></li>
-        <li class="nav-group">
+        <li class="nav-group {% if request.resolver_match.url_name == 'tasas_list' or request.resolver_match.url_name == 'precios_comisiones_list' or request.resolver_match.url_name == 'tasa_create' %}show{% endif %}">
           <a class="nav-link nav-group-toggle" href="#">
             <span class="nav-icon"><i class="bi bi-graph-up"></i></span>
             Cotizaciones
@@ -270,16 +272,22 @@
             {% endif %}
             {% if request.user|has_permission:'cotizaciones.create' %}
             <li class="nav-item">
+              <a class="nav-link {% if request.resolver_match.url_name == 'precios_comisiones_list' %}active{% endif %}"
+                  href="{% url 'monedas:precios_comisiones_list' %}">
+                <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+                Lista de Precios Base
+              </a>
+            </li>
+            <li class="nav-item">
               <a class="nav-link {% if request.resolver_match.url_name == 'tasa_create' %}active{% endif %}"
                   href="{% url 'monedas:tasa_create' %}">
                 <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
-                Nueva Cotización
+                Nuevo Precio Base
               </a>
             </li>
             {% endif %}
           </ul>
         </li>
-        {% endif %}
       {% endif %}
 
       <!-- Configuración -->

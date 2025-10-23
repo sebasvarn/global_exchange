@@ -4,17 +4,13 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h1 class="h4 mb-0">Tasas de Cambio</h1>
-  <div class="d-flex gap-2">
-    <a href="{% url 'monedas:tasa_create' %}" class="btn btn-primary">
-      <i class="bi bi-plus-circle"></i> Nueva tasa
-    </a>
-  </div>
+  <!-- Botón Nueva tasa eliminado -->
 </div>
 
 <form class="row g-2 mb-3" method="get">
   <div class="col-sm-6">
     <label class="form-label mb-0">Moneda</label>
-    <select name="moneda" class="form-select">
+    <select name="moneda" class="form-select" onchange="this.form.submit()">
       <option value="">Todas</option>
       {% for m in monedas %}
         <option value="{{ m.id }}" {% if m.id|stringformat:'s' == moneda_id %}selected{% endif %}>
@@ -22,18 +18,13 @@
         </option>
       {% endfor %}
     </select>
-  </div>
-  <div class="col-sm-3 d-flex align-items-end">
-    <div class="form-check">
-      <input class="form-check-input" type="checkbox" name="solo_activas" value="1" id="chkActivas"
-             {% if solo_activas %}checked{% endif %}>
-      <label class="form-check-label" for="chkActivas">Sólo activas</label>
+    <div class="form-check mt-2">
+      <input class="form-check-input" type="checkbox" value="1" id="solo_activas" name="solo_activas" onchange="this.form.submit()" {% if solo_activas %}checked{% endif %}>
+      <label class="form-check-label" for="solo_activas">Sólo activas</label>
     </div>
-  </div>
-  <div class="col-sm-3 d-flex align-items-end">
-    <button class="btn btn-outline-secondary w-100"><i class="bi bi-funnel"></i> Filtrar</button>
-  </div>
-</form>
+
+    </div> <!-- Close col-sm-6 -->
+  </form>
 
 <div class="card card-outline card-primary">
   <div class="table-responsive">
@@ -46,53 +37,39 @@
           <th>Venta</th>
           <th>Var.%</th>
           <th>Fuente</th>
-          <th>TS fuente</th>
           <th>Creada</th>
           <th>Activa</th>
-          <th class="text-end">Acciones</th>
         </tr>
       </thead>
       <tbody>
-        {% for t in tasas %}
-        <tr>
-          <td>{{ t.id }}</td>
-          <td><span class="badge text-bg-light border">{{ t.moneda.codigo }}</span></td>
-          <td>{{ t.compra }}</td>
-          <td>{{ t.venta }}</td>
-          <td>{{ t.variacion }}%</td>
-          <td>{{ t.fuente|default:'-' }}</td>
-          <td>{{ t.ts_fuente|date:"Y-m-d H:i" }}</td>
-          <td>{{ t.fecha_creacion|date:"Y-m-d H:i" }}</td>
-          <td>
-            {% if t.activa %}
-              <span class="badge text-bg-success">Sí</span>
-            {% else %}
-              <form action="{% url 'monedas:tasa_marcar_activa' t.id %}" method="post" class="d-inline">
-                {% csrf_token %}
-                <button class="btn btn-xs btn-outline-success">
-                  <i class="bi bi-check2-circle"></i> Activar
-                </button>
-              </form>
-            {% endif %}
-          </td>
-          <td class="text-end">
-            {% if request.user|has_permission:'cotizaciones.edit' %}
-            <a href="{% url 'monedas:tasa_edit' t.id %}" class="btn btn-sm btn-outline-primary">
-              <i class="bi bi-pencil"></i>
-            </a>
-            {% endif %}
-            {% if request.user|has_permission:'cotizaciones.delete' %}
-            <a href="{% url 'monedas:tasa_delete' t.id %}" class="btn btn-sm btn-outline-danger">
-              <i class="bi bi-trash"></i>
-            </a>
-            {% endif %}
-          </td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="10" class="text-center text-muted">Sin registros.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+          {% for t in tasas %}
+          <tr>
+            <td>{{ t.id }}</td>
+            <td><span class="badge text-bg-light border">{{ t.moneda.codigo }}</span></td>
+            <td>{{ t.compra }}</td>
+            <td>{{ t.venta }}</td>
+            <td>{{ t.variacion }}%</td>
+            <td>{% if t.fuente %}{{ t.fuente }}{% else %}BCP{% endif %}</td>
+            <td>{{ t.fecha_creacion|date:"Y-m-d H:i" }}</td>
+            <td>
+              {% if t.activa %}
+                <span class="badge text-bg-success">Sí</span>
+              {% else %}
+                <form action="{% url 'monedas:tasa_marcar_activa' t.id %}" method="post" class="d-inline">
+                  {% csrf_token %}
+                  <button class="btn btn-xs btn-outline-success">
+                    <i class="bi bi-check2-circle"></i> Activar
+                  </button>
+                </form>
+              {% endif %}
+            </td>
+            <!-- columna de edición eliminada -->
+          </tr>
+          {% empty %}
+          <tr><td colspan="8" class="text-center">Sin registros.</td></tr>
+          {% endfor %}
+            </tbody>
+          </table>
+        </div>
   </div>
-</div>
 {% endblock %}
