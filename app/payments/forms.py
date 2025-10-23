@@ -1,7 +1,16 @@
 from django import forms
 import re
-from .models import PaymentMethod
 from commons.enums import PaymentTypeEnum
+from .models import PaymentMethod, ComisionMetodoPago
+# Formulario para editar comisiones por método de pago
+class ComisionMetodoPagoForm(forms.ModelForm):
+    class Meta:
+        model = ComisionMetodoPago
+        fields = ['tipo_metodo', 'porcentaje_comision']
+        widgets = {
+            'tipo_metodo': forms.Select(attrs={'class': 'form-select'}),
+            'porcentaje_comision': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01', 'min': '0', 'max': '100'}),
+        }
 
 class PaymentMethodForm(forms.ModelForm):
     """

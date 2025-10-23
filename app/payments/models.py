@@ -3,6 +3,25 @@ from django.db import models
 from clientes.models import Cliente
 from commons.enums import PaymentTypeEnum
 
+class ComisionMetodoPago(models.Model):
+    """
+    Tabla de comisiones por tipo de método de pago.
+    """
+    TIPO_METODO_CHOICES = [
+        ("tarjeta", "Tarjeta de crédito"),
+        ("transferencia", "Transferencia"),
+        ("billetera", "Billetera")
+    ]
+    tipo_metodo = models.CharField(max_length=20, choices=TIPO_METODO_CHOICES, unique=True)
+    porcentaje_comision = models.DecimalField(max_digits=5, decimal_places=2, default=0.00, help_text="Porcentaje de comisión (ej: 5.00)")
+
+    def __str__(self):
+        return f"{self.get_tipo_metodo_display()} - {self.porcentaje_comision}%"
+
+    class Meta:
+        verbose_name = "Comisión por método de pago"
+        verbose_name_plural = "Comisiones por método de pago"
+
 class PaymentMethod(models.Model):
     """
     Modelo que representa un método de pago disponible en el sistema.

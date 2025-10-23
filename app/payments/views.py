@@ -7,13 +7,53 @@ Gestionan los métodos de pago asociados a clientes:
 - Actualización de un método de pago existente.
 - Eliminación de un método de pago existente.
 """
-
-from django.shortcuts import render, get_object_or_404, redirect
-from django.contrib import messages
-from .models import PaymentMethod
-from .forms import PaymentMethodForm
 from clientes.models import Cliente
 from commons.enums import EstadoRegistroEnum
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib import messages
+from .models import PaymentMethod, ComisionMetodoPago
+from .forms import PaymentMethodForm, ComisionMetodoPagoForm
+
+def comisiones_metodos_pago_list(request):
+    """
+    Lista y permite editar las comisiones configuradas para cada tipo de método de pago.
+    """
+    comisiones = ComisionMetodoPago.objects.all().order_by('tipo_metodo')
+    if request.method == 'POST':
+        cambios = 0
+        for c in comisiones:
+            key = f'comision_{c.pk}'
+            val = request.POST.get(key)
+            try:
+                val = float(val)
+            except (TypeError, ValueError):
+                val = c.porcentaje_comision
+            if val != float(c.porcentaje_comision):
+                c.porcentaje_comision = val
+                c.save()
+                cambios += 1
+        if cambios:
+            messages.success(request, 'Comisiones actualizadas correctamente.')
+        else:
+            messages.info(request, 'No hubo cambios en las comisiones.')
+        return redirect('payments:comisiones_metodos_pago_list')
+    return render(request, 'payments/comisiones_metodos_pago_list.html', {'comisiones': comisiones})
+
+def comision_metodo_pago_edit(request, pk):
+    """
+    Edita el porcentaje de comisión de un método de pago.
+    """
+    comision = get_object_or_404(ComisionMetodoPago, pk=pk)
+    if request.method == 'POST':
+        form = ComisionMetodoPagoForm(request.POST, instance=comision)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Comisión actualizada correctamente.')
+            return redirect('payments:comisiones_metodos_pago_list')
+    else:
+        form = ComisionMetodoPagoForm(instance=comision)
+    return render(request, 'payments/comision_metodo_pago_form.html', {'form': form, 'comision': comision})
+
 
 def payment_methods_by_client(request):
     """
