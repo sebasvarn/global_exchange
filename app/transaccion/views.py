@@ -244,6 +244,8 @@ def calcular_api(request):
             calculo = calcular_transaccion(cliente, tipo, moneda, monto)
             return JsonResponse(
                 {
+                    "descuento_pct": str(calculo.get("descuento_pct", "")),
+                    "precio_base": str(calculo.get("precio_base", "")),
                     "tasa_aplicada": str(calculo["tasa_aplicada"]),
                     "comision": str(calculo["comision"]),
                     "monto_pyg": str(calculo["monto_pyg"]),

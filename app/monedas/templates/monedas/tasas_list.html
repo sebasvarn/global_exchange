@@ -4,7 +4,6 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h1 class="h4 mb-0">Tasas de Cambio</h1>
-  <!-- Botón Nueva tasa eliminado -->
 </div>
 
 <form class="row g-2 mb-3" method="get">
@@ -23,7 +22,7 @@
       <label class="form-check-label" for="solo_activas">Sólo activas</label>
     </div>
 
-    </div> <!-- Close col-sm-6 -->
+    </div> 
   </form>
 
 <div class="card card-outline card-primary">
@@ -55,15 +54,9 @@
               {% if t.activa %}
                 <span class="badge text-bg-success">Sí</span>
               {% else %}
-                <form action="{% url 'monedas:tasa_marcar_activa' t.id %}" method="post" class="d-inline">
-                  {% csrf_token %}
-                  <button class="btn btn-xs btn-outline-success">
-                    <i class="bi bi-check2-circle"></i> Activar
-                  </button>
-                </form>
+                <span class="badge text-bg-danger">No</span>  
               {% endif %}
             </td>
-            <!-- columna de edición eliminada -->
           </tr>
           {% empty %}
           <tr><td colspan="8" class="text-center">Sin registros.</td></tr>

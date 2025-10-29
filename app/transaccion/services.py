@@ -12,7 +12,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from clientes.models import LimitePYG, LimiteMoneda, TasaComision
-from monedas.models import TasaCambio
+from monedas.models import TasaCambio, PrecioBaseComision
 from .models import Transaccion, Movimiento
 from commons.enums import EstadoTransaccionEnum, TipoTransaccionEnum, TipoMovimientoEnum
 
@@ -30,63 +30,46 @@ def calcular_transaccion(cliente, tipo, moneda, monto_operado):
     # 1) Segmento del cliente (fallback 'MIN')
     segmento = getattr(cliente, "tipo", "MIN").upper()
 
-    # 2) Tasa de cambio activa
+    # 2) Obtener precio base y comisiones desde PrecioBaseComision
     try:
-        tasa = (
-            TasaCambio.objects
-            .filter(moneda=moneda, activa=True)
-            .latest("fecha_creacion")
-        )
-    except TasaCambio.DoesNotExist:
-        raise ValidationError(f"No hay tasa de cambio activa para {moneda}.")
+        pb = PrecioBaseComision.objects.get(moneda=moneda)
+    except PrecioBaseComision.DoesNotExist:
+        raise ValidationError(f"No hay precio base/comisiones para la moneda {moneda}.")
 
-    # 3) Comisiones (mock json opcional)
-    comisiones_path = os.path.join(settings.BASE_DIR, "static", "comisiones.json")
-    try:
-        with open(comisiones_path, "r", encoding="utf-8") as f:
-            comisiones = json.load(f)
-    except Exception:
-        comisiones = []
-
-    com = next((c for c in comisiones if c.get("currency") == moneda.codigo), None)
-    comision_buy = Decimal(str(com["commission_buy"])) if com else Decimal("0")
-    comision_sell = Decimal(str(com["commission_sell"])) if com else Decimal("0")
-
-    # 4) Descuento por segmento
+    # 3) Descuento por segmento (si existe)
     tc = TasaComision.vigente_para_tipo(segmento)
     descuento_pct = Decimal(str(tc.porcentaje)) if tc else Decimal("0")
 
-    # 5) Cálculo según tipo
     monto_operado = Decimal(monto_operado)
 
-    if tipo == TipoTransaccionEnum.COMPRA:
-        # Cliente compra USD/EUR => paga PYG (ingreso PYG para la casa)
-        # Tasa base: compra del tablero +/- ajustes
-        tasa_base = tasa.compra
-        # aplicamos esquema simple: restar la porción de comisión según descuento
-        com_final = comision_buy - (comision_buy * descuento_pct / 100)
-        tasa_aplicada = tasa_base + com_final  # si tu política es sumar/ajustar
-        comision = comision_buy
+    if tipo == TipoTransaccionEnum.VENTA:
+        # Comisión de compra
+        comision = Decimal(str(pb.comision_compra))
+        comision_descuento = comision * descuento_pct / Decimal("100")
+        comision_final = comision - comision_descuento
+        tasa_aplicada = Decimal(str(pb.precio_base)) - comision_final
         monto_pyg = monto_operado * tasa_aplicada
 
-    elif tipo == TipoTransaccionEnum.VENTA:
-        # Cliente vende USD/EUR => la casa paga PYG (egreso PYG)
-        tasa_base = tasa.venta if hasattr(tasa, "venta") else tasa.compra
-        com_final = comision_sell - (comision_sell * descuento_pct / 100)
-        tasa_aplicada = tasa_base - com_final  # política inversa en venta
-        comision = comision_sell
+    elif tipo == TipoTransaccionEnum.COMPRA:
+        # Comisión de venta
+        comision = Decimal(str(pb.comision_venta))
+        comision_descuento = comision * descuento_pct / Decimal("100")
+        comision_final = comision - comision_descuento
+        tasa_aplicada = Decimal(str(pb.precio_base)) + comision_final
         monto_pyg = monto_operado * tasa_aplicada
 
     else:
         raise ValidationError("Tipo de transacción inválido.")
 
     return {
+        "descuento_pct": descuento_pct,
+        "precio_base": Decimal(str(pb.precio_base)),
         "tasa_aplicada": tasa_aplicada,
         "comision": comision,
         "monto_pyg": monto_pyg,
     }
 
-
+#creo que esta funcion ya no se usa mas
 def obtener_datos_transaccion(transaccion_id):
     try:
         tx = Transaccion.objects.select_related('cliente', 'moneda').get(pk=transaccion_id)

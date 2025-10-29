@@ -253,10 +253,12 @@
         div.classList.remove("d-none");
         div.innerHTML = `
           <i class="bi bi-info-circle"></i>
-          <strong class="ms-1">Resultado:</strong>
-          <span class="ms-2">Tasa:</span> <span class="fw-semibold">${data.tasa_aplicada}</span>
-          <span class="ms-3">Comisión:</span> <span class="fw-semibold">${data.comision}</span>
-          <span class="ms-3">Monto PYG:</span> <span class="fw-semibold">${data.monto_pyg}</span>
+          <strong class="ms-1">Resultado:</strong><br>
+          <!--<span class="ms-2">Descuento del cliente:</span> <span class="fw-semibold">${data.descuento_pct}</span><br>-->
+          <!--<span class="ms-2">Precio_base:</span> <span class="fw-semibold">${data.precio_base}</span><br>-->
+          <span class="ms-2">Tasa:</span> <span class="fw-semibold">${data.tasa_aplicada}</span><br>
+          <!--<span class="ms-2">Comisión:</span> <span class="fw-semibold">${data.comision}</span><br>-->
+          <span class="ms-2">Monto PYG:</span> <span class="fw-semibold">${data.monto_pyg}</span>
         `;
       })
       .catch(err => {

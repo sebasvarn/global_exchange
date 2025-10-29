@@ -1,15 +1,22 @@
-// Variables globales y carga de datos de comisiones
-let comisiones = [];
-// Carga el archivo de comisiones.json y lo almacena en la variable global 'comisiones'
-async function cargarComisiones() {
+// Lógica para consumir precio base y comisiones desde la futura API de preciobasecomision
+// TODO: Reemplazar 'API_PRECIO_BASE_COMISION' con el endpoint real cuando esté disponible
+const API_PRECIO_BASE_COMISION = '/monedas/precios_base_comision_json/';
+let precioBaseComisionData = [];
+
+// Función para cargar los datos de precio base y comisiones desde la API
+async function cargarPrecioBaseComision() {
 	try {
-		const resp = await fetch('/static/comisiones.json');
-		if (!resp.ok) throw new Error('No se pudo obtener comisiones');
-		comisiones = await resp.json();
+		const resp = await fetch(API_PRECIO_BASE_COMISION);
+		if (!resp.ok) throw new Error('No se pudo obtener precio base y comisiones');
+	const respJson = await resp.json();
+	// Asignar directamente el array para evitar errores con .find
+	precioBaseComisionData = respJson.precios_base_comision || [];
+	// Formato esperado: Array de objetos con { moneda, precio_base, comision_compra, comision_venta }
 	} catch (e) {
-		mostrarError('Error al cargar comisiones: ' + e.message);
+		mostrarError('Error al cargar precio base y comisiones: ' + e.message);
 	}
 }
+// ...existing code...
 // Obtiene el segmento (tipo) del cliente activo seleccionado en el dashboard
 function obtenerSegmentoClienteActivo() {
 	const form = document.getElementById('form-cliente-activo');
@@ -65,17 +72,22 @@ function limpiarMensajes() {
 async function cargarCotizaciones() {
 	try {
 		const resp = await fetch(API_COTIZACIONES);
+		console.log('Respuesta fetch cotizaciones:', resp);
 		if (!resp.ok) throw new Error('No se pudo obtener cotizaciones');
 		const data = await resp.json();
+		console.log('Datos cotizaciones JSON:', data);
 		cotizaciones = data.cotizaciones || [];
-			// Extrae monedas únicas y agrega la base PYG
+		console.log('Array cotizaciones:', cotizaciones);
+		// Extrae monedas únicas y agrega la base PYG
 		const monedas = { 'PYG': true };
 		cotizaciones.forEach(c => {
+			console.log('Cotización individual:', c);
 			if (c.moneda && !monedas[c.moneda]) {
 				monedas[c.moneda] = true;
 			}
 		});
-			// Llena los selects de origen y destino
+		console.log('Monedas detectadas:', Object.keys(monedas));
+		// Llena los selects de origen y destino
 		selectOrigen.innerHTML = '';
 		selectDestino.innerHTML = '';
 		Object.keys(monedas).forEach(codigo => {
@@ -88,12 +100,15 @@ async function cargarCotizaciones() {
 			opt2.textContent = codigo;
 			selectDestino.appendChild(opt2);
 		});
-			// Selección por defecto: PYG a USD
+		// Selección por defecto: PYG a USD
 		let idxPYG = Array.from(selectOrigen.options).findIndex(opt => opt.value === 'PYG');
 		let idxUSD = Array.from(selectDestino.options).findIndex(opt => opt.value === 'USD');
+		console.log('Índice PYG:', idxPYG, 'Índice USD:', idxUSD);
 		if (idxPYG >= 0) selectOrigen.selectedIndex = idxPYG;
 		if (idxUSD >= 0) selectDestino.selectedIndex = idxUSD;
+		console.log('Selects llenados:', selectOrigen, selectDestino);
 	} catch (e) {
+		console.error('Error al cargar cotizaciones:', e);
 		mostrarError('Error al cargar cotizaciones: ' + e.message);
 	}
 }
@@ -128,44 +143,46 @@ async function simularConversion(monto, origen, destino) {
 	const salto = '<br>';
 
 
-	let cot, com, valor_compra, comision_buy, comision_sell, pb;
+	let cot, precio_base, valor_venta, comision_buy, comision_sell, pb;
 	if (origen === 'PYG') {
 		cot = cotizaciones.find(c => c.moneda === destino);
 		if (!cot) {
 			mostrarError('No se encontró cotización para la moneda de destino.');
 			return;
 		}
-		com = comisiones.find(c => c.currency === destino);
+		// Extraer precio base y comisiones desde precioBaseComisionData
+		let pbObj = precioBaseComisionData.find(c => c.moneda === destino);
+		precio_base = pbObj ? parseFloat(pbObj.precio_base) : parseFloat(cot.compra);
+		comision_buy = pbObj ? parseFloat(pbObj.comision_compra) : 0;
+		comision_sell = pbObj ? parseFloat(pbObj.comision_venta) : 0;
 	} else if (destino === 'PYG') {
 		cot = cotizaciones.find(c => c.moneda === origen);
 		if (!cot) {
 			mostrarError('No se encontró cotización para la moneda de origen.');
 			return;
 		}
-		com = comisiones.find(c => c.currency === origen);
+		// Extraer precio base y comisiones desde precioBaseComisionData
+		let pbObj = precioBaseComisionData.find(c => c.moneda === origen);
+		precio_base = pbObj ? parseFloat(pbObj.precio_base) : parseFloat(cot.compra);
+		comision_buy = pbObj ? parseFloat(pbObj.comision_compra) : 0;
+		comision_sell = pbObj ? parseFloat(pbObj.comision_venta) : 0;
 	} else {
 		mostrarError('Solo se soportan conversiones directas con la moneda base (PYG).');
 		return;
 	}
-
-	valor_compra = parseFloat(cot.compra);
 	valor_venta = parseFloat(cot.venta);
-	comision_buy = com ? parseFloat(com.commission_buy) : 0;
-	comision_sell = com ? parseFloat(com.commission_sell) : 0;
-
-	// pb siempre es valor_compra + comision_buy (como en backend)
-	pb = valor_compra + comision_buy;
+	// LOG para revisar valores extraídos de la tabla
+	console.log('--- Valores para cálculo ---');
+	console.log('precio_base:', precio_base);
+	console.log('comision_buy:', comision_buy);
+	console.log('comision_sell:', comision_sell);
+	pb = precio_base; // pb ahora es solo el precio_base traído de la tabla
 
 	if (destino === 'PYG') {
 			// COMPRA: de moneda extranjera a PYG
 		let tc_compra = pb - (comision_buy - (comision_buy * descuento / 100));
 		console.log('tc_compra:', tc_compra);
 		console.log('--- Simulación ---');
-		console.log('valor_compra:', valor_compra);
-		console.log('valor_venta:', valor_venta);
-		console.log('comision_buy:', comision_buy);
-		console.log('comision_sell:', comision_sell);
-		console.log('pb:', pb);
 		console.log('descuento:', descuento);
 		console.log('monto:', monto);
 		const montoConvertido = parseFloat(monto) * tc_compra;
@@ -176,11 +193,6 @@ async function simularConversion(monto, origen, destino) {
 		let tc_venta = pb + comision_sell - (comision_sell * descuento / 100);
 		console.log('tc_venta:', tc_venta);
 		console.log('--- Simulación ---');
-		console.log('valor_compra:', valor_compra);
-		console.log('valor_venta:', valor_venta);
-		console.log('comision_buy:', comision_buy);
-		console.log('comision_sell:', comision_sell);
-		console.log('pb:', pb);
 		console.log('descuento:', descuento);
 		console.log('monto:', monto);
 		const montoConvertido = parseFloat(monto) / tc_venta;
@@ -221,5 +233,6 @@ form.addEventListener('submit', function(e) {
 window.addEventListener('DOMContentLoaded', async function() {
 	await cargarCotizaciones();
 	await cargarTasasComisiones();
-	await cargarComisiones();
+	await cargarPrecioBaseComision(); // Carga los datos de la nueva tabla
+	// ...existing code...
 });
