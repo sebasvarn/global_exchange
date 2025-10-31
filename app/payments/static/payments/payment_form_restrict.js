@@ -39,11 +39,11 @@ function formatearNumeroTarjeta(valor) {
 	return grupos ? grupos.join(' ') : '';
 }
 
-// Función para formatear fecha MM/YY
+// Función para formatear fecha MM/AAAA
 function formatearFechaVencimiento(valor) {
 	var limpio = valor.replace(/\D/g, '');
 	if (limpio.length >= 2) {
-		return limpio.substring(0, 2) + (limpio.length > 2 ? '/' + limpio.substring(2, 4) : '');
+		return limpio.substring(0, 2) + (limpio.length > 2 ? '/' + limpio.substring(2, 6) : '');
 	}
 	return limpio;
 }
@@ -170,8 +170,8 @@ document.addEventListener('DOMContentLoaded', function() {
 	// === MANEJO DE FECHA DE VENCIMIENTO ===
 	var tarjetaVencimiento = document.getElementById('id_tarjeta_vencimiento');
 	if (tarjetaVencimiento) {
-		tarjetaVencimiento.setAttribute('maxlength', '5');
-		tarjetaVencimiento.setAttribute('placeholder', 'MM/YY');
+		tarjetaVencimiento.setAttribute('maxlength', '7');
+		tarjetaVencimiento.setAttribute('placeholder', 'MM/AAAA');
 		tarjetaVencimiento.setAttribute('autocomplete', 'cc-exp');
 		
 		tarjetaVencimiento.addEventListener('input', function(e) {
@@ -397,11 +397,11 @@ document.addEventListener('DOMContentLoaded', function() {
 				}
 			}
 			
-			// Validación de fecha de vencimiento
+			// Validación de fecha de vencimiento MM/AAAA
 			if (tipoActual === 'tarjeta' && tarjetaVencimiento) {
-				if (tarjetaVencimiento.value.length !== 5) {
+				if (tarjetaVencimiento.value.length !== 7) {
 					e.preventDefault();
-					alert('La fecha de vencimiento debe tener el formato MM/YY');
+					alert('La fecha de vencimiento debe tener el formato MM/AAAA');
 					tarjetaVencimiento.focus();
 					return false;
 				}
