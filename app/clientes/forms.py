@@ -8,7 +8,8 @@ descuentos por segmento.
 """
 
 from django import forms
-from .models import Cliente, TasaComision
+from decimal import Decimal
+from .models import Cliente, TasaComision, LimiteClienteTipo
 
 
 class ClienteForm(forms.ModelForm):
@@ -132,3 +133,27 @@ class TasaComisionForm(forms.ModelForm):
         """
         v = self.cleaned_data["porcentaje"]
         return v
+
+
+class LimiteClienteTipoForm(forms.ModelForm):
+    class Meta:
+        model = LimiteClienteTipo
+        fields = ["tipo_cliente", "limite_diario", "limite_mensual"]
+        labels = {
+            "tipo_cliente": "Tipo de Cliente",
+            "limite_diario": "Límite Diario (PYG)",
+            "limite_mensual": "Límite Mensual (PYG)",
+        }
+        widgets = {
+            "limite_diario": forms.TextInput(attrs={"class": "form-control", "inputmode": "numeric", "pattern": "[0-9.]*"}),
+            "limite_mensual": forms.TextInput(attrs={"class": "form-control", "inputmode": "numeric", "pattern": "[0-9.]*"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['tipo_cliente'].disabled = True
+        # Mostrar los valores como enteros con puntos de miles (sin decimales)
+        for field in ['limite_diario', 'limite_mensual']:
+            if self.initial.get(field) is not None:
+                valor = int(Decimal(self.initial[field]))
+                self.initial[field] = f"{valor:,}".replace(",", ".")
