@@ -15,8 +15,10 @@ from django.http import (
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_exempt
 
+
 from clientes.models import Cliente
 from monedas.models import Moneda
+from payments.models import PaymentMethod
 
 from .forms import TransaccionForm
 from .models import Movimiento, Transaccion
@@ -32,12 +34,30 @@ from .services import (
 from monedas.models import TasaCambio
 from django.contrib import messages
 from commons.enums import EstadoTransaccionEnum, TipoTransaccionEnum, TipoMovimientoEnum
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_http_methods, require_GET
 
 logger = logging.getLogger(__name__)
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
-
+@require_GET
+def medios_pago_por_cliente(request):
+    """
+    Devuelve los métodos de pago asociados a un cliente en formato JSON.
+    Recibe ?cliente_id=<id> por GET.
+    """
+    cliente_id = request.GET.get("cliente_id")
+    if not cliente_id:
+        return JsonResponse({"error": "Falta cliente_id"}, status=400)
+    medios = PaymentMethod.objects.filter(cliente_id=cliente_id)
+    medios_list = [
+        {
+            "id": m.id,
+            "tipo": m.payment_type,
+            "descripcion": str(m),
+        }
+        for m in medios
+    ]
+    return JsonResponse({"medios": medios_list})
 
 @require_http_methods(["GET", "POST"])
 def tramitar_transaccion_terminal(request):
@@ -244,6 +264,8 @@ def calcular_api(request):
             calculo = calcular_transaccion(cliente, tipo, moneda, monto)
             return JsonResponse(
                 {
+                    "descuento_pct": str(calculo.get("descuento_pct", "")),
+                    "precio_base": str(calculo.get("precio_base", "")),
                     "tasa_aplicada": str(calculo["tasa_aplicada"]),
                     "comision": str(calculo["comision"]),
                     "monto_pyg": str(calculo["monto_pyg"]),

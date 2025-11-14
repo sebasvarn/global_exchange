@@ -16,4 +16,6 @@ urlpatterns = [
     path("pagos/cancel/", views.pago_cancel, name="pago_cancel"),
     path("terminal/", views.tramitar_transaccion_terminal, name="tramitar_terminal"),
 
+    path("medios-pago-por-cliente/", views.medios_pago_por_cliente, name="medios_pago_por_cliente"),
+
 ]

@@ -32,6 +32,7 @@ from clientes.models import TasaComision
 from usuarios.decorators import role_required
 from django.http import JsonResponse
 from django.core import serializers
+from django.views.decorators.csrf import csrf_exempt
 
 # -----------------------------
 # Endpoints JSON
@@ -63,6 +64,34 @@ def cotizaciones_json(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
+# -----------------------------
+# Endpoint precios_base_comision_json
+# -----------------------------
+
+@csrf_exempt
+def precios_base_comision_json(request):
+    """
+    Devuelve los precios base y comisiones por moneda en formato JSON.
+
+    :param request: Objeto HttpRequest
+    :type request: HttpRequest
+    :return: JsonResponse con los datos de PrecioBaseComision
+    :rtype: JsonResponse
+    """
+    try:
+        precios = PrecioBaseComision.objects.select_related('moneda').all().order_by('moneda__codigo')
+        data = []
+        for p in precios:
+            data.append({
+                'id': p.id,
+                'moneda': p.moneda.codigo if p.moneda else None,
+                'precio_base': float(p.precio_base) if p.precio_base is not None else None,
+                'comision_compra': float(p.comision_compra) if p.comision_compra is not None else None,
+                'comision_venta': float(p.comision_venta) if p.comision_venta is not None else None,
+            })
+        return JsonResponse({'precios_base_comision': data})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 @login_required
 def tasas_comisiones_json(request):

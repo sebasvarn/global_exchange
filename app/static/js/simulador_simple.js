@@ -1,13 +1,16 @@
-// Variables globales y carga de datos de comisiones
-let comisiones = [];
-// Carga el archivo de comisiones.json y lo almacena en la variable global 'comisiones'
-async function cargarComisiones() {
+// API para precios base y comisiones
+const API_PRECIOS_BASE_COMISION = '/monedas/precios_base_comision_json/';
+let precioBaseComisionData = [];
+
+// Carga los datos de precio base y comisiones desde la API
+async function cargarPrecioBaseComision() {
 	try {
-		const resp = await fetch('/static/comisiones.json');
-		if (!resp.ok) throw new Error('No se pudo obtener comisiones');
-		comisiones = await resp.json();
+		const resp = await fetch(API_PRECIOS_BASE_COMISION);
+		if (!resp.ok) throw new Error('No se pudo obtener precio base y comisiones');
+		const respJson = await resp.json();
+		precioBaseComisionData = respJson.precios_base_comision || [];
 	} catch (e) {
-		mostrarError('Error al cargar comisiones: ' + e.message);
+		mostrarError('Error al cargar precio base y comisiones: ' + e.message);
 	}
 }
 
@@ -87,33 +90,33 @@ async function simularConversionSimple(monto, origen, destino) {
 		return;
 	}
 
-	let cot, com, valor_compra, valor_venta, comision_buy, comision_sell, pb;
+	let cot, precio_base, valor_venta, comision_buy, comision_sell, pb;
 	if (origen === 'PYG') {
 		cot = cotizaciones.find(c => c.moneda === destino);
 		if (!cot) {
 			mostrarError('No se encontró cotización para la moneda de destino.');
 			return;
 		}
-		com = comisiones.find(c => c.currency === destino);
+		let pbObj = precioBaseComisionData.find(c => c.moneda === destino);
+		precio_base = pbObj ? parseFloat(pbObj.precio_base) : parseFloat(cot.compra);
+		comision_buy = pbObj ? parseFloat(pbObj.comision_compra) : 0;
+		comision_sell = pbObj ? parseFloat(pbObj.comision_venta) : 0;
 	} else if (destino === 'PYG') {
 		cot = cotizaciones.find(c => c.moneda === origen);
 		if (!cot) {
 			mostrarError('No se encontró cotización para la moneda de origen.');
 			return;
 		}
-		com = comisiones.find(c => c.currency === origen);
+		let pbObj = precioBaseComisionData.find(c => c.moneda === origen);
+		precio_base = pbObj ? parseFloat(pbObj.precio_base) : parseFloat(cot.compra);
+		comision_buy = pbObj ? parseFloat(pbObj.comision_compra) : 0;
+		comision_sell = pbObj ? parseFloat(pbObj.comision_venta) : 0;
 	} else {
 		mostrarError('Solo se soportan conversiones directas con la moneda base (PYG).');
 		return;
 	}
-
-	valor_compra = parseFloat(cot.compra);
 	valor_venta = parseFloat(cot.venta);
-	comision_buy = com ? parseFloat(com.commission_buy) : 0;
-	comision_sell = com ? parseFloat(com.commission_sell) : 0;
-
-	// pb siempre es valor_compra + comision_buy (como en backend)
-	pb = valor_compra + comision_buy;
+	pb = precio_base;
 
 	if (destino === 'PYG') {
 		// COMPRA: de moneda extranjera a PYG
@@ -163,5 +166,5 @@ form.addEventListener('submit', function(e) {
 // Inicialización: carga cotizaciones y comisiones al cargar la página
 window.addEventListener('DOMContentLoaded', async function() {
 	await cargarCotizaciones();
-	await cargarComisiones();
+	await cargarPrecioBaseComision();
 });

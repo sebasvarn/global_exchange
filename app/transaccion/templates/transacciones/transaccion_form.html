@@ -175,6 +175,42 @@
 
 {% block extra_js %}
 <script>
+  // --- Actualizar métodos de pago según cliente seleccionado ---
+  const clienteSelect = document.getElementById("id_cliente");
+  const medioPagoSelect = document.getElementById("id_medio_pago");
+
+  function cargarMediosPago(clienteId) {
+    if (!medioPagoSelect) return;
+    medioPagoSelect.innerHTML = '<option value="">Cargando...</option>';
+    fetch(`/transacciones/medios-pago-por-cliente/?cliente_id=${clienteId}`)
+      .then(resp => resp.json())
+      .then(data => {
+        medioPagoSelect.innerHTML = '';
+        if (data.medios && data.medios.length > 0) {
+          medioPagoSelect.innerHTML = '<option value="">----------</option>';
+          data.medios.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m.id;
+            opt.textContent = m.descripcion;
+            medioPagoSelect.appendChild(opt);
+          });
+        } else {
+          medioPagoSelect.innerHTML = '<option value="">Sin medios disponibles</option>';
+        }
+      })
+      .catch(() => {
+        medioPagoSelect.innerHTML = '<option value="">Error al cargar</option>';
+      });
+  }
+
+  if (clienteSelect && medioPagoSelect) {
+    clienteSelect.addEventListener('change', function() {
+      const clienteId = this.value;
+      if (clienteId) cargarMediosPago(clienteId);
+    });
+    // Opcional: cargar al inicio si hay cliente seleccionado
+    if (clienteSelect.value) cargarMediosPago(clienteSelect.value);
+  }
   // ---- CSRF (cookie) ----
   function getCookie(name) {
     let cookieValue = null;
@@ -209,14 +245,14 @@
   const montoInput = document.getElementById("id_monto_operado");
   if (montoInput) {
     montoInput.addEventListener("focus", () => montoInput.select());
-    montoInput.addEventListener("blur", () => {
-      const v = montoInput.value.replace(/\./g, '').replace(/,/g, '.');
-      if (!isNaN(v) && v !== '') {
-        // mostramos con separadores sin alterar el valor decimal subyacente
-        const n = Number(v);
-        montoInput.value = n.toLocaleString('es-PY', { maximumFractionDigits: 2, useGrouping: true });
-      }
-    });
+    // montoInput.addEventListener("blur", () => {
+    //   const v = montoInput.value.replace(/\./g, '').replace(/,/g, '.');
+    //   if (!isNaN(v) && v !== '') {
+    //     // mostramos con separadores sin alterar el valor decimal subyacente
+    //     const n = Number(v);
+    //     montoInput.value = n.toLocaleString('es-PY', { maximumFractionDigits: 2, useGrouping: true });
+    //   }
+    // });
   }
 
   // ---- Cálculo de cotización ----
@@ -253,10 +289,12 @@
         div.classList.remove("d-none");
         div.innerHTML = `
           <i class="bi bi-info-circle"></i>
-          <strong class="ms-1">Resultado:</strong>
-          <span class="ms-2">Tasa:</span> <span class="fw-semibold">${data.tasa_aplicada}</span>
-          <span class="ms-3">Comisión:</span> <span class="fw-semibold">${data.comision}</span>
-          <span class="ms-3">Monto PYG:</span> <span class="fw-semibold">${data.monto_pyg}</span>
+          <strong class="ms-1">Resultado:</strong><br>
+          <!--<span class="ms-2">Descuento del cliente:</span> <span class="fw-semibold">${data.descuento_pct}</span><br>-->
+          <!--<span class="ms-2">Precio_base:</span> <span class="fw-semibold">${data.precio_base}</span><br>-->
+          <span class="ms-2">Tasa:</span> <span class="fw-semibold">${data.tasa_aplicada}</span><br>
+          <!--<span class="ms-2">Comisión:</span> <span class="fw-semibold">${data.comision}</span><br>-->
+          <span class="ms-2">Monto PYG:</span> <span class="fw-semibold">${data.monto_pyg}</span>
         `;
       })
       .catch(err => {
