@@ -1,19 +1,10 @@
-from django.shortcuts import render
 from django.contrib import messages
-from transaccion.models import Transaccion
-from transaccion.services import confirmar_transaccion, cancelar_transaccion
-from monedas.models import TasaCambio
-from commons.enums import EstadoTransaccionEnum
-from django.utils import timezone
-
-
 from django.shortcuts import render
-from django.contrib import messages
-from transaccion.models import Transaccion
-from transaccion.services import confirmar_transaccion, cancelar_transaccion, calcular_transaccion
-from monedas.models import TasaCambio
-from commons.enums import EstadoTransaccionEnum
 from django.utils import timezone
+from commons.enums import EstadoTransaccionEnum
+from monedas.models import TasaCambio
+from transaccion.models import Transaccion
+from transaccion.services import cancelar_transaccion, calcular_transaccion, confirmar_transaccion
 
 def tramitar_transacciones(request):
     """
