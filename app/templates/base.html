@@ -107,28 +107,31 @@
                 <ul class="nav-group-items compact">
                   
                   <li class="nav-item">
-                    <a class="nav-link {% if request.resolver_match.url_name == 'tramitar_transaccion' %}active{% endif %}"
+                    <a class="nav-link {% if request.resolver_match.url_name == 'tramitar_transacciones' %}active{% endif %}"
                         href="{% url 'tauser:tramitar_transacciones' %}">
                       <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
                       Tramitar Transacciones
                     </a>
                   </li>
-             
-                 
                   <li class="nav-item">
-                    <a class="nav-link {% if request.resolver_match.url_name == 'tauser_create' %}active{% endif %}"
+                    <a class="nav-link {% if request.resolver_match.url_name == 'nuevo_tauser' %}active{% endif %}"
                         href="{% url 'tauser:nuevo_tauser' %}">
                       <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
                       Nuevo Tauser
                     </a>
                   </li>
-                 
-                
                   <li class="nav-item">
-                    <a class="nav-link {% if request.resolver_match.url_name == 'tauser_list' %}active{% endif %}"
+                    <a class="nav-link {% if request.resolver_match.url_name == 'lista_tausers' %}active{% endif %}"
                         href="{% url 'tauser:lista_tausers' %}">
                       <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
                       Lista de Tausers
+                    </a>
+                  </li>
+                  <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'asignar_stock_tauser' %}active{% endif %}"
+                        href="{% url 'tauser:asignar_stock_tauser' %}">
+                      <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+                      Asignar Stock a Tauser
                     </a>
                   </li>
                 </ul>

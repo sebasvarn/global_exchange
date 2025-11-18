@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Tausers en el sistema</h1>
+
+<form method="get" class="row g-2 mb-3 align-items-end">
+  <div class="col-md-3">
+    <label for="estado" class="form-label mb-0">Estado</label>
+    <select name="estado" id="estado" class="form-select">
+      <option value="">Todos</option>
+      {% for value, label in estados %}
+        <option value="{{ value }}" {% if value == estado_selected %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3">
+    <label for="fecha_inicio" class="form-label mb-0">Desde</label>
+    <input type="date" name="fecha_inicio" id="fecha_inicio" class="form-control" value="{{ fecha_inicio }}">
+  </div>
+  <div class="col-md-3">
+    <label for="fecha_fin" class="form-label mb-0">Hasta</label>
+    <input type="date" name="fecha_fin" id="fecha_fin" class="form-control" value="{{ fecha_fin }}">
+  </div>
+  <div class="col-md-2">
+    <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+  </div>
+  <div class="col-md-1">
+    <a href="?" class="btn btn-secondary w-100">Limpiar</a>
+  </div>
+</form>
+
+<table class="table table-bordered table-striped mt-2">
+	<thead>
+		<tr>
+			<th>#</th>
+			<th>Nombre</th>
+			<th>Ubicación</th>
+			<th>Fecha de alta</th>
+			<th>Estado</th>
+			<th>Acciones</th>
+		</tr>
+	</thead>
+	<tbody>
+		{% for t in tausers %}
+			<tr>
+				<td>{{ forloop.counter }}</td>
+				<td>{{ t.nombre }}</td>
+				<td>{{ t.ubicacion }}</td>
+				<td>{{ t.fecha_alta|date:'d/m/Y H:i' }}</td>
+				<td>{{ t.get_estado_display }}</td>
+				<td>
+					<a href="{% url 'tauser:editar_estado_tauser' t.id %}"
+						 class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1"
+						 data-bs-toggle="tooltip"
+						 title="Editar estado">
+						<i class="bi bi-pencil"></i> Editar
+					</a>
+					<a href="{% url 'tauser:ver_stock_tauser' t.id %}"
+						 class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1 ms-1"
+						 data-bs-toggle="tooltip"
+						 title="Ver stock">
+						<i class="bi bi-box-seam"></i> Ver stock
+					</a>
+				</td>
+			</tr>
+		{% empty %}
+			<tr><td colspan="6" class="text-center">No hay Tausers registrados.</td></tr>
+		{% endfor %}
+	</tbody>
+</table>
+{% endblock %}
