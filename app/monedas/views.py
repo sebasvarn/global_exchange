@@ -365,7 +365,6 @@ def precio_comision_create(request):
     form = PrecioBaseComisionForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
         obj = form.save()
-        from django.contrib import messages
         messages.success(request, 'Registro creado correctamente.')
         return redirect('monedas:precios_comisiones_list')
     return render(request, 'monedas/precio_comision_form.html', {'form': form})
@@ -377,7 +376,6 @@ def precio_comision_edit(request, pk):
     form = PrecioBaseComisionForm(request.POST or None, instance=obj)
     if request.method == 'POST' and form.is_valid():
         obj = form.save()
-        from django.contrib import messages
         messages.success(request, 'Registro editado correctamente.')
         return redirect('monedas:precios_comisiones_list')
     return render(request, 'monedas/precio_comision_form.html', {'form': form, 'precio_comision': obj})

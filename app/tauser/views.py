@@ -1,20 +1,11 @@
 
+from django.contrib import messages
 from django.shortcuts import render, get_object_or_404, redirect
-from django.contrib import messages
-from transaccion.models import Transaccion
-from transaccion.services import confirmar_transaccion, cancelar_transaccion
-from monedas.models import TasaCambio
-from commons.enums import EstadoTransaccionEnum
 from django.utils import timezone
-
-
-from django.shortcuts import render
-from django.contrib import messages
-from transaccion.models import Transaccion
-from transaccion.services import confirmar_transaccion, cancelar_transaccion, calcular_transaccion
-from monedas.models import TasaCambio
 from commons.enums import EstadoTransaccionEnum
-from django.utils import timezone
+from monedas.models import TasaCambio
+from transaccion.models import Transaccion
+from transaccion.services import cancelar_transaccion, calcular_transaccion, confirmar_transaccion
 
 from .forms import TauserForm, TauserStockForm
 from .models import Tauser, TauserStock, Denominacion

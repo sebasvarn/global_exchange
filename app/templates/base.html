@@ -223,6 +223,12 @@
               </a>
             </li>
             {% endif %}
+            <li class="nav-item">
+              <a class="nav-link {% if request.resolver_match.url_name == 'limites_tipo_list' %}active{% endif %}" href="{% url 'clientes:limites_tipo_list' %}">
+                <span class="nav-icon"><i class="bi bi-sliders"></i></span>
+                Límites
+              </a>
+            </li>
           </ul>
         </li>
       {% endif %}
