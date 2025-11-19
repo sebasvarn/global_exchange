@@ -23,10 +23,31 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 # =========================
 # Cálculo de transacción
 # =========================
-def calcular_transaccion(cliente, tipo, moneda, monto_operado):
+def calcular_transaccion(cliente, tipo, moneda, monto_operado, medio_pago):
     """
-    Calcula tasa, comisión y monto_pyg.
+    Calcula tasa, comisión y monto_pyg, sumando comisión por método de pago (obligatorio).
     """
+
+    from payments.models import ComisionMetodoPago, PaymentMethod
+
+    if medio_pago is None:
+        raise ValidationError("Debe especificar el método de pago.")
+
+    # Si medio_pago es un ID (int o str), obtener el objeto PaymentMethod
+    payment_method_obj = None
+    if isinstance(medio_pago, (int, str)):
+        try:
+            payment_method_obj = PaymentMethod.objects.get(pk=medio_pago)
+        except PaymentMethod.DoesNotExist:
+            raise ValidationError("El método de pago seleccionado no existe.")
+    else:
+        payment_method_obj = medio_pago  # ya es objeto
+
+    tipo_metodo = payment_method_obj.payment_type
+    # Mapear 'cuenta_bancaria' a 'transferencia' para la tabla de comisiones
+    if tipo_metodo == "cuenta_bancaria":
+        tipo_metodo = "transferencia"
+
     # 1) Segmento del cliente (fallback 'MIN')
     segmento = getattr(cliente, "tipo", "MIN").upper()
 
@@ -61,12 +82,25 @@ def calcular_transaccion(cliente, tipo, moneda, monto_operado):
     else:
         raise ValidationError("Tipo de transacción inválido.")
 
+    # Comisión por método de pago (obligatorio)
+    comision_metodo_pago = Decimal("0")
+    porcentaje_metodo_pago = Decimal("0")
+    try:
+        cmp = ComisionMetodoPago.objects.get(tipo_metodo=tipo_metodo)
+        porcentaje_metodo_pago = Decimal(str(cmp.porcentaje_comision))
+        comision_metodo_pago = monto_pyg * porcentaje_metodo_pago / Decimal("100")
+        monto_pyg += comision_metodo_pago
+    except ComisionMetodoPago.DoesNotExist:
+        pass  # Si no hay comisión configurada, no suma nada
+
     return {
         "descuento_pct": descuento_pct,
         "precio_base": Decimal(str(pb.precio_base)),
         "tasa_aplicada": tasa_aplicada,
         "comision": comision,
         "monto_pyg": monto_pyg,
+        "comision_metodo_pago": comision_metodo_pago,
+        "porcentaje_metodo_pago": porcentaje_metodo_pago,
     }
 
 #creo que esta funcion ya no se usa mas
