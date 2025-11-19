@@ -27,4 +27,7 @@ urlpatterns = [
     path("comisiones/<int:pk>/editar/", views.comision_edit, name="comision_edit"),
     path("comisiones/<int:pk>/eliminar/", views.comision_delete, name="comision_delete"),
     path("comisiones/<int:pk>/restaurar/", views.comision_restore, name="comision_restore"),
+    # Límites por tipo de cliente
+    path("limites-tipo/", views.limites_tipo_list, name="limites_tipo_list"),
+    path("limites-tipo/<int:pk>/editar/", views.limite_tipo_edit, name="limite_tipo_edit"),
 ]

@@ -177,15 +177,19 @@ def validate_limits(cliente, moneda_operada, monto_operado, monto_pyg):
       2) Límite por moneda extranjera (operación + mensual)
       3) Límites diarios/mensuales en PYG por tipo de cliente (CLIENT_LIMITS)
     """
-    from commons.limits import CLIENT_LIMITS
-
     _check_limit_pyg(cliente, monto_pyg)
     _check_limit_moneda(cliente, moneda_operada, monto_operado)
 
-    # límites por tipo de cliente
+    # límites por tipo de cliente (solo tabla LimiteClienteTipo)
+    from clientes.models import LimiteClienteTipo
     tipo_map = {"MIN": "minorista", "CORP": "corporativo", "VIP": "vip"}
     tipo_cliente = tipo_map.get(getattr(cliente, "tipo", "MIN"), "minorista")
-    limites = CLIENT_LIMITS.get(tipo_cliente, CLIENT_LIMITS["minorista"])
+    try:
+        limites_obj = LimiteClienteTipo.objects.get(tipo_cliente=tipo_cliente)
+        limite_diario = Decimal(limites_obj.limite_diario)
+        limite_mensual = Decimal(limites_obj.limite_mensual)
+    except LimiteClienteTipo.DoesNotExist:
+        raise ValidationError("No hay límites configurados para el tipo de cliente: %s" % tipo_cliente)
 
     hoy = timezone.now().date()
     inicio_mes = hoy.replace(day=1)
@@ -211,8 +215,6 @@ def validate_limits(cliente, moneda_operada, monto_operado, monto_pyg):
         or 0
     )
 
-    limite_diario = Decimal(str(limites["diario"]))
-    limite_mensual = Decimal(str(limites["mensual"]))
     total_diario = Decimal(total_diario)
     total_mensual = Decimal(total_mensual)
     monto_pyg = Decimal(monto_pyg)

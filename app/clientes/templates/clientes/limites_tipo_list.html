@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Límites por Tipo de Cliente</h2>
+<table class="table table-bordered">
+    <thead>
+        <tr>
+            <th>Tipo de Cliente</th>
+            <th>Límite Diario (PYG)</th>
+            <th>Límite Mensual (PYG)</th>
+            <th>Acciones</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in items %}
+        <tr>
+            <td>{{ item.get_tipo_cliente_display }}</td>
+            <td data-miles>{{ item.limite_diario|floatformat:0 }}</td>
+            <td data-miles>{{ item.limite_mensual|floatformat:0 }}</td>
+            <td>
+                <a href="{% url 'clientes:limite_tipo_edit' item.pk %}" class="btn btn-sm btn-primary">Editar</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function formatMiles(num) {
+    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('td[data-miles]').forEach(function(td) {
+        var val = td.textContent.trim();
+        if (!isNaN(val) && val !== "") {
+            td.textContent = formatMiles(val);
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -69,6 +69,23 @@ class Cliente(models.Model):
         )
         return result["balance"] or 0
 
+# =========================
+# Límites por tipo de cliente
+# =========================
+class LimiteClienteTipo(models.Model):
+    """Límites diarios y mensuales en PYG por tipo de cliente (minorista, corporativo, vip)."""
+    TIPO_CHOICES = [
+        ("minorista", "Minorista"),
+        ("corporativo", "Corporativo"),
+        ("vip", "VIP"),
+    ]
+    tipo_cliente = models.CharField(max_length=20, choices=TIPO_CHOICES, unique=True)
+    limite_diario = models.DecimalField(max_digits=18, decimal_places=2)
+    limite_mensual = models.DecimalField(max_digits=18, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.get_tipo_cliente_display()} (Diario: {self.limite_diario}, Mensual: {self.limite_mensual})"
+
 
 class TasaComision(models.Model):
     """

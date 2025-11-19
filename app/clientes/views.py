@@ -1,10 +1,25 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from .models import Cliente, TasaComision
+from .models import Cliente, TasaComision, LimiteClienteTipo
 from commons.enums import EstadoRegistroEnum
-from .forms import AsignarUsuariosAClienteForm, ClienteForm, TasaComisionForm
 from usuarios.decorators import role_required
+from .forms import AsignarUsuariosAClienteForm, ClienteForm, TasaComisionForm, LimiteClienteTipoForm
+
+
+# --- Límites por tipo de cliente ---
+def limites_tipo_list(request):
+    items = LimiteClienteTipo.objects.all().order_by('tipo_cliente')
+    return render(request, "clientes/limites_tipo_list.html", {"items": items})
+    
+def limite_tipo_edit(request, pk):
+    obj = get_object_or_404(LimiteClienteTipo, pk=pk)
+    form = LimiteClienteTipoForm(request.POST or None, instance=obj)
+    if form.is_valid():
+        form.save()
+        return redirect("clientes:limites_tipo_list")
+    return render(request, "clientes/limite_tipo_form.html", {"form": form, "obj": obj})
+
 
 
 @login_required
