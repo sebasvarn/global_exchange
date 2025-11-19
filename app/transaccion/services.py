@@ -11,6 +11,9 @@ from django.db.models import Sum
 from django.urls import reverse
 from django.utils import timezone
 
+# Redondeo a denominación PYG
+from commons.redondeo import redondear_a_denom_py
+
 from clientes.models import LimitePYG, LimiteMoneda, TasaComision
 from monedas.models import TasaCambio, PrecioBaseComision
 from .models import Transaccion, Movimiento
@@ -63,6 +66,7 @@ def calcular_transaccion(cliente, tipo, moneda, monto_operado, medio_pago):
 
     monto_operado = Decimal(monto_operado)
 
+
     if tipo == TipoTransaccionEnum.VENTA:
         # Comisión de compra
         comision = Decimal(str(pb.comision_compra))
@@ -70,7 +74,6 @@ def calcular_transaccion(cliente, tipo, moneda, monto_operado, medio_pago):
         comision_final = comision - comision_descuento
         tasa_aplicada = Decimal(str(pb.precio_base)) - comision_final
         monto_pyg = monto_operado * tasa_aplicada
-
     elif tipo == TipoTransaccionEnum.COMPRA:
         # Comisión de venta
         comision = Decimal(str(pb.comision_venta))
@@ -78,7 +81,6 @@ def calcular_transaccion(cliente, tipo, moneda, monto_operado, medio_pago):
         comision_final = comision - comision_descuento
         tasa_aplicada = Decimal(str(pb.precio_base)) + comision_final
         monto_pyg = monto_operado * tasa_aplicada
-
     else:
         raise ValidationError("Tipo de transacción inválido.")
 
@@ -93,12 +95,15 @@ def calcular_transaccion(cliente, tipo, moneda, monto_operado, medio_pago):
     except ComisionMetodoPago.DoesNotExist:
         pass  # Si no hay comisión configurada, no suma nada
 
+    # Redondear monto_pyg a denominación válida de PYG
+    monto_pyg_redondeado = redondear_a_denom_py(monto_pyg)
+
     return {
         "descuento_pct": descuento_pct,
         "precio_base": Decimal(str(pb.precio_base)),
         "tasa_aplicada": tasa_aplicada,
         "comision": comision,
-        "monto_pyg": monto_pyg,
+        "monto_pyg": monto_pyg_redondeado,
         "comision_metodo_pago": comision_metodo_pago,
         "porcentaje_metodo_pago": porcentaje_metodo_pago,
     }
