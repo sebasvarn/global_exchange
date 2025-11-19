@@ -94,15 +94,15 @@ def obtener_datos_transaccion(transaccion_id):
         "estado": tx.estado,
     }
 
-
-
+#no se usa actualmente
+""""
 def confirmar_transaccion_con_otp(transaccion, user, raw_code, context_match=None):
-    """
+    """"""
     Verifica un OTP para la transacción (purpose='transaction_debit') y si es válido
     procede a confirmar la transacción (crear movimiento y marcar PAGADA).
 
     Esta función no realiza redirecciones ni I/O; lanza ValidationError en caso de fallo.
-    """
+    """"""
     from django.core.exceptions import ValidationError
     from mfa.services import verify_otp
 
@@ -117,6 +117,7 @@ def confirmar_transaccion_con_otp(transaccion, user, raw_code, context_match=Non
 
     # Si OK, delegar en confirmar_transaccion existente para crear movimiento y marcar PAGADA
     return confirmar_transaccion(transaccion)
+"""""
 
 # =========================
 # Límites y creación

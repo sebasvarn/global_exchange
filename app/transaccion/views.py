@@ -1,9 +1,9 @@
-from decimal import Decimal
 import json
 import logging
-
+from decimal import Decimal
 import stripe
 from django.conf import settings
+from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import (
@@ -14,12 +14,11 @@ from django.http import (
 )
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_exempt
-
-
+from django.views.decorators.http import require_GET, require_http_methods
+from commons.enums import EstadoTransaccionEnum, TipoMovimientoEnum, TipoTransaccionEnum
 from clientes.models import Cliente
-from monedas.models import Moneda
+from monedas.models import Moneda, TasaCambio
 from payments.models import PaymentMethod
-
 from .forms import TransaccionForm
 from .models import Movimiento, Transaccion
 from .services import (
@@ -31,10 +30,6 @@ from .services import (
     requiere_pago_tarjeta,
     verificar_pago_stripe,
 )
-from monedas.models import TasaCambio
-from django.contrib import messages
-from commons.enums import EstadoTransaccionEnum, TipoTransaccionEnum, TipoMovimientoEnum
-from django.views.decorators.http import require_http_methods, require_GET
 
 logger = logging.getLogger(__name__)
 stripe.api_key = settings.STRIPE_SECRET_KEY

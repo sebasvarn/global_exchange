@@ -5,7 +5,9 @@ Contiene las definiciones de los modelos Cliente y TasaComision,
 junto con sus métodos auxiliares y validaciones.
 """
 
+
 from decimal import Decimal
+from datetime import date
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.conf import settings
@@ -151,7 +153,6 @@ class TasaComision(models.Model):
         Returns:
             date: Fecha 31/12/9999.
         """
-        from datetime import date
         return date(9999, 12, 31)
 
     @property
@@ -228,7 +229,6 @@ class TasaComision(models.Model):
         Returns:
             TasaComision | None: Objeto de tasa de comisión vigente o None.
         """
-        from datetime import date
         fecha = fecha or date.today()
         return (
             cls.objects.filter(
@@ -257,12 +257,14 @@ class TasaComision(models.Model):
         """
         return cls.vigente_para_tipo(cliente.tipo, fecha=fecha)
 
+#creo que se puede eliminar        
+"""
 class LimitePYG(models.Model):
-    """
+    """""""
     Máximo permitido por operación en PYG para un cliente.
     (Manténlo simple al inicio: límite por operación. Si luego querés
      diario/mensual, agregamos campos opcionales.)
-    """
+    """""""
     cliente = models.OneToOneField("clientes.Cliente", on_delete=models.CASCADE)
     max_por_operacion = models.DecimalField(max_digits=18, decimal_places=2)
     max_mensual = models.DecimalField(max_digits=18, decimal_places=2, null=True, blank=True)
@@ -272,10 +274,10 @@ class LimitePYG(models.Model):
 
 
 class LimiteMoneda(models.Model):
-    """
+    """"""
     Límites por MONEDA EXTRANJERA para el cliente.
     Por ahora: por operación mensual
-    """
+    """"""
     cliente = models.ForeignKey("clientes.Cliente", on_delete=models.CASCADE)
     moneda = models.ForeignKey("monedas.Moneda", on_delete=models.CASCADE)
     max_por_operacion = models.DecimalField(max_digits=18, decimal_places=2)  # p.ej. 5,000 USD
@@ -287,3 +289,4 @@ class LimiteMoneda(models.Model):
 
     def __str__(self):
         return f"Limite {self.cliente} - {self.moneda}"
+"""
