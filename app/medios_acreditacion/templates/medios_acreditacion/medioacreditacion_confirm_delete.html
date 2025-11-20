@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4">
+    <h2>Eliminar Medio de Acreditación</h2>
+    <p>¿Estás seguro que deseas eliminar el medio de acreditación <strong>{{ medio }}</strong>?</p>
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">Eliminar</button>
+    <a href="{% url 'medios_acreditacion:medios_by_client' %}" class="btn btn-secondary">Cancelar</a>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,252 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <!-- Force light theme for this page and hide the app shell so the verify card looks like the login/password-reset pages -->
+  <style>
+    /* Make the overall page light for this view */
+    html[data-coreui-theme="dark"] body { background: #ffffff !important; }
+    /* Hide global app chrome on this page */
+    .sidebar, header.header, footer.footer { display: none !important; }
+    /* Force the verify card to be centered in the viewport */
+    .mfa-verify-wrapper { position: fixed; inset: 0; display:flex; align-items:center; justify-content:center; padding: 1rem; }
+    .mfa-verify-card { max-width:900px; width:100%; border-radius:8px; box-shadow: 0 6px 18px rgba(20,20,20,0.08); }
+    .mfa-verify-card .card-body { padding:2rem; }
+  </style>
+
+  <script>
+    // Ensure the page uses the light theme so text and inputs inherit the light palette
+    try { document.documentElement.setAttribute('data-coreui-theme', 'light'); } catch(e) { /* ignore */ }
+  </script>
+
+  <div class="mfa-verify-wrapper">
+    <div class="card mb-4 mfa-verify-card bg-white text-dark">
+      <div class="card-body">
+    <div class="row">
+      <div class="col-12">
+        <h1 class="display-5">Verificación de código</h1>
+        <p class="text-muted">Se envió un código al método configurado. Ingrese el código para continuar.</p>
+      </div>
+    </div>
+
+    {% if error %}
+      <div class="alert alert-danger">{{ error }}</div>
+    {% endif %}
+
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+
+    <form method="post" id="verify-form">
+      {% csrf_token %}
+      <input type="hidden" id="mfa-email" value="{{ usuario.email }}" />
+      <div class="mb-3">
+        <label class="form-label visually-hidden" for="code">Código</label>
+        <div class="d-flex justify-content-center" id="otp-boxes" data-length="{{ otp_length|default:6 }}" style="gap:0.6rem;">
+          <!-- digit inputs will be created dynamically by JS -->
+        </div>
+        <input type="hidden" id="code" name="code" />
+      </div>
+
+  <div id="otp-client-error" class="text-danger mb-2" style="display:none;"></div>
+  <div class="d-flex align-items-center" style="gap:12px;">
+        <button class="btn btn-primary btn-lg" type="submit" id="verify-btn" name="verify_code">Verificar</button>
+        <button class="btn btn-link" id="resend-btn" name="resend_code" type="submit" aria-disabled="true">Reenviar código</button>
+        <div class="text-muted ms-2" id="timer" aria-live="polite"></div>
+        <div class="ms-auto">
+          <a href="{% url 'usuarios:login' %}">Volver al inicio de sesión</a>
+        </div>
+      </div>
+
+      <div id="expired-msg" class="alert alert-warning mt-3" style="display:none;">El código ha expirado. Por favor reenvíe el código.</div>
+    </form>
+  </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const serverTtlRaw = '{{ ttl_seconds|default:"" }}';
+  const serverBlockTtlRaw = '{{ block_ttl_remaining|default:"" }}';
+  const serverTtl = serverTtlRaw === '' ? null : parseInt(serverTtlRaw, 10);
+  const serverBlockTtl = serverBlockTtlRaw === '' ? null : parseInt(serverBlockTtlRaw, 10);
+
+  const storageKey = 'mfa_ttl_' + (document.getElementById('mfa-email') ? document.getElementById('mfa-email').value : 'unknown');
+  let ttl = (serverTtl !== null) ? serverTtl : (parseInt(sessionStorage.getItem(storageKey) || '0', 10) || null);
+  let remaining = ttl;
+  let interval = null;
+
+  const timerEl = document.getElementById('timer');
+  const expiredEl = document.getElementById('expired-msg');
+  const resendBtn = document.getElementById('resend-btn');
+  const verifyBtn = document.getElementById('verify-btn');
+  const otpBoxes = document.getElementById('otp-boxes');
+
+  function formatSeconds(s){ 
+      if (s > 60) {
+          const minutes = Math.floor(s / 60);
+          const seconds = s % 60;
+          return `${minutes}m ${seconds}s`;
+      }
+      return `${s}s`; 
+  }
+
+  function startTimer(seconds, isBlockTimer = false){
+    clearInterval(interval);
+    remaining = seconds;
+    
+    if (isBlockTimer) {
+        timerEl.textContent = `Bloqueado: ${formatSeconds(remaining)}`;
+        expiredEl.style.display = 'none';
+        verifyBtn.disabled = true;
+        resendBtn.classList.add('disabled');
+        resendBtn.setAttribute('aria-disabled','true');
+        otpBoxes.style.display = 'none'; // Ocultar cajas de OTP
+    } else {
+        timerEl.textContent = formatSeconds(remaining);
+        expiredEl.style.display = 'none';
+        verifyBtn.disabled = false;
+        resendBtn.classList.add('disabled');
+        resendBtn.setAttribute('aria-disabled','true');
+        otpBoxes.style.display = 'flex';
+    }
+
+    sessionStorage.setItem(storageKey, String(remaining));
+    interval = setInterval(()=>{
+      remaining -= 1;
+      if(remaining <= 0){
+        clearInterval(interval);
+        if (isBlockTimer) {
+            // Cuando el bloqueo termina, volvemos al estado normal (probablemente expirado)
+            timerEl.textContent = '0s';
+            expiredEl.style.display = '';
+            verifyBtn.disabled = true;
+            resendBtn.classList.remove('disabled');
+            resendBtn.removeAttribute('aria-disabled');
+            otpBoxes.style.display = 'flex';
+        } else {
+            timerEl.textContent = '0s';
+            expiredEl.style.display = '';
+            verifyBtn.disabled = true;
+            resendBtn.classList.remove('disabled');
+            resendBtn.removeAttribute('aria-disabled');
+        }
+        try{ sessionStorage.removeItem(storageKey); } catch(e){}
+      } else { 
+          if (isBlockTimer) {
+              timerEl.textContent = `Bloqueado: ${formatSeconds(remaining)}`;
+          } else {
+              timerEl.textContent = formatSeconds(remaining);
+          }
+      }
+      try{ sessionStorage.setItem(storageKey, String(remaining)); } catch(e){}
+    },1000);
+  }
+
+  // No más reenvío por fetch, ahora es un submit de formulario
+  resendBtn.addEventListener('click', (ev)=>{
+    if(resendBtn.getAttribute('aria-disabled') === 'true') { 
+        ev.preventDefault(); 
+        return; 
+    }
+    // El botón ahora es de tipo submit, el formulario se encargará.
+  });
+
+  // --- Lógica de inicialización ---
+  if (serverBlockTtl !== null && serverBlockTtl > 0) {
+      // Si el servidor dice que estamos bloqueados, iniciamos el contador de bloqueo.
+      startTimer(serverBlockTtl, true);
+  } else if (ttl !== null && ttl > 0) {
+      // Si no estamos bloqueados y hay TTL para el código, iniciamos el contador normal.
+      startTimer(ttl, false);
+  } else {
+      // Si no hay bloqueo y no hay TTL, el código está expirado.
+      expiredEl.style.display = '';
+      timerEl.textContent = '0s';
+      verifyBtn.disabled = true;
+      resendBtn.classList.remove('disabled');
+      resendBtn.removeAttribute('aria-disabled');
+  }
+})();
+</script>
+
+<script>
+// OTP digit inputs behavior: auto-advance, paste, and assemble into hidden #code
+(function(){
+  // ensure digit inputs exist; if not, create them based on data-length
+  const boxes = document.getElementById('otp-boxes');
+  const desired = parseInt(boxes?.dataset?.length || 6, 10) || 6;
+  if (boxes && boxes.children.length === 0) {
+    for (let i = 0; i < desired; i++) {
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.inputMode = 'numeric';
+      inp.pattern = '[0-9]*';
+      inp.maxLength = 1;
+      inp.className = 'form-control form-control-lg text-center otp-digit';
+      inp.setAttribute('aria-label', `Digito ${i+1}`);
+      inp.dataset.index = i;
+      boxes.appendChild(inp);
+    }
+  }
+
+  const digits = Array.from(document.querySelectorAll('.otp-digit'));
+  if(digits.length === 0) return;
+
+  function focusIndex(i){ if(digits[i]) digits[i].focus(); }
+
+  digits.forEach((input, idx) => {
+    input.addEventListener('input', (e)=>{
+      const v = e.target.value.replace(/[^0-9]/g,'');
+      e.target.value = v.slice(-1);
+      if(v.length > 0) focusIndex(idx+1);
+    });
+
+    input.addEventListener('keydown', (e)=>{
+      if(e.key === 'Backspace' && !e.target.value){
+        focusIndex(idx-1);
+      }
+      if(e.key === 'ArrowLeft') { focusIndex(idx-1); }
+      if(e.key === 'ArrowRight') { focusIndex(idx+1); }
+    });
+
+    input.addEventListener('paste', (e)=>{
+      e.preventDefault();
+      const paste = (e.clipboardData || window.clipboardData).getData('text') || '';
+      const nums = paste.replace(/\D/g,'').slice(0,digits.length).split('');
+      for(let i=0;i<nums.length;i++){ if(digits[i]) digits[i].value = nums[i]; }
+      focusIndex(Math.min(nums.length, digits.length-1));
+    });
+  });
+
+  // Assemble into hidden input before submit and validate length
+  const form = document.getElementById('verify-form');
+  const clientErr = document.getElementById('otp-client-error');
+  form.addEventListener('submit', (e)=>{
+    // ONLY validate digits if the user is trying to verify, not resend.
+    if (document.activeElement && document.activeElement.name === 'resend_code') {
+      // Allow form submission for resend without validation.
+      return;
+    }
+
+    const code = digits.map(d=>d.value || '').join('');
+    document.getElementById('code').value = code;
+    if(code.length < digits.length){
+      e.preventDefault();
+      clientErr.textContent = `Ingrese los ${digits.length} dígitos del código.`;
+      clientErr.style.display = '';
+      digits.find(d=>!d.value)?.focus();
+      return false;
+    }
+    // persist current remaining seconds to avoid reset on server response
+    try{ sessionStorage.setItem(storageKey, String(remaining || 0)); } catch(e){}
+    clientErr.style.display = 'none';
+  });
+
+  // focus first input on load
+  setTimeout(()=>{ focusIndex(0); }, 100);
+})();
+</script>
+
+{% endblock %}

@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load usuarios_extras %}
 {% block content %}
 <div class="container mt-4">
     <h4 class="fw-bold mb-4">Métodos de Pago por Cliente</h4>
@@ -21,17 +22,25 @@
                                     <span class="me-2">Billetera: {{ metodo.proveedor_billetera }} - {{ metodo.billetera_email_telefono }}</span>
                                 {% elif metodo.payment_type == 'tarjeta' %}
                                     <span class="me-2">Tarjeta: {{ metodo.tarjeta_nombre }} - {{ metodo.tarjeta_numero }}</span>
+                                {% elif metodo.payment_type == 'cheque' %}
+                                    <span class="me-2">Cheque: Nº {{ metodo.cheque_numero }} - {{ metodo.cheque_banco }} - {{ metodo.cheque_cuenta }} - {{ metodo.cheque_beneficiario }} - {{ metodo.cheque_monto }} {{ metodo.cheque_moneda }} - {{ metodo.cheque_fecha_emision|date:'d/m/Y' }}</span>
                                 {% else %}
                                     <span class="me-2">Método de pago {{ metodo.pk }}</span>
                                 {% endif %}
-                                <a href="{% url 'payments:paymentmethod_update' metodo.pk %}" class="btn btn-outline-warning btn-sm ms-auto me-1" title="Editar"><i class="bi bi-pencil"></i></a>
-                                <a href="{% url 'payments:paymentmethod_delete' metodo.pk %}" class="btn btn-outline-danger btn-sm" title="Eliminar"><i class="bi bi-trash"></i></a>
+                                    {% if request.user|has_permission:'payments.edit_method' %}
+                                        <a href="{% url 'payments:paymentmethod_update' metodo.pk %}" class="btn btn-outline-warning btn-sm ms-auto me-1" title="Editar"><i class="bi bi-pencil"></i></a>
+                                    {% endif %}
+                                    {% if request.user|has_permission:'payments.delete_method' %}
+                                        <a href="{% url 'payments:paymentmethod_delete' metodo.pk %}" class="btn btn-outline-danger btn-sm" title="Eliminar"><i class="bi bi-trash"></i></a>
+                                    {% endif %}
                             </li>
                             {% empty %}
                             <li class="text-muted">Sin métodos de pago</li>
                             {% endfor %}
                         </ul>
-                        <a href="{% url 'payments:paymentmethod_create' %}?cliente={{ cliente.id }}" class="btn btn-outline-success w-100"><i class="bi bi-plus-lg"></i> Añadir Método</a>
+                        {% if request.user|has_permission:'payments.create_method' %}
+                            <a href="{% url 'payments:paymentmethod_create' %}?cliente={{ cliente.id }}" class="btn btn-outline-success w-100"><i class="bi bi-plus-lg"></i> Añadir Método</a>
+                        {% endif %}
                     </div>
                 </div>
             </div>

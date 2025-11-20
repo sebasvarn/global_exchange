@@ -100,7 +100,7 @@ class ClienteViewsTest(TestCase):
 		self.user.save()
 		# Crear rol Admin y asociarlo al usuario
 		from usuarios.models import Role, UserRole
-		self.role = Role.objects.create(name="Admin", description="Administrador")
+		self.role, _ = Role.objects.get_or_create(name="Admin", defaults={"description": "Administrador"})
 		UserRole.objects.create(user=self.user, role=self.role)
 		self.client.force_login(self.user)
 		self.cliente = Cliente.objects.create(nombre="Empresa W", tipo="MIN")

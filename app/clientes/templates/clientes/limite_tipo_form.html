@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Editar Límite por Tipo de Cliente</h2>
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p|safe }}
+    <button type="submit" class="btn btn-success">Guardar</button>
+    <a href="{% url 'clientes:limites_tipo_list' %}" class="btn btn-secondary">Volver</a>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function formatMilesInput(input) {
+    let val = input.value.replace(/\./g, '').replace(/,/g, '.');
+    if (!isNaN(val) && val !== "") {
+        let parts = val.split('.');
+        let intPart = parts[0];
+        let decPart = parts.length > 1 ? '.' + parts[1] : '';
+        intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        input.value = intPart + decPart;
+    }
+}
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('input[type="number"]').forEach(function(input) {
+        input.type = 'text'; // Para permitir puntos
+        formatMilesInput(input);
+        input.addEventListener('input', function() {
+            let cursor = input.selectionStart;
+            formatMilesInput(input);
+            input.setSelectionRange(cursor, cursor);
+        });
+    });
+    // Limpiar puntos antes de enviar el formulario
+    var form = document.querySelector('form');
+    if (form) {
+        form.addEventListener('submit', function() {
+            form.querySelectorAll('input[type="text"]').forEach(function(input) {
+                input.value = input.value.replace(/\./g, '');
+            });
+        });
+    }
+});
+</script>
+{% endblock %}

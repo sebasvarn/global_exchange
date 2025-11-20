@@ -14,14 +14,30 @@ INSTALLED_APPS = [
     "django.contrib.admin","django.contrib.auth","django.contrib.contenttypes",
     "django.contrib.sessions","django.contrib.messages","django.contrib.staticfiles",
     "widget_tweaks",
-    "usuarios","clientes","commons","payments","monedas"
+    "usuarios","clientes","commons","payments","monedas","medios_acreditacion", "transaccion",
+    # MFA app
+    "mfa",
+    "tauser",  # Added tauser app
 ]
 
 AUTH_USER_MODEL = "usuarios.User"
 
 EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+EMAIL_HOST = os.getenv("EMAIL_HOST")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", 587))
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True") == "True"
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "no-reply@tu-dominio.com")
 SITE_URL = os.getenv("SITE_URL", "http://localhost:8000")
+
+# === Stripe (modo test) ===
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")  # sk_test_...
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")  # whsec_...
+
+# Usamos SITE_URL para formar las URLs de retorno
+STRIPE_SUCCESS_URL = os.getenv("STRIPE_SUCCESS_URL", f"{SITE_URL}/pagos/success/")
+STRIPE_CANCEL_URL  = os.getenv("STRIPE_CANCEL_URL",  f"{SITE_URL}/pagos/cancel/")
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -29,6 +45,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    'usuarios.middleware.MfaRequiredMiddleware',
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -72,10 +89,24 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "/static/"
-STATICFILES_DIRS = [BASE_DIR / "static"]
+from glob import glob
+STATICFILES_DIRS = [
+    BASE_DIR / "static",
+]
+# Agregar automáticamente todas las carpetas static de apps dentro de /app
+for static_dir in glob(str(BASE_DIR / "app" / "*" / "static")):
+    STATICFILES_DIRS.append(static_dir)
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# MFA defaults
+MFA_DEFAULT_TTL_SECONDS = int(os.getenv('MFA_DEFAULT_TTL_SECONDS', '300'))
+MFA_CODE_LENGTH = int(os.getenv('MFA_CODE_LENGTH', '6'))
+MFA_MAX_ATTEMPTS = int(os.getenv('MFA_MAX_ATTEMPTS', '5'))
+MFA_RESEND_LIMIT = int(os.getenv('MFA_RESEND_LIMIT', '3'))
+MFA_RESEND_BLOCK_TTL = int(os.getenv('MFA_RESEND_BLOCK_TTL', '900'))
+
 
 _csrf = os.getenv("CSRF_TRUSTED_ORIGINS")
 CSRF_TRUSTED_ORIGINS = _csrf.split(",") if _csrf else []

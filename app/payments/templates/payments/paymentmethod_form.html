@@ -1,55 +1,351 @@
 {% extends 'base.html' %}
+{% load static %}
+{% load usuarios_extras %}
 {% block content %}
 <div class="container mt-4">
-    <h2>{% if method %}Editar{% else %}Nuevo{% endif %} Método de Pago</h2>
-    <form method="post">
-        {% csrf_token %}
-        {% if cliente %}
-            <div class="mb-3">
-                <label class="form-label fw-bold">Cliente</label>
-                <input type="text" class="form-control" value="{{ cliente.nombre }}" readonly>
-            </div>
+    {% if form.errors %}
+    <div id="error-box" class="alert alert-danger" style="background:var(--cui-danger-bg-subtle); border:2px solid var(--cui-danger); color:var(--cui-danger); padding:16px; border-radius:8px; margin-bottom:20px;">
+        <strong><i class="bi bi-exclamation-triangle-fill me-2"></i>Por favor corrige los siguientes errores:</strong>
+        <ul class="mb-0" style="margin-top:10px;">
+        {% for field, errors in form.errors.items %}
+            {% for error in errors %}
+                <li><strong>
+                    {% if field == 'payment_type' %}Tipo de Método de Pago
+                    {% elif field == 'titular_cuenta' %}Nombre del titular
+                    {% elif field == 'tipo_cuenta' %}Tipo de cuenta
+                    {% elif field == 'banco' %}Banco
+                    {% elif field == 'numero_cuenta' %}Número de cuenta o IBAN
+                    {% elif field == 'proveedor_billetera' %}Proveedor
+                    {% elif field == 'billetera_email_telefono' %}Email o teléfono asociado
+                    {% elif field == 'billetera_titular' %}Nombre del titular (opcional)
+                    {% elif field == 'tarjeta_nombre' %}Nombre en tarjeta
+                    {% elif field == 'tarjeta_numero' %}Número de tarjeta
+                    {% elif field == 'tarjeta_vencimiento' %}Fecha de vencimiento
+                    {% elif field == 'tarjeta_cvv' %}CVV/CVC
+                    {% elif field == 'tarjeta_marca' %}Marca de tarjeta
+                    {% elif field == 'cheque_numero' %}Número de cheque
+                    {% elif field == 'cheque_banco' %}Banco
+                    {% elif field == 'cheque_cuenta' %}Cuenta
+                    {% elif field == 'cheque_orden' %}Orden (Casa Matriz, dirección incluida)
+                    {% elif field == 'cheque_beneficiario' %}Beneficiario
+                    {% elif field == 'cheque_monto' %}Monto
+                    {% elif field == 'cheque_moneda' %}Moneda
+                    {% elif field == 'cheque_fecha_emision' %}Fecha de emisión
+                    {% else %}{{ field|capfirst }}
+                    {% endif %}
+                :</strong> {{ error }}</li>
+            {% endfor %}
+        {% endfor %}
+        {% if form.non_field_errors %}
+            {% for error in form.non_field_errors %}
+                <li>{{ error }}</li>
+            {% endfor %}
         {% endif %}
-        <div class="mb-3">
-            <label for="id_payment_type" class="form-label fw-bold">Tipo de Método de Pago</label>
-            {{ form.payment_type }}
+        </ul>
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h2 class="mb-0">
+                <i class="bi bi-{% if method %}pencil-square{% else %}plus-circle{% endif %} me-2"></i>
+                {% if method %}Editar{% else %}Nuevo{% endif %} Método de Pago
+            </h2>
         </div>
-        <div id="campos-tarjeta" style="display:none;">
-            <div class="mb-3"><label class="form-label">Nombre en tarjeta</label>{{ form.tarjeta_nombre }}</div>
-            <div class="mb-3"><label class="form-label">Número de tarjeta</label>{{ form.tarjeta_numero }}</div>
-            <div class="mb-3"><label class="form-label">Fecha de vencimiento</label>{{ form.tarjeta_vencimiento }}</div>
-            <div class="mb-3"><label class="form-label">CVV/CVC</label>{{ form.tarjeta_cvv }}</div>
-            <div class="mb-3"><label class="form-label">Marca de tarjeta</label>{{ form.tarjeta_marca }}</div>
+        <div class="card-body">
+            <form method="post" id="payment-form">
+                {% csrf_token %}
+                
+                {% if cliente %}
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-person-fill me-1"></i>Cliente
+                        </label>
+                        <input type="text" class="form-control" value="{{ cliente.nombre }}" readonly>
+                    </div>
+                {% endif %}
+
+                <div class="mb-4">
+                    <label for="id_payment_type" class="form-label fw-bold">
+                        <i class="bi bi-credit-card-2-front me-1"></i>Tipo de Método de Pago
+                        <span class="text-danger">*</span>
+                    </label>
+                    {% if method %}
+                        <input type="text" class="form-control" readonly value="{{ method.get_payment_type_display }}">
+                        <input type="hidden" name="payment_type" value="{{ form.payment_type.value }}">
+                    {% else %}
+                        {{ form.payment_type }}
+                    {% endif %}
+                </div>
+
+                <!-- CAMPOS TARJETA -->
+                <div id="campos-tarjeta" style="display:none;">
+                    <div class="card mb-3 border-primary">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0"><i class="bi bi-credit-card me-2"></i>Datos de la Tarjeta</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-12 mb-3">
+                                    <label class="form-label fw-semibold">
+                                        Nombre en tarjeta <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.tarjeta_nombre }}
+                                    <small class="form-text text-muted">Como aparece en la tarjeta</small>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-12 mb-3">
+                                    <label class="form-label fw-semibold">
+                                        Número de tarjeta <span class="text-danger">*</span>
+                                    </label>
+                                    <div style="position: relative;">
+                                        {{ form.tarjeta_numero }}
+                                    </div>
+                                    <small class="form-text text-muted">
+                                        <i class="bi bi-info-circle me-1"></i>Ingresa los 16 dígitos de tu tarjeta (se formatearán automáticamente)
+                                    </small>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label fw-semibold">
+                                        Fecha de vencimiento <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.tarjeta_vencimiento }}
+                                        <small class="form-text text-muted">Formato: MM/AAAA</small>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label fw-semibold">
+                                        CVV/CVC <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.tarjeta_cvv }}
+                                    <small class="form-text text-muted">Código de seguridad</small>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label fw-semibold">
+                                        Marca de tarjeta <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.tarjeta_marca }}
+                                    <small class="form-text text-muted">Se detecta automáticamente</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CAMPOS CUENTA BANCARIA -->
+                <div id="campos-cuenta" style="display:none;">
+                    <div class="card mb-3 border-success">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0"><i class="bi bi-bank me-2"></i>Datos de la Cuenta Bancaria</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">
+                                    Nombre del titular <span class="text-danger">*</span>
+                                </label>
+                                {{ form.titular_cuenta }}
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-semibold">
+                                        Tipo de cuenta <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.tipo_cuenta }}
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-semibold">
+                                        Banco <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.banco }}
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">
+                                    Número de cuenta o IBAN <span class="text-danger">*</span>
+                                </label>
+                                {{ form.numero_cuenta }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CAMPOS BILLETERA DIGITAL -->
+                <div id="campos-billetera" style="display:none;">
+                    <div class="card mb-3 border-info">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0"><i class="bi bi-wallet2 me-2"></i>Datos de la Billetera Digital</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">
+                                    Proveedor <span class="text-danger">*</span>
+                                </label>
+                                {{ form.proveedor_billetera }}
+                                <small class="form-text text-muted">Ej: PayPal, Giros Tigo, Billetera Personal</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">
+                                    Email o teléfono asociado <span class="text-danger">*</span>
+                                </label>
+                                {{ form.billetera_email_telefono }}
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">
+                                    Nombre del titular <small class="text-muted">(opcional)</small>
+                                </label>
+                                {{ form.billetera_titular }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CAMPOS CHEQUE -->
+                <div id="campos-cheque" style="display:none;">
+                    <div class="card mb-3 border-warning">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0"><i class="bi bi-cash-coin me-2"></i>Datos del Cheque</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-semibold">
+                                        Banco <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.cheque_banco }}
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-semibold">
+                                        Cuenta <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.cheque_cuenta }}
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">
+                                    Número de cheque <span class="text-danger">*</span>
+                                </label>
+                                {{ form.cheque_numero }}
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">
+                                    Orden (Casa Matriz, dirección incluida) <span class="text-danger">*</span>
+                                </label>
+                                {{ form.cheque_orden }}
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">
+                                    Beneficiario <span class="text-danger">*</span>
+                                </label>
+                                {{ form.cheque_beneficiario }}
+                            </div>
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label fw-semibold">
+                                        Monto <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.cheque_monto }}
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label fw-semibold">
+                                        Moneda <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.cheque_moneda }}
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label fw-semibold">
+                                        Fecha de emisión <span class="text-danger">*</span>
+                                    </label>
+                                    {{ form.cheque_fecha_emision }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <hr class="my-4">
+
+                <!-- BOTONES -->
+                <div class="d-flex gap-2 justify-content-end">
+                    <a href="{% url 'payments:payment_methods_by_client' %}" class="btn btn-secondary">
+                        <i class="bi bi-x-circle me-1"></i>Cancelar
+                    </a>
+                    {% if not method %}
+                        {% if request.user|has_permission:'payments.create_method' %}
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle me-1"></i>Guardar
+                            </button>
+                        {% endif %}
+                    {% elif method %}
+                        {% if request.user|has_permission:'payments.edit_method' %}
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-circle me-1"></i>Guardar Cambios
+                            </button>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </form>
         </div>
-        <div id="campos-cuenta" style="display:none;">
-            <div class="mb-3"><label class="form-label">Nombre del titular</label>{{ form.titular_cuenta }}</div>
-            <div class="mb-3"><label class="form-label">Tipo de cuenta</label>{{ form.tipo_cuenta }}</div>
-            <div class="mb-3"><label class="form-label">Banco</label>{{ form.banco }}</div>
-            <div class="mb-3"><label class="form-label">Número de cuenta o IBAN</label>{{ form.numero_cuenta }}</div>
-        </div>
-        <div id="campos-billetera" style="display:none;">
-            <div class="mb-3"><label class="form-label">Proveedor</label>{{ form.proveedor_billetera }}</div>
-            <div class="mb-3"><label class="form-label">Email o teléfono asociado</label>{{ form.billetera_email_telefono }}</div>
-            <div class="mb-3"><label class="form-label">Nombre del titular (opcional)</label>{{ form.billetera_titular }}</div>
-        </div>
-        <!-- campos-generales eliminados: ya no existen en el modelo ni en el form -->
-        <button type="submit" class="btn btn-success">Guardar</button>
-    <a href="{% url 'payments:payment_methods_by_client' %}" class="btn btn-secondary">Cancelar</a>
-        <script>
-        function mostrarCamposPorTipo(tipo) {
-            document.getElementById('campos-tarjeta').style.display = (tipo === 'tarjeta') ? '' : 'none';
-            document.getElementById('campos-cuenta').style.display = (tipo === 'cuenta_bancaria') ? '' : 'none';
-            document.getElementById('campos-billetera').style.display = (tipo === 'billetera') ? '' : 'none';
-        }
-        const selectTipo = document.getElementById('id_payment_type');
-        if (selectTipo) {
-            selectTipo.addEventListener('change', function() {
-                mostrarCamposPorTipo(this.value);
-            });
-            // Mostrar campos correctos al cargar
-            mostrarCamposPorTipo(selectTipo.value);
-        }
-        </script>
-    </form>
+    </div>
 </div>
+
+<script src="{% static 'payments/payment_form_restrict.js' %}"></script>
+
+<style>
+    /* Estilos adicionales para mejorar la apariencia */
+    .form-control, .form-select {
+        border-radius: 0.375rem;
+        border: 1px solid #ced4da;
+        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    }
+    
+    .form-control:focus, .form-select:focus {
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+    
+    .form-text {
+        display: block;
+        margin-top: 0.25rem;
+        font-size: 0.875rem;
+    }
+    
+    .card {
+        border-radius: 0.5rem;
+    }
+    
+    .card-header {
+        border-top-left-radius: 0.5rem;
+        border-top-right-radius: 0.5rem;
+    }
+    
+    .btn {
+        padding: 0.5rem 1.5rem;
+        font-weight: 500;
+    }
+    
+    .text-danger {
+        color: #dc3545 !important;
+    }
+    
+    .fw-semibold {
+        font-weight: 600 !important;
+    }
+    
+    /* Agregar clases de Bootstrap a los campos del form si no las tienen */
+    #payment-form input[type="text"],
+    #payment-form input[type="number"],
+    #payment-form input[type="email"],
+    #payment-form input[type="date"],
+    #payment-form textarea,
+    #payment-form select {
+        width: 100%;
+        padding: 0.375rem 0.75rem;
+        font-size: 1rem;
+        line-height: 1.5;
+        border: 1px solid #ced4da;
+        border-radius: 0.375rem;
+    }
+</style>
 {% endblock %}

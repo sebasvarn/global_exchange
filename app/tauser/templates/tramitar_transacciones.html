@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Terminal - Pago en Efectivo</h1>
+
+<form method="post" class="mb-4">
+  {% csrf_token %}
+  <div class="input-group mb-3">
+    <input type="text" name="transaccion_uuid" id="transaccion_uuid" class="form-control"
+           placeholder="Ingrese el código UUID de la transacción"
+           value="{{ transaccion_uuid }}" required>
+    <button type="submit" name="accion" value="buscar" class="btn btn-primary">Buscar</button>
+  </div>
+</form>
+
+{% if error %}
+  <div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+{% if mensaje %}
+  <div class="alert alert-success">{{ mensaje }}</div>
+{% endif %}
+
+{% if datos_transaccion %}
+<div class="card mt-4 shadow-sm">
+  <div class="card-header bg-light">
+    <strong>Transacción #{{ datos_transaccion.id }}</strong><br>
+    <small class="text-muted">Código: {{ datos_transaccion.uuid }}</small>
+  </div>
+  <div class="card-body">
+    <ul class="list-group list-group-flush">
+      <li class="list-group-item"><strong>Cliente:</strong> {{ datos_transaccion.cliente }}</li>
+      <li class="list-group-item"><strong>Tipo:</strong> {{ datos_transaccion.tipo }}</li>
+      <li class="list-group-item"><strong>Moneda:</strong> {{ datos_transaccion.moneda.codigo }}</li>
+      <li class="list-group-item"><strong>Tasa aplicada:</strong> {{ datos_transaccion.tasa }}</li>
+      <li class="list-group-item"><strong>Tasa actual:</strong> {{ datos_transaccion.tasa_recalculada }}</li>
+      <li class="list-group-item"><strong>Monto PYG:</strong> {{ datos_transaccion.monto_pyg }}</li>
+    </ul>
+
+    {% if datos_transaccion.estado == "pendiente" %}
+      {% if datos_transaccion.tasa != datos_transaccion.tasa_recalculada %}
+        <div class="alert alert-warning mt-3">
+          <i class="bi bi-exclamation-triangle me-2"></i>
+          La tasa ha cambiado desde la creación de esta transacción.
+          <div class="mt-2 d-flex gap-2">
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="transaccion_uuid" value="{{ datos_transaccion.uuid }}">
+              <button type="submit" name="accion" value="recalcular" class="btn btn-outline-warning btn-sm">
+                Recalcular con nueva tasa
+              </button>
+            </form>
+          </div>
+        </div>
+      {% endif %}
+
+      <div class="d-flex justify-content-center gap-3 mt-4">
+        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#confirmModal">
+          Confirmar Pago
+        </button>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="transaccion_uuid" value="{{ datos_transaccion.uuid }}">
+          <button type="submit" name="accion" value="cancelar" class="btn btn-danger">
+            Cancelar
+          </button>
+        </form>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Modal de confirmación -->
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-success text-white">
+        <h5 class="modal-title">Confirmar Pago</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p>¿Desea confirmar el pago de esta transacción?</p>
+        <ul class="list-group list-group-flush">
+          <li class="list-group-item"><strong>Monto total:</strong> {{ datos_transaccion.monto_pyg }} PYG</li>
+          <li class="list-group-item"><strong>Tasa actual:</strong> {{ datos_transaccion.tasa_recalculada }}</li>
+        </ul>
+      </div>
+      <div class="modal-footer">
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="transaccion_uuid" value="{{ datos_transaccion.uuid }}">
+          <button type="submit" name="accion" value="confirmar" class="btn btn-success">Confirmar</button>
+        </form>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

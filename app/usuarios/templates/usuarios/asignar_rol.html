@@ -58,9 +58,7 @@
                       </label>
                     </div>
                   {% empty %}
-                    <div class="alert alert-warning">
-                      No hay roles disponibles. <a href="{% url 'usuarios:rol_create' %}">Crear nuevo rol</a>
-                    </div>
+                    <p>No hay roles disponibles.</p>
                   {% endfor %}
                 </div>
               </div>

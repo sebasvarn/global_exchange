@@ -35,7 +35,7 @@ class RoleModelTest(TestCase):
         """
         Verifica que se pueda crear un rol y su representación en string.
         """
-        role = Role.objects.create(name="Admin", description="Administrador")
+        role, _ = Role.objects.get_or_create(name="Admin", defaults={"description": "Administrador"})
         self.assertEqual(str(role), "Admin")
 
 class UserRoleModelTest(TestCase):
@@ -158,7 +158,7 @@ class UsuariosViewsTest(TestCase):
         self.user = User.objects.create_user(email="viewuser@example.com", password="testpass123", is_active=True)
         self.client = Client()
         self.client.force_login(self.user)
-        self.role = Role.objects.create(name="Admin", description="Administrador")
+        self.role, _ = Role.objects.get_or_create(name="Admin", defaults={"description": "Administrador"})
         UserRole.objects.create(user=self.user, role=self.role)
 
     def test_usuarios_list_view(self):

@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-
+{% load usuarios_extras %}
 {% block title %}{% if obj %}Editar{% else %}Nueva{% endif %} Tasa{% endblock %}
 
 {% block content %}
-<h1 class="h4 mb-3">{% if obj %}Editar{% else %}Nueva{% endif %} Tasa de Comisión</h1>
+<h1 class="h4 mb-3">{% if obj %}Editar{% else %}Nueva{% endif %} Tasa de Descuento</h1>
 
 <form method="post" class="card p-3">
   {% csrf_token %}
@@ -15,7 +15,7 @@
     </div>
 
     <div class="col-md-3">
-      <label class="form-label">% Comisión</label>
+      <label class="form-label">% Descuento</label>
       {{ form.porcentaje }}
       {{ form.porcentaje.errors }}
     </div>
@@ -40,7 +40,9 @@
   </div>
 
   <div class="mt-3 d-flex gap-2">
-    <button class="btn btn-primary">Guardar</button>
+    {% if request.user|has_permission:'comisiones.create' %}
+      <button class="btn btn-primary">Guardar</button>
+    {% endif %}
     <a class="btn btn-outline-secondary" href="{% url 'clientes:comisiones_list' %}">Cancelar</a>
   </div>
 </form>

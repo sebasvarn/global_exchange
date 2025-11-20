@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Pago confirmado{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <div class="alert alert-success">
+    <h4 class="alert-heading">¡Pago recibido!</h4>
+    <p>Tu transacción <strong>#{{ tx_id }}</strong> fue procesada correctamente.</p>
+    {% if info %}
+      <hr>
+      <ul class="mb-0">
+        <li><strong>Estado de pago:</strong> {{ info.payment_status|default:"desconocido" }}</li>
+        <li><strong>Estado de sesión:</strong> {{ info.status|default:"desconocido" }}</li>
+        {% if info.amount_total %}
+          <li><strong>Monto total cobrado:</strong> ₲ {{ info.amount_total|floatformat:0 }}</li>
+        {% endif %}
+        {% if info.customer_email %}
+          <li><strong>Email:</strong> {{ info.customer_email }}</li>
+        {% endif %}
+      </ul>
+    {% endif %}
+  </div>
+
+  <a href="{% url 'transacciones:transacciones_list' %}" class="btn btn-primary">
+    Volver a Transacciones
+  </a>
+</div>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Nuevo Tauser</h1>
+
+{% if mensaje %}
+	<div class="alert alert-success">{{ mensaje }}</div>
+{% endif %}
+
+<form method="post" class="mb-4">
+	{% csrf_token %}
+	<div class="row g-2 align-items-end">
+		<div class="col-md-5">
+			{{ form.ubicacion.label_tag }}
+			{{ form.ubicacion }}
+		</div>
+		<div class="col-md-3">
+			{{ form.estado.label_tag }}
+			{{ form.estado }}
+		</div>
+		<div class="col-md-2">
+			<button type="submit" class="btn btn-primary">Agregar Tauser</button>
+		</div>
+	</div>
+</form>
+
+{% endblock %}

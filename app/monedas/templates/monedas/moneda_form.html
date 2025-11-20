@@ -1,42 +1,66 @@
 {% extends "base.html" %}
+{% load usuarios_extras %}
 {% block title %}{% if moneda %}Editar Moneda{% else %}Nueva Moneda{% endif %}{% endblock %}
 {% block content %}
-<div class="container mt-4">
-  <h2>{% if moneda %}Editar Moneda{% else %}Nueva Moneda{% endif %}</h2>
+{% if request.user|has_any_permission:'monedas.edit, monedas.create' %}
+  <div class="container mt-4">
+    <h2>{% if moneda %}Editar Moneda{% else %}Nueva Moneda{% endif %}</h2>
 
-  <form method="post" class="mt-3">
-    {% csrf_token %}
-    <div class="row g-3">
-      <div class="col-md-3">
-        <label class="form-label">Código ISO</label>
-        {{ form.codigo }}
-        {% for e in form.codigo.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
-      </div>
-      <div class="col-md-5">
-        <label class="form-label">Nombre</label>
-        {{ form.nombre }}
-        {% for e in form.nombre.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">Símbolo</label>
-        {{ form.simbolo }}
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">Decimales</label>
-        {{ form.decimales }}
-      </div>
-      <div class="col-md-4 form-check ms-2">
-        {{ form.activa }} <label class="form-check-label">Activa</label>
-      </div>
-      <div class="col-md-4 form-check ms-2">
-        {{ form.es_base }} <label class="form-check-label">Moneda base</label>
-      </div>
+    {% if moneda and moneda.codigo == 'PYG' %}
+    <div class="alert alert-info">
+      <strong>Moneda base del sistema:</strong> Esta es la moneda base PYG. No puede ser desactivada ni eliminada.
     </div>
+    {% endif %}
 
-    <div class="mt-3 d-flex gap-2">
-      <button type="submit" class="btn btn-success"><i class="bi bi-check-circle"></i> Guardar</button>
-      <a href="{% url 'monedas:monedas_list' %}" class="btn btn-secondary">Cancelar</a>
-    </div>
-  </form>
-</div>
+    <form method="post" class="mt-3">
+      {% csrf_token %}
+      <div class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label">Código ISO</label>
+          {{ form.codigo }}
+          {% for e in form.codigo.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+          <div class="form-text">Ej: USD, EUR, BRL</div>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label">Nombre</label>
+          {{ form.nombre }}
+          {% for e in form.nombre.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Símbolo</label>
+          {{ form.simbolo }}
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Decimales</label>
+          {{ form.decimales }}
+        </div>
+
+        {% if not moneda or moneda.codigo != 'PYG' %}
+        <div class="col-md-4 form-check ms-2">
+          {{ form.activa }} <label class="form-check-label">Activa</label>
+        </div>
+        {% else %}
+        <div class="col-md-4 form-check ms-2">
+          <input type="checkbox" checked disabled class="form-check-input">
+          <label class="form-check-label text-muted">Activa (moneda base)</label>
+          <input type="hidden" name="activa" value="on">
+        </div>
+        {% endif %}
+
+        {% if moneda and moneda.es_base %}
+        <div class="col-md-8">
+          <div class="alert alert-warning py-2">
+            <small>⭐ Esta es la moneda base del sistema</small>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="mt-3 d-flex gap-2">
+        <button type="submit" class="btn btn-success"><i class="bi bi-check-circle"></i> Guardar</button>
+        <a href="{% url 'monedas:monedas_list' %}" class="btn btn-secondary">Cancelar</a>
+      </div>
+    </form>
+  </div>
+{% endif %}
 {% endblock %}

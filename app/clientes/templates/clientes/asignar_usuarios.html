@@ -9,9 +9,11 @@
     {% csrf_token %}
     {{ form.as_p }}
 
-    <button type="submit" class="btn btn-success">
-      <i class="bi bi-check-circle"></i> Guardar
-    </button>
+    {% if request.user|has_permission:'clientes.asignar_usuarios' %}
+      <button type="submit" class="btn btn-success">
+        <i class="bi bi-check-circle"></i> Guardar
+      </button>
+    {% endif %}
     <a href="{% url 'clientes:clientes_list' %}" class="btn btn-secondary">Cancelar</a>
   </form>
 </div>

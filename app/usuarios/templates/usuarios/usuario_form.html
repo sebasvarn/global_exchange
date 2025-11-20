@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load usuarios_extras %}
 
 {% block title %}
   {% if usuario %}Editar Usuario - {{ usuario.email }}{% else %}Nuevo Usuario{% endif %}
@@ -68,6 +69,17 @@
                   <div class="form-text">
                     Solo usuarios activos pueden iniciar sesión
                   </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="mb-3">
+                  <label class="form-label">
+                    <strong>Seguridad</strong>
+                  </label>
+                  <p>
+                    Configura las opciones de seguridad en tu <a href="{% url 'usuarios:security_settings' %}">página de Seguridad</a>.
+                  </p>
+                  <div class="form-text">La página de Seguridad permite habilitar/deshabilitar MFA para inicio de sesión.</div>
                 </div>
               </div>
             </div>
@@ -172,15 +184,22 @@
                           <span class="badge bg-primary me-1 mb-1">{{ role }}</span>
                         {% endfor %}
                         <div class="mt-2">
-                          <a href="{% url 'usuarios:asignar_rol' usuario.id %}" class="btn btn-sm btn-outline-primary">
-                            <i class="bi bi-gear"></i> Modificar Roles
-                          </a>
+                            {% if request.user|has_permission:'roles.assign_to_user' %}
+                              <a href="{% url 'usuarios:asignar_rol' usuario.id %}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-gear"></i> Modificar Roles
+                              </a>
+                            {% endif %}
                         </div>
                       {% else %}
                         <p class="text-muted">No tiene roles asignados</p>
                         <a href="{% url 'usuarios:asignar_rol' usuario.id %}" class="btn btn-sm btn-primary">
                           <i class="bi bi-plus"></i> Asignar Roles
                         </a>
+                          {% if request.user|has_permission:'roles.assign_to_user' %}
+                            <a href="{% url 'usuarios:asignar_rol' usuario.id %}" class="btn btn-sm btn-primary">
+                              <i class="bi bi-plus"></i> Asignar Roles
+                            </a>
+                          {% endif %}
                       {% endif %}
                     </div>
                   </div>
@@ -237,42 +256,35 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Validación de confirmación de contraseña (para crear usuarios)
-    {% if form.password1 %}
-    const password1 = document.getElementById('{{ form.password1.id_for_label }}');
-    const password2 = document.getElementById('{{ form.password2.id_for_label }}');
 
-    if (password1 && password2) {
-        function validatePasswords() {
-            if (password1.value && password2.value) {
-                if (password1.value === password2.value) {
-                    password2.classList.remove('is-invalid');
-                    password2.classList.add('is-valid');
-                } else {
-                    password2.classList.remove('is-valid');
-                    password2.classList.add('is-invalid');
-                }
-            } else {
-                password2.classList.remove('is-valid', 'is-invalid');
-            }
+  // Validación de confirmación de contraseña (para crear usuarios)
+  const password1 = document.getElementById('{{ form.password1.id_for_label|default_if_none:"" }}');
+  const password2 = document.getElementById('{{ form.password2.id_for_label|default_if_none:"" }}');
+  if (password1 && password2) {
+    function validatePasswords() {
+      if (password1.value && password2.value) {
+        if (password1.value === password2.value) {
+          password2.classList.remove('is-invalid');
+          password2.classList.add('is-valid');
+        } else {
+          password2.classList.remove('is-valid');
+          password2.classList.add('is-invalid');
         }
-
-        password1.addEventListener('input', validatePasswords);
-        password2.addEventListener('input', validatePasswords);
-
-        // Agregar toggles para contraseñas en crear usuario
-        addPasswordToggle(password1);
-        addPasswordToggle(password2);
+      } else {
+        password2.classList.remove('is-valid', 'is-invalid');
+      }
     }
-    {% endif %}
+    password1.addEventListener('input', validatePasswords);
+    password2.addEventListener('input', validatePasswords);
+    addPasswordToggle(password1);
+    addPasswordToggle(password2);
+  }
 
-    // Mostrar/ocultar contraseña (para editar usuarios)
-    {% if form.password %}
-    const passwordInput = document.getElementById('{{ form.password.id_for_label }}');
-    if (passwordInput) {
-        addPasswordToggle(passwordInput);
-    }
-    {% endif %}
+  // Mostrar/ocultar contraseña (para editar usuarios)
+  const passwordInput = document.getElementById('{{ form.password.id_for_label|default_if_none:"" }}');
+  if (passwordInput) {
+    addPasswordToggle(passwordInput);
+  }
 
     function addPasswordToggle(input) {
         // Crear botón para mostrar/ocultar contraseña

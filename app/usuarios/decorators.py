@@ -9,10 +9,17 @@ def role_required(*required_roles):
     """
     Decorador que requiere que el usuario tenga al menos uno de los roles especificados.
 
-    Ejemplo::
+    Si no se especifica ningún rol, solo verifica que el usuario esté autenticado.
 
+    Args:
+        *required_roles: Lista de nombres de roles permitidos para acceder a la vista.
+
+    Ejemplos:
         @role_required("Admin")
         @role_required("Admin", "Moderator")
+
+    Returns:
+        Función decorada que verifica los roles antes de ejecutar la vista.
     """
 
     def decorator(view_func):
@@ -45,27 +52,38 @@ def role_required(*required_roles):
 
 def admin_required(view_func):
     """
-    Decorador que requiere rol de Admin.
+    Decorador que requiere que el usuario tenga el rol 'Admin'.
 
-    Ejemplo::
+    Este decorador es un atajo para:
+        @role_required("Admin")
 
-        @admin_required
-        def my_view(request):
-            ...
+    Args:
+        view_func (callable): Vista que se desea proteger.
+
+    Returns:
+        Función decorada que verifica que el usuario tenga rol Admin.
     """
     return role_required("Admin")(view_func)
 
 
 def role_required_or_owner(required_role):
     """
-    Decorador que permite acceso si el usuario tiene el rol requerido
-    o si es el propietario del objeto (para vistas que modifican perfil propio).
+    Decorador que permite acceso si el usuario tiene un rol específico
+    o si es el propietario de un objeto (por ejemplo, su propio perfil).
 
-    Ejemplo::
+    Esto es útil para vistas que permiten que un usuario edite su perfil
+    aunque no tenga rol de administrador.
 
+    Args:
+        required_role (str): Nombre del rol requerido para acceder.
+
+    Ejemplo:
         @role_required_or_owner("Admin")
         def edit_user(request, user_id):
             ...
+
+    Returns:
+        Función decorada que verifica rol o propiedad antes de ejecutar la vista.
     """
 
     def decorator(view_func):
@@ -96,7 +114,16 @@ def role_required_or_owner(required_role):
 def role_required_ajax(*required_roles):
     """
     Decorador para vistas AJAX que requieren roles específicos.
-    Devuelve error 403 en lugar de redirigir.
+
+    A diferencia de role_required, en caso de no tener permisos lanza Http404
+    en lugar de redirigir al dashboard, ya que es común en APIs o AJAX no redirigir.
+
+    Args:
+        *required_roles: Lista de roles permitidos para acceder a la vista.
+
+    Returns:
+        Función decorada que verifica los roles antes de ejecutar la vista.
+        Lanza Http404 si el usuario no tiene permisos.
     """
 
     def decorator(view_func):

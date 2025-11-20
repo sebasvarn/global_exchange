@@ -1,15 +1,22 @@
 """
 URL configuration for global_exchange project.
 
-Configuración de URLs para el proyecto global_exchange.
+Configuración de URLs para el proyecto **global_exchange**.
 
 Incluye rutas para:
-- Panel de administración
-- Aplicación de usuarios
-- Redirección a login
-- Documentación generada por Sphinx
 
+- Panel de administración de Django.
+- Aplicación de usuarios.
+- Página de inicio (landing page).
+- Dashboard principal.
+- Aplicación de clientes.
+- Aplicación de exchange (tasas de cambio).
+- Documentación generada por Sphinx.
+- Aplicación de monedas.
+- Aplicación de pagos.
+- Aplicación de medios de acreditación.
 """
+
 from django.contrib import admin
 from django.shortcuts import redirect
 from django.urls import path, include, re_path
@@ -18,13 +25,28 @@ from django.conf import settings
 from django.views.generic import RedirectView
 import os
 
+#: Lista principal de URLs del proyecto.
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('usuarios/', include('usuarios.urls', namespace='usuarios')),
-    path('', lambda r: redirect('usuarios:login'), name='login'),
+    # --- Administración ---
+    path('admin/', admin.site.urls, name="admin"),
+
+    # --- Usuarios ---
+    path('usuarios/', include(('usuarios.urls', 'usuarios'), namespace='usuarios')),
+
+    # --- Landing page ---
+    path(
+        '',
+        __import__('global_exchange.views', fromlist=['landing_page']).landing_page,
+        name='landing'
+    ),
+
+    # --- Dashboard principal ---
     path('dashboard/', lambda r: redirect('usuarios:dashboard'), name='dashboard'),
-    path('clientes/', include('clientes.urls', namespace='clientes')),
-    path('exchange/', include('exchange.urls', namespace='exchange')),
+
+    # --- Clientes ---
+    path('clientes/', include(('clientes.urls', 'clientes'), namespace='clientes')),
+
+    # --- Documentación generada con Sphinx ---
     path("docs/", RedirectView.as_view(url="/docs/index.html", permanent=False)),
     re_path(
         r"^docs/(?P<path>.*)$",
@@ -32,6 +54,15 @@ urlpatterns = [
         {"document_root": os.path.join(settings.BASE_DIR, "docs/build/html")},
         name="documentacion",
     ),
+
+    # --- Monedas ---
     path('monedas/', include('monedas.urls')),
     path('payments/', include('payments.urls', namespace='payments')),
+    path('medios_acreditacion/', include('medios_acreditacion.urls', namespace='medios_acreditacion')),
+    path('transacciones/', include('transaccion.urls')),
+    # MFA endpoints (generate/verify) - used for testing OTP by terminal
+    path('mfa/', include(('mfa.urls', 'mfa'), namespace='mfa')),
+
+    # --- Tauser ---
+    path('tauser/', include(('tauser.urls', 'tauser'), namespace='tauser')),
 ]

@@ -1,0 +1,10 @@
+Hola {{ user.get_full_name|default:user.username }},
+
+Tu código de verificación para "{{ purpose }}" es: {{ raw_code }}
+
+Este código expira aproximadamente a las {{ expires_at|time:"H:i" }} del {{ expires_at|date:"d/m/Y" }}.
+
+Si no solicitaste este código, por favor ignora este correo electrónico.
+
+Gracias,
+El equipo de Global Exchange

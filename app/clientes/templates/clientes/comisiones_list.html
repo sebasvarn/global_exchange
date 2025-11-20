@@ -1,16 +1,19 @@
 {% extends "base.html" %}
-{% block title %}Tasas de Comisión{% endblock %}
+{% load usuarios_extras %}
+{% block title %}Tasas de Descuento{% endblock %}
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h1 class="h4 mb-0">Tasas de Comisión</h1>
-  <a class="btn btn-primary" href="{% url 'clientes:comision_create' %}">Nueva tasa</a>
+  <h1 class="h4 mb-0">Tasas de Descuento</h1>
+  {% if request.user|has_permission:'clientes.create_comision' %}
+    <a class="btn btn-primary" href="{% url 'clientes:comision_create' %}">Nueva tasa</a>
+  {% endif %}
 </div>
 
 <form class="mb-3" method="get">
   <input type="hidden" name="show_deleted" value="{% if show_deleted %}0{% else %}1{% endif %}">
   <button class="btn btn-sm btn-outline-secondary" type="submit">
-    {% if show_deleted %}Ocultar eliminadas{% else %}Mostrar eliminadas{% endif %}
+    {% if show_deleted %}Ocultar eliminadas{% else %}Mostrar inactivos{% endif %}
   </button>
 </form>
 
@@ -19,7 +22,7 @@
   <thead>
     <tr>
       <th>Segmento</th>
-      <th>% Comisión</th>
+      <th>% Descuento</th>
       <th>Desde</th>
       <th>Hasta</th>
       <th>Estado</th>
@@ -35,11 +38,14 @@
       <td>{% if r.vigente_hasta %}{{ r.vigente_hasta|date:"d/m/Y" }}{% else %}—{% endif %}</td>
       <td>{{ r.estado }}</td>
       <td class="text-end">
-        <a class="btn btn-sm btn-outline-primary" href="{% url 'clientes:comision_edit' r.pk %}">Editar</a>
-        {% if r.estado == "ELIMINADO" %}
+        {% if request.user|has_permission:'comisiones.edit' %}
+          <a class="btn btn-sm btn-outline-primary" href="{% url 'clientes:comision_edit' r.pk %}">Editar</a>
+        {% endif %}
+        {% if request.user|has_permission:'comisiones.restore' and r.estado == "ELIMINADO" %}
           <a class="btn btn-sm btn-outline-success" href="{% url 'clientes:comision_restore' r.pk %}">Restaurar</a>
-        {% else %}
-          <a class="btn btn-sm btn-outline-danger" href="{% url 'clientes:comision_delete' r.pk %}">Eliminar</a>
+        {% endif %}
+        {% if request.user|has_permission:'comisiones.delete' and r.estado != "ELIMINADO" %}
+          <a class="btn btn-sm btn-outline-danger" href="{% url 'clientes:comision_delete' r.pk %}">Inactivar</a>
         {% endif %}
       </td>
     </tr>

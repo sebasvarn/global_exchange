@@ -845,6 +845,30 @@ progress {
   --cui-mobile-breakpoint: lg;
 }
 
+/* Small helpers for MFA pages */
+.login-card,
+.security-card {
+  max-width: 420px;
+  margin: 2.5rem auto;
+  background: var(--cui-body-bg);
+  border: var(--cui-border-width) solid var(--cui-border-color);
+  border-radius: var(--cui-border-radius);
+  box-shadow: var(--cui-box-shadow-sm);
+}
+.login-card-body,
+.security-card-body {
+  padding: 1.5rem;
+}
+.login-title {
+  margin-bottom: 0.75rem;
+  font-size: 1.25rem;
+}
+.security-card .form-text {
+  margin-top: 0.25rem;
+  color: var(--cui-secondary-color);
+}
+
+
 .row {
   --cui-gutter-x: 1.5rem;
   --cui-gutter-y: 0;
@@ -14412,3 +14436,28 @@ textarea.form-control-lg {
 }
 
 /*# sourceMappingURL=style.css.map */
+
+/* ===== Custom OTP input styles ===== */
+.otp-digit {
+  width: 4.8rem;
+  height: 4.8rem;
+  font-size: 2rem;
+  line-height: 1;
+  padding: 0.35rem;
+  border-radius: 0.6rem;
+  border: 1px solid rgba(0,0,0,0.12);
+  box-shadow: none;
+  text-align: center;
+}
+.otp-digit:focus {
+  outline: none;
+  border-color: var(--cui-primary);
+  box-shadow: 0 0 0 0.15rem rgba(var(--cui-primary-rgb),0.12);
+}
+
+@media (max-width: 576px) {
+  .otp-digit { width: 3.6rem; height: 3.6rem; font-size: 1.2rem; }
+}
+
+/* small helper to visually disable links styled as buttons */
+.btn-link.disabled { pointer-events: none; opacity: 0.6; }

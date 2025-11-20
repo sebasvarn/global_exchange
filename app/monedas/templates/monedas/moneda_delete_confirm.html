@@ -1,15 +1,18 @@
 {% extends "base.html" %}
-{% block title %}Eliminar Moneda{% endblock %}
+{% load usuarios_extras %}
+{% block title %}Inactivar Moneda{% endblock %}
 
 {% block content %}
+{% if request.user|has_permission:'monedas.delete' %}
 <div class="container mt-4">
-  <h2>Eliminar Moneda</h2>
+  <h2>Inactivar Moneda</h2>
   <p>¿Confirmás eliminar <strong>{{ moneda.codigo }} - {{ moneda.nombre }}</strong>?</p>
 
   <form method="post">
     {% csrf_token %}
-    <button type="submit" class="btn btn-danger">Sí, eliminar</button>
+    <button type="submit" class="btn btn-danger">Sí, inactivar</button>
     <a href="{% url 'monedas:monedas_list' %}" class="btn btn-secondary">Cancelar</a>
   </form>
 </div>
+{% endif %}
 {% endblock %}

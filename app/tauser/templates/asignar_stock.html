@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+  <h2>Asignar stock a Tauser</h2>
+  <form method="post">
+    {% csrf_token %}
+    <div class="row mb-3">
+      <div class="col-md-4"><label for="id_tauser">Tauser:</label>{{ form.tauser }}</div>
+      <div class="col-md-4">{{ form.moneda.label_tag }}{{ form.moneda }}</div>
+    </div>
+    {% if denominaciones %}
+      <h5>Denominaciones de {{ moneda_seleccionada }}</h5>
+      <div class="row">
+        {% for field in form %}
+          {% if field.name not in 'tauser moneda' %}
+            <div class="col-md-2 mb-2">
+              {% if 'bill' in field.name %}
+                <label for="{{ field.id_for_label }}">Billete {{ field.label|cut:'Bill '|cut:'bill ' }}</label>
+              {% elif 'coin' in field.name %}
+                <label for="{{ field.id_for_label }}">Moneda {{ field.label|cut:'Coin '|cut:'coin ' }}</label>
+              {% else %}
+                {{ field.label_tag }}
+              {% endif %}
+              {{ field }}
+            </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+      <button type="submit" name="guardar" class="btn btn-success mt-3">Guardar stock</button>
+    {% else %}
+      <p class="text-muted">Seleccione una moneda para ver las denominaciones.</p>
+    {% endif %}
+  </form>
+  {% if messages %}
+    <ul class="mt-3">
+      {% for message in messages %}
+        <li class="alert alert-{{ message.tags }}">{{ message }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</div>
+{% endblock %}

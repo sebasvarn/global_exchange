@@ -70,15 +70,18 @@
                     <div class="text-danger mb-3">{{ form.password.errors }}</div>
                   {% endif %}
 
-                  <!-- Botones de acción -->
-                  <div class="row">
-                    <div class="col-6">
-                        <button class="btn btn-primary px-4" type="submit">Ingresar</button>
-                    </div>
-                    <div class="text-end mt-2">
-                        <a href="{% url 'usuarios:password_reset' %}" class="btn btn-link px-0">¿Olvidaste tu contraseña?</a>
-                    </div>
-                  </div>
+          <!-- Botones de acción -->
+          <div class="row">
+          <div class="col-6">
+            <button class="btn btn-primary px-4" type="submit">Ingresar</button>
+          </div>
+          <div class="col-6 text-end">
+            <a href="/" class="btn btn-outline-secondary">Volver a Inicio</a>
+          </div>
+          <div class="text-end mt-2">
+            <a href="{% url 'usuarios:password_reset' %}" class="btn btn-link px-0">¿Olvidaste tu contraseña?</a>
+          </div>
+          </div>
                 </form>
               </div>
             </div>

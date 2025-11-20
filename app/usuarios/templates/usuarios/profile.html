@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Perfil{% endblock %}
+
+{% block content %}
+<div class="container">
+  <h3>Perfil</h3>
+  <p>Esta es tu página de perfil. Para cambiar opciones de seguridad (MFA, métodos de verificación), ve a <a href="{% url 'usuarios:security_settings' %}">Configuraciones → Seguridad</a>.</p>
+  <p>También puedes <a href="{% url 'usuarios:usuario_edit' user_id=request.user.pk %}">editar tus datos</a>.</p>
+</div>
+{% endblock %}

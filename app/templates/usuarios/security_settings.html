@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+
+{% block title %}Seguridad - Configuración MFA{% endblock %}
+
+{% block content %}
+<div class="security-card">
+  <div class="security-card-body">
+    <h3>Seguridad</h3>
+    {% if message %}
+      <div class="alert alert-success">{{ message }}</div>
+    {% endif %}
+    <form method="post">
+      {% csrf_token %}
+      <div class="mb-3">
+        <label class="form-label"><strong>Habilitar MFA (inicio de sesión)</strong></label>
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="mfa_enabled" name="mfa_enabled" {% if mfa_enabled %}checked{% endif %}>
+          <label class="form-check-label" for="mfa_enabled">Habilita la solicitud de código OTP al iniciar sesión</label>
+        </div>
+        <div class="form-text">El código se imprime en la terminal (simulación). Las transacciones de débito requieren OTP obligatorio.</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label"><strong>Método de MFA</strong></label>
+        <select class="form-select" name="method">
+          <option value="email" {% if mfa_enabled and request.user.mfa_config.method == 'email' %}selected{% endif %}>Email</option>
+          <option value="sms" {% if mfa_enabled and request.user.mfa_config.method == 'sms' %}selected{% endif %}>SMS</option>
+        </select>
+        <div class="form-text">Selecciona el método por el cual se simula el envío del código.</div>
+      </div>
+      <div class="mb-3">
+        <label for="destination" class="form-label"><strong>Destino</strong></label>
+        <input id="destination" name="destination" class="form-control" value="{% if request.user.mfa_config %}{{ request.user.mfa_config.destination }}{% else %}{{ request.user.email }}{% endif %}">
+        <div class="form-text">Correo o número de teléfono (simulado). Si está vacío se usará tu email.</div>
+      </div>
+      <div class="d-flex" style="gap:8px;">
+        <button class="btn btn-primary" type="submit">Guardar</button>
+        <a href="{% url 'usuarios:perfil' %}" class="btn btn-secondary">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,6 +1,7 @@
 {% load static %}
+{% load usuarios_extras %}
 <!DOCTYPE html>
-<html lang="es" data-coreui-theme="auto">
+<html lang="es" data-coreui-theme="dark">
 <head>
   <base href="./">
   <meta charset="utf-8">
@@ -14,15 +15,29 @@
 
   <!-- Vendors styles -->
   <link rel="stylesheet" href="{% static 'css/vendors/simplebar.css' %}">
-  <!-- Bootstrap Icons -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
   <!-- Main styles for this application -->
-  <link href="{% static 'css/style.css' %}" rel="stylesheet">
 
   {% block extra_css %}{% endblock %}
 
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Main styles for this application: debe ir al final para sobrescribir -->
+  <link href="{% static 'css/style.css' %}" rel="stylesheet">
+
   <script src="{% static 'js/config.js' %}"></script>
-  <script src="{% static 'js/color-modes.js' %}"></script>
+  <!-- <script src="{% static 'js/color-modes.js' %}"></script> -->
+
+    <!-- ...existing code... -->
+
+  <!-- Iconos SVG para el switcher (puedes moverlos a un lugar más adecuado si ya existen) -->
+  <svg style="display:none;">
+    <symbol id="cil-sun" viewBox="0 0 16 16"><path d="M8 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 1a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-13a.5.5 0 0 1 .5.5V2a.5.5 0 0 1-1 0V.5A.5.5 0 0 1 8 0zm0 14a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-1 0v-1A.5.5 0 0 1 8 14zm8-6a.5.5 0 0 1-.5.5H14a.5.5 0 0 1 0-1h1.5a.5.5 0 0 1 .5.5zM2 8a.5.5 0 0 1-.5.5H0a.5.5 0 0 1 0-1h1.5A.5.5 0 0 1 2 8zm11.657-5.657a.5.5 0 0 1 0 .707l-1.06 1.06a.5.5 0 1 1-.707-.707l1.06-1.06a.5.5 0 0 1 .707 0zM4.11 12.243a.5.5 0 0 1 0 .707l-1.06 1.06a.5.5 0 1 1-.707-.707l1.06-1.06a.5.5 0 0 1 .707 0zm8.485 8.485a.5.5 0 0 1-.707 0l-1.06-1.06a.5.5 0 1 1 .707-.707l1.06 1.06a.5.5 0 0 1 0 .707zM4.11 3.757a.5.5 0 0 1-.707 0l-1.06-1.06a.5.5 0 1 1 .707-.707l1.06 1.06a.5.5 0 0 1 0 .707z"/></symbol>
+    <symbol id="cil-moon" viewBox="0 0 16 16"><path d="M6 0a7 7 0 0 0 0 14c3.866 0 7-3.134 7-7 0-1.657-.672-3.157-1.757-4.243A7.001 7.001 0 0 0 6 0zm0 1a6 6 0 0 1 0 12A6 6 0 0 1 6 1zm7.293 2.707a1 1 0 0 1 0 1.414l-1.06 1.06a1 1 0 1 1-1.414-1.414l1.06-1.06a1 1 0 0 1 1.414 0z"/></symbol>
+  </svg>
+  <!-- Bootstrap JS (unificado y antes de cualquier uso de 'bootstrap') -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </head>
 
 <body>
@@ -50,31 +65,106 @@
       </li>
 
       {% if request.user.is_authenticated %}
-        <!-- Gestión de Usuarios -->
-        <li class="nav-title">Gestión</li>
+        {% if request.user|has_any_permission:'usuarios.view,usuarios.create,usuarios.edit,usuarios.delete,roles.view,roles.create,roles.edit,roles.delete,clientes.list,clientes.create,clientes.edit,clientes.delete,comisiones.view,comisiones.create,monedas.view,monedas.create,monedas.edit,monedas.delete' %}
+          <li class="nav-title">Gestión</li>
+        {% endif %}
 
+        {% if request.user|has_any_permission:'transacciones.list, transacciones.create' %}
+              <li class="nav-group {% if 'transacciones' in request.resolver_match.app_name %}show{% endif %}">
+                <a class="nav-link nav-group-toggle" href="#">
+                  <i class="nav-icon bi bi-arrow-left-right"></i>
+                  Transferencias
+                </a>
+                <ul class="nav-group-items compact">
+                  {% if request.user|has_permission:'transacciones.list' %}
+                  <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'transacciones_list' %}active{% endif %}"
+                       href="{% url 'transacciones:transacciones_list' %}">
+                      <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+                      Historial
+                    </a>
+                  </li>
+                  {% endif %}
+                  {% if request.user|has_permission:'transacciones.create' %}
+                  <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'transaccion_create' %}active{% endif %}"
+                       href="{% url 'transacciones:transaccion_create' %}">
+                      <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+                      Nueva Transferencia
+                    </a>
+                  </li>
+                  {% endif %}
+                </ul>
+              </li>
+              
+          {% endif %}
+              <!-- Tauser -->
+              <li class="nav-group {% if 'tauser' in request.resolver_match.app_name %}show{% endif %}">
+                <a class="nav-link nav-group-toggle" href="#">
+                  <i class="nav-icon bi bi-person-badge"></i>
+                  Tauser
+                </a>
+                <ul class="nav-group-items compact">
+                  
+                  <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'tramitar_transacciones' %}active{% endif %}"
+                        href="{% url 'tauser:tramitar_transacciones' %}">
+                      <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+                      Tramitar Transacciones
+                    </a>
+                  </li>
+                  <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'nuevo_tauser' %}active{% endif %}"
+                        href="{% url 'tauser:nuevo_tauser' %}">
+                      <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+                      Nuevo Tauser
+                    </a>
+                  </li>
+                  <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'lista_tausers' %}active{% endif %}"
+                        href="{% url 'tauser:lista_tausers' %}">
+                      <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+                      Lista de Tausers
+                    </a>
+                  </li>
+                  <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'asignar_stock_tauser' %}active{% endif %}"
+                        href="{% url 'tauser:asignar_stock_tauser' %}">
+                      <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+                      Asignar Stock a Tauser
+                    </a>
+                  </li>
+                </ul>
+              </li>
+
+        {% if request.user|has_any_permission:'usuarios.list, usuarios.create' %}
         <li class="nav-group {% if 'usuarios' in request.resolver_match.url_name or 'usuario' in request.resolver_match.url_name %}show{% endif %}">
           <a class="nav-link nav-group-toggle" href="#">
             <i class="nav-icon bi bi-people"></i>
             Usuarios
           </a>
           <ul class="nav-group-items compact">
+            {% if request.user|has_permission:'usuarios.list' %}
             <li class="nav-item">
               <a class="nav-link {% if request.resolver_match.url_name == 'usuarios_list' %}active{% endif %}" href="{% url 'usuarios:usuarios_list' %}">
                 <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
                 Lista de Usuarios
               </a>
             </li>
+            {% endif %}
+            {% if request.user|has_permission:'usuarios.create' %}
             <li class="nav-item">
               <a class="nav-link" href="{% url 'usuarios:usuario_create' %}">
                 <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
                 Nuevo Usuario
               </a>
             </li>
+            {% endif %}
           </ul>
         </li>
-
-        <!-- Gestión de Roles -->
+        {% endif %}
+      {% endif %}
+        {% if request.user|has_permission:'roles.list' %}
         <li class="nav-group {% if 'roles' in request.resolver_match.url_name or 'rol' in request.resolver_match.url_name %}show{% endif %}">
           <a class="nav-link nav-group-toggle" href="#">
             <i class="nav-icon bi bi-shield-check"></i>
@@ -87,137 +177,191 @@
                 Lista de Roles
               </a>
             </li>
+          </ul>
+        </li>
+        {% endif %}
+
+      {% if request.user|has_any_permission:'clientes.list, comisiones.list, clientes.create' %}
+        <li class="nav-group {% if 'clientes' in request.resolver_match.app_name %}show{% endif %}">
+          <a class="nav-link nav-group-toggle" href="#">
+            <i class="nav-icon bi bi-building"></i>
+            Clientes
+          </a>
+          <ul class="nav-group-items compact">
+            {% if request.user|has_any_permission:'clientes.list' %}
             <li class="nav-item">
-              <a class="nav-link {% if request.resolver_match.url_name == 'rol_create' %}active{% endif %}" href="{% url 'usuarios:rol_create' %}">
+              <a class="nav-link {% if request.resolver_match.url_name == 'clientes_list' %}active{% endif %}"
+                href="{% url 'clientes:clientes_list' %}">
                 <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
-                Nuevo Rol
+                Lista de Clientes
+              </a>
+            </li>
+            {% endif %}
+            {% if request.user|has_permission:'clientes.create' %}
+            <li class="nav-item">
+              <a class="nav-link {% if request.resolver_match.url_name == 'cliente_create' %}active{% endif %}"
+                href="{% url 'clientes:cliente_create' %}">
+                <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+                Nuevo Cliente
+              </a>
+            </li>
+            {% endif %}
+            {% if request.user|has_permission:'comisiones.list' %}
+            <li class="nav-item">
+              <a class="nav-link {% if 'comision' in request.resolver_match.app_name %}show{% endif %}" href="{% url 'clientes:comisiones_list' %}">
+                <span class="nav-icon"><i class="bi bi-percent"></i></span>
+                Tasas de Descuento
+              </a>
+            </li>
+            {% endif %}
+            {% if request.user|has_permission:'comisiones.create' %}
+            <li class="nav-item">
+              <a class="nav-link {% if request.resolver_match.url_name == 'comision_create' %}active{% endif %}"
+                 href="{% url 'clientes:comision_create' %}">
+                <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+                Nueva Tasa
+              </a>
+            </li>
+            {% endif %}
+            <li class="nav-item">
+              <a class="nav-link {% if request.resolver_match.url_name == 'limites_tipo_list' %}active{% endif %}" href="{% url 'clientes:limites_tipo_list' %}">
+                <span class="nav-icon"><i class="bi bi-sliders"></i></span>
+                Límites
               </a>
             </li>
           </ul>
         </li>
-      
-        <!-- Gestión de Clientes -->
-        <li class="nav-group {% if 'clientes' in request.resolver_match.app_name %}show{% endif %}">
-        <a class="nav-link nav-group-toggle" href="#">
-          <i class="nav-icon bi bi-building"></i>
-          Clientes
-        </a>
-        <ul class="nav-group-items compact">
-          <li class="nav-item">
-            <a class="nav-link {% if request.resolver_match.url_name == 'clientes_list' %}active{% endif %}"
-              href="{% url 'clientes:clientes_list' %}">
-              <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
-              Lista de Clientes
-            </a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link {% if request.resolver_match.url_name == 'cliente_create' %}active{% endif %}"
-              href="{% url 'clientes:cliente_create' %}">
-              <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
-              Nuevo Cliente
-            </a>
-          </li>
-        <!-- Tasas de Comisión -->
-        <li class="nav-item">
-          <a class="nav-link {% if 'comision' in request.resolver_match.app_name %}show{% endif %}" href="{% url 'clientes:comisiones_list' %}">
-            <span class="nav-icon"><i class="bi bi-percent"></i></span>
-            Tasas de Comisión
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link {% if request.resolver_match.url_name == 'comision_create' %}active{% endif %}"
-             href="{% url 'clientes:comision_create' %}">
-            <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
-            Nueva Tasa
-          </a>
-        </li>
-        </ul>
-      </li>
-
-        <!-- Gestión de Monedas -->
-        <li class="nav-group {% if 'monedas' in request.resolver_match.app_name %}show{% endif %}">
+      {% endif %}
+      <!-- Gestión de Monedas y Cotizaciones -->
+      {% if request.user|has_any_permission:'monedas.list, monedas.create' %}
+      <li class="nav-group {% if 'monedas' in request.resolver_match.app_name and request.resolver_match.url_name != 'tasas_list' and request.resolver_match.url_name != 'precios_comisiones_list' and request.resolver_match.url_name != 'tasa_create' %}show{% endif %}">
           <a class="nav-link nav-group-toggle" href="#">
             <i class="nav-icon bi bi-cash-coin"></i>
             Monedas
           </a>
           <ul class="nav-group-items compact">
+            {% if request.user|has_permission:'monedas.list' %}
             <li class="nav-item">
               <a class="nav-link {% if request.resolver_match.url_name == 'monedas_list' %}active{% endif %}"
-                 href="{% url 'monedas:monedas_list' %}">
+                href="{% url 'monedas:monedas_list' %}">
                 <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
                 Lista de Monedas
               </a>
             </li>
-            <li class="nav-item">
-              <a class="nav-link {% if request.resolver_match.url_name == 'moneda_create' %}active{% endif %}"
-                 href="{% url 'monedas:moneda_create' %}">
-                <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
-                Nueva Moneda
-              </a>
-            </li>
-          <li class="nav-item">
-              <a class="nav-link {% if request.resolver_match.url_name == 'moneda_create' %}active{% endif %}"
-                 href="{% url 'monedas:dashboard_tasas' %}">
-                <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
-                Tasas de Cambio
-              </a>
-            </li>
+            {% endif %}
+            {% if request.user|has_permission:'monedas.create' %}
+              <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'moneda_create' %}active{% endif %}"
+                  href="{% url 'monedas:moneda_create' %}">
+                  <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+                  Nueva Moneda
+                </a>
+              </li>
+            {% endif %}
           </ul>
-        </li>
-
-        <!-- Configuración -->
-        <li class="nav-title">Sistema</li>
-        <li class="nav-group">
-          <a class="nav-link nav-group-toggle" href="#">
-            <i class="nav-icon bi bi-gear"></i>
-            Configuración
-          </a>
-          <ul class="nav-group-items compact">
-            <li class="nav-item">
-              <a class="nav-link" href="#">
-                <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
-                General
-              </a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="#">
-                <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
-                Seguridad
-              </a>
-            </li>
-            
-            <!-- Métodos de Pago -->
-            <li class="nav-item">
-              <a class="nav-link {% if 'payment' in request.resolver_match.app_name %}active{% endif %}" href="{% url 'payments:payment_methods_by_client' %}">
-                <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
-                Métodos de Pago
-              </a>
-            </li>
-          </ul>
-        </li>
-
-        <!-- Reportes -->
-        <li class="nav-item">
-          <a class="nav-link" href="#">
-            <i class="nav-icon bi bi-bar-chart"></i>
-            Reportes
-          </a>
-        </li>
-
-        <!-- Ayuda -->
-        <li class="nav-divider"></li>
-        <li class="nav-item">
-          <a class="nav-link" href="#">
-            <i class="nav-icon bi bi-question-circle"></i>
-            Ayuda
-          </a>
         </li>
       {% endif %}
+
+      {% if request.user|has_any_permission:'cotizaciones.list, cotizaciones.create' %}
+        <li class="nav-divider"></li>
+        <li class="nav-group {% if request.resolver_match.url_name == 'tasas_list' or request.resolver_match.url_name == 'precios_comisiones_list' or request.resolver_match.url_name == 'tasa_create' %}show{% endif %}">
+          <a class="nav-link nav-group-toggle" href="#">
+            <span class="nav-icon"><i class="bi bi-graph-up"></i></span>
+            Cotizaciones
+          </a>
+          <ul class="nav-group-items compact">
+            {% if request.user|has_permission:'cotizaciones.list' %}
+            <li class="nav-item">
+              <a class="nav-link {% if request.resolver_match.url_name == 'tasas_list' %}active{% endif %}"
+                  href="{% url 'monedas:tasas_list' %}">
+                <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+                Lista de Cotizaciones
+              </a>
+            </li>
+            {% endif %}
+            {% if request.user|has_permission:'cotizaciones.create' %}
+            <li class="nav-item">
+              <a class="nav-link {% if request.resolver_match.url_name == 'precios_comisiones_list' %}active{% endif %}"
+                  href="{% url 'monedas:precios_comisiones_list' %}">
+                <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+                Lista de Precios Base
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link {% if request.resolver_match.url_name == 'tasa_create' %}active{% endif %}"
+                  href="{% url 'monedas:tasa_create' %}">
+                <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+                Nuevo Precio Base
+              </a>
+            </li>
+            {% endif %}
+          </ul>
+        </li>
+      {% endif %}
+
+      <!-- Configuración -->
+      <li class="nav-title">Sistema</li>
+      <li class="nav-group">
+        <a class="nav-link nav-group-toggle" href="#">
+          <i class="nav-icon bi bi-gear"></i>
+          Configuración
+        </a>
+        <ul class="nav-group-items compact">
+          <li class="nav-item">
+            <a class="nav-link" href="#">
+              <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+              General
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{% url 'usuarios:security_settings' %}">
+              <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+              Seguridad
+            </a>
+          </li>
+          {% if request.user|has_permission:'payments.list_methods' %}
+          <li class="nav-item">
+            <a class="nav-link {% if request.resolver_match.url_name == 'payment_methods_by_client' %}active{% endif %}" href="{% url 'payments:payment_methods_by_client' %}">
+              <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+              Métodos de Pago
+            </a>
+          </li>
+          {% endif %}
+          {% if request.user|has_any_permission:'medios_acreditacion.list' %}
+          <li class="nav-item">
+            <a class="nav-link {% if 'medios_acreditacion' in request.resolver_match.app_name %}active{% endif %}" href="{% url 'medios_acreditacion:medios_by_client' %}">
+              <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+              Medios de Acreditación
+            </a>
+          </li>
+          {% endif %}
+          <li class="nav-item">
+            <a class="nav-link {% if request.resolver_match.url_name == 'comisiones_metodos_pago_list' %}active{% endif %}" href="{% url 'payments:comisiones_metodos_pago_list' %}">
+              <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+              Comisiones por Método de Pago
+            </a>
+          </li>
+        </ul>
+      </li>
+
+      <!-- Reportes -->
+      <li class="nav-item">
+        <a class="nav-link" href="#">
+          <i class="nav-icon bi bi-bar-chart"></i>
+          Reportes
+        </a>
+      </li>
+
+      <!-- Ayuda -->
+      <li class="nav-divider"></li>
+      <li class="nav-item">
+        <a class="nav-link" href="#">
+          <i class="nav-icon bi bi-question-circle"></i>
+          Ayuda
+        </a>
+      </li>
     </ul>
 
-    <div class="sidebar-footer border-top d-none d-md-flex">
-      <button class="sidebar-toggler" type="button" data-coreui-toggle="unfoldable"></button>
-    </div>
   </div>
 
   <!-- Main Wrapper -->
@@ -240,6 +384,12 @@
             </li>
             <li class="nav-item">
               <a class="nav-link" href="{% url 'usuarios:roles_list' %}">Roles</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'monedas:monedas_list' %}">Monedas</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{% url 'monedas:tasas_list' %}">Cotizaciones</a>
             </li>
           {% endif %}
         </ul>
@@ -326,11 +476,11 @@
                 <div class="dropdown-header bg-body-tertiary text-body-secondary fw-semibold rounded-top mb-2">
                   Hola, {{ request.user.email|truncatechars:20 }}
                 </div>
-                <a class="dropdown-item" href="#">
+                <a class="dropdown-item" href="{% url 'usuarios:perfil' %}">
                   <i class="bi bi-person me-2"></i>
                   Mi Perfil
                 </a>
-                <a class="dropdown-item" href="#">
+                <a class="dropdown-item" href="{% url 'usuarios:security_settings' %}">
                   <i class="bi bi-gear me-2"></i>
                   Configuración
                 </a>

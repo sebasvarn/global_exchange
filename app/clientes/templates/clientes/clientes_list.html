@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load usuarios_extras %}
 
 {% block title %}Lista de Clientes{% endblock %}
 
@@ -16,9 +17,11 @@
         <div class="card-header">
           <strong>Clientes Registrados</strong>
           <div class="card-header-actions">
-            <a href="{% url 'clientes:cliente_create' %}" class="btn btn-sm btn-success me-2">
-              <i class="bi bi-building-add"></i> Nuevo Cliente
-            </a>
+            {% if request.user|has_permission:'clientes.create' %}
+              <a href="{% url 'clientes:cliente_create' %}" class="btn btn-sm btn-success me-2">
+                <i class="bi bi-building-add"></i> Nuevo Cliente
+              </a>
+            {% endif %}
             {% if show_deleted %}
               <a href="?show_deleted=0" class="btn btn-sm btn-secondary">
                 <i class="bi bi-eye-slash"></i> Ocultar eliminados
@@ -58,33 +61,41 @@
                       </td>
                       <td class="text-center">
                         <div class="btn-group" role="group">
-                          <a href="{% url 'clientes:cliente_edit' c.id %}"
-                             class="btn btn-sm btn-outline-warning"
-                             data-bs-toggle="tooltip"
-                             title="Editar cliente">
-                            <i class="bi bi-pencil"></i>
-                          </a>
-                          {% if c.estado == 'eliminado' %}
-                            <a href="{% url 'clientes:cliente_restore' c.id %}"
-                               class="btn btn-sm btn-outline-success"
+                          {% if request.user|has_permission:'clientes.edit' %}
+                            <a href="{% url 'clientes:cliente_edit' c.id %}"
+                               class="btn btn-sm btn-outline-warning"
                                data-bs-toggle="tooltip"
-                               title="Restaurar cliente">
-                              <i class="bi bi-arrow-counterclockwise"></i>
-                            </a>
-                          {% else %}
-                            <a href="{% url 'clientes:cliente_delete' c.id %}"
-                               class="btn btn-sm btn-outline-danger"
-                               data-bs-toggle="tooltip"
-                               title="Eliminar cliente">
-                              <i class="bi bi-trash"></i>
+                               title="Editar cliente">
+                              <i class="bi bi-pencil"></i>
                             </a>
                           {% endif %}
-                          <a href="{% url 'clientes:asignar_usuarios' c.id %}"
-                             class="btn btn-sm btn-outline-info"
-                             data-bs-toggle="tooltip"
-                             title="Asignar usuarios">
-                            <i class="bi bi-person-plus"></i>
-                          </a>
+                          {% if c.estado == 'eliminado' %}
+                            {% if request.user|has_permission:'clientes.restore' %}
+                              <a href="{% url 'clientes:cliente_restore' c.id %}"
+                                 class="btn btn-sm btn-outline-success"
+                                 data-bs-toggle="tooltip"
+                                 title="Restaurar cliente">
+                                <i class="bi bi-arrow-counterclockwise"></i>
+                              </a>
+                            {% endif %}
+                          {% else %}
+                            {% if request.user|has_permission:'clientes.delete' %}
+                              <a href="{% url 'clientes:cliente_delete' c.id %}"
+                                 class="btn btn-sm btn-outline-danger"
+                                 data-bs-toggle="tooltip"
+                                 title="Eliminar cliente">
+                                <i class="bi bi-trash"></i>
+                              </a>
+                            {% endif %}
+                          {% endif %}
+                          {% if request.user|has_permission:'clientes.asignar_usuarios' %}
+                            <a href="{% url 'clientes:asignar_usuarios' c.id %}"
+                               class="btn btn-sm btn-outline-info"
+                               data-bs-toggle="tooltip"
+                               title="Asignar usuarios">
+                              <i class="bi bi-person-plus"></i>
+                            </a>
+                          {% endif %}
                         </div>
                       </td>
                     </tr>

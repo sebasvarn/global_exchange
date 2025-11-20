@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load usuarios_extras %}
 
 {% block title %}Lista de Usuarios{% endblock %}
 
@@ -16,12 +17,16 @@
         <div class="card-header">
           <strong>Usuarios del Sistema</strong>
           <div class="card-header-actions">
-            <a href="{% url 'usuarios:usuario_create' %}" class="btn btn-sm btn-success me-2">
-              <i class="bi bi-person-plus"></i> Nuevo Usuario
-            </a>
-            <a href="{% url 'usuarios:roles_list' %}" class="btn btn-sm btn-info me-2">
-              <i class="bi bi-shield-check"></i> Gestionar Roles
-            </a>
+            {% if request.user|has_permission:'usuarios.create' %}
+              <a href="{% url 'usuarios:usuario_create' %}" class="btn btn-sm btn-success me-2">
+                <i class="bi bi-person-plus"></i> Nuevo Usuario
+              </a>
+            {% endif %}
+            {% if request.user|has_permission:'roles.view' %}
+              <a href="{% url 'usuarios:roles_list' %}" class="btn btn-sm btn-info me-2">
+                <i class="bi bi-shield-check"></i> Gestionar Roles
+              </a>
+            {% endif %}
             {% if show_deleted %}
               <a href="?show_deleted=0" class="btn btn-sm btn-secondary">
                 <i class="bi bi-eye-slash"></i> Ocultar eliminados
@@ -71,38 +76,56 @@
                       <td>{{ usuario.date_joined|date:"d/m/Y H:i" }}</td>
                       <td class="text-center">
                         <div class="btn-group" role="group">
-                          <a href="{% url 'usuarios:ver_usuario_roles' usuario.id %}"
-                             class="btn btn-sm btn-outline-info"
-                             data-bs-toggle="tooltip"
-                             title="Ver roles">
-                            <i class="bi bi-eye"></i>
-                          </a>
-                          <a href="{% url 'usuarios:asignar_rol' usuario.id %}"
-                             class="btn btn-sm btn-outline-primary"
-                             data-bs-toggle="tooltip"
-                             title="Asignar roles">
-                            <i class="bi bi-shield-check"></i>
-                          </a>
-                          <a href="{% url 'usuarios:usuario_edit' usuario.id %}"
-                             class="btn btn-sm btn-outline-warning"
-                             data-bs-toggle="tooltip"
-                             title="Editar usuario">
-                            <i class="bi bi-pencil"></i>
-                          </a>
-                          {% if usuario.estado == 'eliminado' %}
-                            <a href="{% url 'usuarios:usuario_restore' usuario.id %}"
-                               class="btn btn-sm btn-outline-success"
+                          {% if request.user|has_permission:'usuarios.asignar_clientes' %}
+                            <a href="{% url 'usuarios:asignar_clientes' usuario.id %}"
+                               class="btn btn-sm btn-outline-secondary"
                                data-bs-toggle="tooltip"
-                               title="Restaurar usuario">
-                              <i class="bi bi-arrow-counterclockwise"></i>
+                               title="Asignar clientes">
+                              <i class="bi bi-people"></i>
                             </a>
-                          {% else %}
-                            <a href="{% url 'usuarios:usuario_delete' usuario.id %}"
-                               class="btn btn-sm btn-outline-danger"
+                          {% endif %}
+                          {% if request.user|has_permission:'usuarios.view' %}
+                            <a href="{% url 'usuarios:ver_usuario_roles' usuario.id %}"
+                               class="btn btn-sm btn-outline-info"
                                data-bs-toggle="tooltip"
-                               title="Eliminar usuario">
-                              <i class="bi bi-trash"></i>
+                               title="Ver roles">
+                              <i class="bi bi-eye"></i>
                             </a>
+                          {% endif %}
+                          {% if request.user|has_permission:'roles.assign_to_user' %}
+                            <a href="{% url 'usuarios:asignar_rol' usuario.id %}"
+                               class="btn btn-sm btn-outline-primary"
+                               data-bs-toggle="tooltip"
+                               title="Asignar roles">
+                              <i class="bi bi-shield-check"></i>
+                            </a>
+                          {% endif %}
+                          {% if request.user|has_permission:'usuarios.edit' %}
+                            <a href="{% url 'usuarios:usuario_edit' usuario.id %}"
+                               class="btn btn-sm btn-outline-warning"
+                               data-bs-toggle="tooltip"
+                               title="Editar usuario">
+                              <i class="bi bi-pencil"></i>
+                            </a>
+                          {% endif %}
+                          {% if request.user|has_permission:'usuarios.delete' %}
+                            {% if usuario.estado == 'eliminado' %}
+                              {% if request.user|has_permission:'usuarios.restore' %}
+                                <a href="{% url 'usuarios:usuario_restore' usuario.id %}"
+                                   class="btn btn-sm btn-outline-success"
+                                   data-bs-toggle="tooltip"
+                                   title="Restaurar usuario">
+                                  <i class="bi bi-arrow-counterclockwise"></i>
+                                </a>
+                              {% endif %}
+                            {% else %}
+                              <a href="{% url 'usuarios:usuario_delete' usuario.id %}"
+                                 class="btn btn-sm btn-outline-danger"
+                                 data-bs-toggle="tooltip"
+                                 title="Eliminar usuario">
+                                <i class="bi bi-trash"></i>
+                              </a>
+                            {% endif %}
                           {% endif %}
                         </div>
                       </td>

@@ -59,6 +59,25 @@ class UserManager(BaseUserManager):
         raise NotImplementedError("No esta permitido crear superusuarios en este sistema.")
 
 class User(AbstractUser):
+    def has_permission(self, perm_code):
+        """
+        Devuelve True si el usuario tiene el permiso (por alguno de sus roles activos),
+        o si el permiso es global y debe estar disponible para todos.
+        """
+        GLOBAL_PERMISSIONS = [
+            'dashboard.view',
+            'password.reset_request',
+            'password.reset_confirm',
+            'password.reset_done',
+        ]
+        if perm_code in GLOBAL_PERMISSIONS:
+            return True
+        for user_role in self.user_roles.select_related('role').all():
+            role = user_role.role
+            if role.estado == EstadoRegistroEnum.ACTIVO.value:
+                if role.permissions.filter(code=perm_code).exists():
+                    return True
+        return False
     """
     Modelo de usuario personalizado basado en email.
 
@@ -107,6 +126,16 @@ class User(AbstractUser):
         # Devuelve solo los roles no eliminados
         return [ur.role for ur in self.user_roles.select_related('role').all() if ur.role.estado == EstadoRegistroEnum.ACTIVO.value]
 
+class Permission(models.Model):
+    """
+    Modelo que representa un permiso en el sistema.
+    """
+    code = models.CharField(max_length=100, unique=True, help_text="Código único del permiso, ej: 'ver_monedas'")
+    description = models.CharField(max_length=255, blank=True)
+
+    def __str__(self):
+        return self.code
+
 class Role(models.Model):
     """
     Modelo que representa un rol en el sistema.
@@ -119,6 +148,7 @@ class Role(models.Model):
         default=EstadoRegistroEnum.ACTIVO.value,
         help_text="Estado del rol (activo, eliminado, suspendido, etc.)"
     )
+    permissions = models.ManyToManyField(Permission, blank=True, related_name="roles")
 
     def __str__(self):
         """
@@ -129,7 +159,6 @@ class Role(models.Model):
     class Meta:
         verbose_name = "Rol"
         verbose_name_plural = "Roles"
-
 
 class UserRole(models.Model):
     """

@@ -1,11 +1,14 @@
 {% extends 'base.html' %}
+{% load usuarios_extras %}
 {% block content %}
 <div class="container mt-4">
     <h2>Eliminar Método de Pago</h2>
     <p>¿Estás seguro que deseas eliminar el método de pago <strong>{{ method.name }}</strong>?</p>
     <form method="post">
         {% csrf_token %}
+        {% if request.user|has_permission:'payments.delete_method' %}
         <button type="submit" class="btn btn-danger">Eliminar</button>
+        {% endif %}
     <a href="{% url 'payments:payment_methods_by_client' %}" class="btn btn-secondary">Cancelar</a>
     </form>
 </div>

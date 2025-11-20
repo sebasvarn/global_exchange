@@ -1,46 +1,85 @@
 {% extends "base.html" %}
+{% load usuarios_extras %}
 {% block title %}Monedas{% endblock %}
 {% block content %}
 <div class="container mt-4">
   <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2>Monedas</h2>
-    <a href="{% url 'monedas:moneda_create' %}" class="btn btn-primary">
-      <i class="bi bi-plus-circle"></i> Nueva Moneda
-    </a>
+    <h5 class="fw-bold">Monedas Activas</h5>
+    <div>
+      <a href="{% url 'monedas:monedas_inactivas' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-archive"></i> Ver Inactivas
+      </a>
+      <a href="{% url 'monedas:moneda_create' %}" class="btn btn-primary">
+        <i class="bi bi-plus-circle"></i> Nueva Moneda
+      </a>
+    </div>
   </div>
 
-  <table class="table table-bordered table-hover">
-    <thead class="table-light">
-      <tr>
-        <th>Base</th>
-        <th>Código</th>
-        <th>Nombre</th>
-        <th>Símbolo</th>
-        <th>Dec.</th>
-        <th>Activa</th>
-        <th>Acciones</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for m in monedas %}
-      <tr>
-        <td class="text-center">{% if m.es_base %}⭐{% endif %}</td>
-        <td><strong>{{ m.codigo }}</strong></td>
-        <td>{{ m.nombre }}</td>
-        <td>{{ m.simbolo }}</td>
-        <td>{{ m.decimales }}</td>
-        <td>{{ m.activa|yesno:"Sí,No" }}</td>
-        <td>
-          <a href="{% url 'monedas:moneda_edit' m.id %}" class="btn btn-sm btn-warning">Editar</a>
-          <a href="{% url 'monedas:moneda_delete' m.id %}" class="btn btn-sm btn-danger">Eliminar</a>
-        </td>
-      </tr>
-      {% empty %}
-      <tr>
-        <td colspan="7" class="text-center text-muted">No hay monedas registradas</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+      {{ message }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+  {% endif %}
+
+  <div class="table-responsive">
+    <table class="table table-hover table-striped align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Base</th>
+          <th>Código</th>
+          <th>Nombre</th>
+          <th>Símbolo</th>
+          <th>Dec.</th>
+          <th>Estado</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in monedas %}
+        <tr>
+          <td class="text-center">{% if m.es_base %}<i class="bi bi-star-fill text-warning"></i>{% endif %}</td>
+          <td><strong>{{ m.codigo }}</strong></td>
+          <td>{{ m.nombre }}</td>
+          <td>{{ m.simbolo }}</td>
+          <td>{{ m.decimales }}</td>
+          <td>
+            {% if m.activa %}
+              <span class="badge bg-success">Activa</span>
+            {% else %}
+              <span class="badge bg-secondary">Inactiva</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="btn-group" role="group">
+              {% if request.user|has_permission:'monedas.edit' %}
+                <a href="{% url 'monedas:moneda_edit' m.id %}" class="btn btn-sm btn-outline-warning">
+                  <i class="bi bi-pencil"></i>
+                </a>
+              {% endif %}
+              {% if request.user|has_permission:'monedas.delete' %}
+                <a href="{% url 'monedas:moneda_delete' m.id %}" class="btn btn-sm btn-outline-danger">
+                  <i class="bi bi-x-circle"></i>
+                </a>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="7" class="text-center py-4">
+            <div class="text-muted">
+              <i class="bi bi-cash-coin display-4 opacity-25"></i>
+              <p class="mt-2 mb-0">No hay monedas activas registradas</p>
+              <small>Configura las monedas para comenzar</small>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 {% endblock %}

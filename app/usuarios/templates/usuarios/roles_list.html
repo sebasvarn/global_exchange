@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load usuarios_extras %}
 
 {% block title %}Lista de Roles{% endblock %}
 
@@ -16,12 +17,16 @@
         <div class="card-header">
           <strong>Gestión de Roles</strong>
           <div class="card-header-actions">
-            <a href="{% url 'usuarios:rol_create' %}" class="btn btn-sm btn-success">
-              <i class="bi bi-plus-lg"></i> Nuevo Rol
-            </a>
-            <a href="{% url 'usuarios:usuarios_list' %}" class="btn btn-sm btn-info">
-              <i class="bi bi-people"></i> Ver Usuarios
-            </a>
+            {% if request.user|has_permission:'usuarios.list' %}
+              <a href="{% url 'usuarios:usuarios_list' %}" class="btn btn-sm btn-info">
+                <i class="bi bi-people"></i> Ver Usuarios
+              </a>
+            {% endif %}
+            {% if request.user|has_permission:'roles.create' %}
+              <a href="{% url 'usuarios:rol_create' %}" class="btn btn-sm btn-success">
+                <i class="bi bi-plus-circle"></i> Nuevo Rol
+              </a>
+            {% endif %}
             {% if show_deleted %}
               <a href="?show_deleted=0" class="btn btn-sm btn-secondary">
                 <i class="bi bi-eye-slash"></i> Ocultar eliminados
@@ -69,26 +74,32 @@
                       </td>
                       <td class="text-center">
                         <div class="btn-group" role="group">
-                          <a href="{% url 'usuarios:rol_edit' role.id %}" 
-                             class="btn btn-sm btn-outline-warning" 
-                             data-bs-toggle="tooltip" 
-                             title="Editar rol">
-                            <i class="bi bi-pencil"></i>
-                          </a>
-                          {% if role.estado == 'eliminado' %}
-                            <a href="{% url 'usuarios:role_restore' role.id %}"
-                               class="btn btn-sm btn-outline-success"
-                               data-bs-toggle="tooltip"
-                               title="Restaurar rol">
-                              <i class="bi bi-arrow-counterclockwise"></i>
-                            </a>
-                          {% else %}
-                            <a href="{% url 'usuarios:rol_delete' role.id %}" 
-                               class="btn btn-sm btn-outline-danger" 
+                          {% if request.user|has_permission:'roles.edit' %}
+                            <a href="{% url 'usuarios:rol_edit' role.id %}" 
+                               class="btn btn-sm btn-outline-warning" 
                                data-bs-toggle="tooltip" 
-                               title="Eliminar rol">
-                              <i class="bi bi-trash"></i>
+                               title="Editar rol">
+                              <i class="bi bi-pencil"></i>
                             </a>
+                          {% endif %}
+                          {% if request.user|has_permission:'roles.delete' %}
+                            {% if role.estado == 'eliminado' %}
+                              {% if request.user|has_permission:'roles.restore' %}
+                                <a href="{% url 'usuarios:role_restore' role.id %}"
+                                   class="btn btn-sm btn-outline-success"
+                                   data-bs-toggle="tooltip"
+                                   title="Restaurar rol">
+                                  <i class="bi bi-arrow-counterclockwise"></i>
+                                </a>
+                              {% endif %}
+                            {% else %}
+                              <a href="{% url 'usuarios:rol_delete' role.id %}" 
+                                 class="btn btn-sm btn-outline-danger" 
+                                 data-bs-toggle="tooltip" 
+                                 title="Eliminar rol">
+                                <i class="bi bi-trash"></i>
+                              </a>
+                            {% endif %}
                           {% endif %}
                         </div>
                       </td>
@@ -131,9 +142,6 @@
             <div class="alert alert-warning">
               <i class="bi bi-exclamation-triangle me-2"></i>
               No hay roles configurados en el sistema.
-              <a href="{% url 'usuarios:rol_create' %}" class="btn btn-sm btn-primary ms-2">
-                Crear primer rol
-              </a>
             </div>
           {% endif %}
         </div>
