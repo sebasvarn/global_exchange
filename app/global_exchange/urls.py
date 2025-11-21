@@ -65,4 +65,7 @@ urlpatterns = [
 
     # --- Tauser ---
     path('tauser/', include(('tauser.urls', 'tauser'), namespace='tauser')),
+
+    # --- Pagos (procesamiento vía pasarela) ---
+    path('pagos/', include(('pagos.urls', 'pagos'), namespace='pagos')),
 ]

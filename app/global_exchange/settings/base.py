@@ -18,6 +18,7 @@ INSTALLED_APPS = [
     # MFA app
     "mfa",
     "tauser",  # Added tauser app
+    "pagos",  # Procesamiento de pagos a través de pasarela
 ]
 
 AUTH_USER_MODEL = "usuarios.User"
@@ -38,6 +39,11 @@ STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")  # whsec_...
 # Usamos SITE_URL para formar las URLs de retorno
 STRIPE_SUCCESS_URL = os.getenv("STRIPE_SUCCESS_URL", f"{SITE_URL}/pagos/success/")
 STRIPE_CANCEL_URL  = os.getenv("STRIPE_CANCEL_URL",  f"{SITE_URL}/pagos/cancel/")
+
+# === Pasarela de Pagos (Simulador) ===
+PASARELA_BASE_URL = os.getenv("PASARELA_BASE_URL", "http://localhost:3001")
+PASARELA_TIMEOUT = int(os.getenv("PASARELA_TIMEOUT", "30"))  # segundos
+PASARELA_WEBHOOK_URL = os.getenv("PASARELA_WEBHOOK_URL", f"{SITE_URL}/pagos/webhook/")
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
