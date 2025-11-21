@@ -135,6 +135,36 @@
   </div>
   {% endif %}
 
+  <!-- Gráfico de evolución de tasas (USD) -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white d-flex flex-wrap align-items-center justify-content-between">
+          <div>
+            <strong><i class="bi bi-bar-chart-line me-2"></i>Evolución de la tasa</strong>
+          </div>
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <label for="select-moneda" class="mb-0 me-1">Moneda:</label>
+            <select id="select-moneda" class="form-select form-select-sm">
+              {% for m in monedas_activas %}
+                <option value="{{ m.codigo }}" {% if m.codigo == 'USD' %}selected{% endif %}>{{ m.codigo }} - {{ m.nombre }}</option>
+              {% endfor %}
+            </select>
+            <label for="input-desde" class="mb-0 ms-3 me-1">Desde:</label>
+            <input type="date" id="input-desde" class="form-control form-control-sm" style="min-width: 140px;">
+            <label for="input-hasta" class="mb-0 ms-3 me-1">Hasta:</label>
+            <input type="date" id="input-hasta" class="form-control form-control-sm" style="min-width: 140px;">
+          </div>
+        </div>
+        <div class="card-body">
+          <canvas id="grafico-evolucion-tasas" height="80"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  
+
   <!-- Estadísticas principales -->
   <div class="row mb-4">
     <div class="col-xl-3 col-md-6">
@@ -378,4 +408,79 @@
 {% block extra_js %}
 <script src="{% static 'js/ui-helpers.js' %}"></script>
 <script src="{% static 'js/simulador_complejo.js' %}"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Gráfico de evolución de tasas con selectores de moneda y fechas
+let graficoTasas = null;
+function cargarGraficoTasas(moneda, desde, hasta) {
+  const ctx = document.getElementById('grafico-evolucion-tasas').getContext('2d');
+  const params = new URLSearchParams({ moneda });
+  if (desde) params.append('desde', desde);
+  if (hasta) params.append('hasta', hasta);
+  fetch(`/monedas/evolucion_tasas_json/?${params.toString()}`)
+    .then(resp => resp.json())
+    .then(data => {
+      if (!data.evolucion) return;
+      const labels = data.evolucion.map(e => e.fecha);
+      const compras = data.evolucion.map(e => e.compra);
+      const ventas = data.evolucion.map(e => e.venta);
+      if (graficoTasas) graficoTasas.destroy();
+      graficoTasas = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Compra',
+              data: compras,
+              borderColor: 'rgba(40, 167, 69, 0.8)',
+              backgroundColor: 'rgba(40, 167, 69, 0.1)',
+              tension: 0.2,
+              fill: false,
+            },
+            {
+              label: 'Venta',
+              data: ventas,
+              borderColor: 'rgba(220, 53, 69, 0.8)',
+              backgroundColor: 'rgba(220, 53, 69, 0.1)',
+              tension: 0.2,
+              fill: false,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'top' },
+            title: { display: false }
+          },
+          scales: {
+            x: { title: { display: true, text: 'Fecha' } },
+            y: { title: { display: true, text: 'Tasa' } }
+          }
+        }
+      });
+    });
+}
+document.addEventListener('DOMContentLoaded', function() {
+  const selectMoneda = document.getElementById('select-moneda');
+  const inputDesde = document.getElementById('input-desde');
+  const inputHasta = document.getElementById('input-hasta');
+  // Setear valores por defecto: desde = hoy - 1 año, hasta = hoy
+  const hoy = new Date();
+  const haceUnAnio = new Date(hoy);
+  haceUnAnio.setFullYear(hoy.getFullYear() - 1);
+  function toISO(d) { return d.toISOString().slice(0,10); }
+  inputHasta.value = toISO(hoy);
+  inputDesde.value = toISO(haceUnAnio);
+  function actualizarGrafico() {
+    cargarGraficoTasas(selectMoneda.value, inputDesde.value, inputHasta.value);
+  }
+  selectMoneda.addEventListener('change', actualizarGrafico);
+  inputDesde.addEventListener('change', actualizarGrafico);
+  inputHasta.addEventListener('change', actualizarGrafico);
+  // Inicializar con valores por defecto
+  actualizarGrafico();
+});
+</script>
 {% endblock %}

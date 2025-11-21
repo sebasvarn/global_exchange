@@ -19,7 +19,8 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator, MinValueValidator, MaxValueValidator
 from django.db import models, transaction
-
+from django.db.models import Max
+import datetime
 # Validador de código ISO 4217
 ISO4217 = RegexValidator(
     regex=r'^[A-Z]{3}$',
@@ -143,6 +144,26 @@ class Moneda(models.Model):
 
 
 class TasaCambio(models.Model):
+    @classmethod
+    def ultimas_por_dia(cls, moneda, desde, hasta=None):
+        """
+        Devuelve la última cotización de cada día para una moneda y rango de fechas.
+        - moneda: instancia de Moneda
+        - desde: fecha inicial (datetime o date)
+        - hasta: fecha final (datetime o date, opcional)
+        """
+        if hasta is None:
+            hasta = datetime.date.today()
+        qs = cls.objects.filter(
+            moneda=moneda,
+            fecha_creacion__date__gte=desde,
+            fecha_creacion__date__lte=hasta
+        )
+        diarios = qs.values('fecha_creacion__date').annotate(
+            last_id=Max('id')
+        ).order_by('fecha_creacion__date')
+        ids = [d['last_id'] for d in diarios]
+        return cls.objects.filter(id__in=ids).order_by('fecha_creacion')
     """
     Modelo de cotización por moneda.
 

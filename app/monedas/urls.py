@@ -10,6 +10,7 @@ from . import views
 app_name = 'monedas'
 
 urlpatterns = [
+    path('evolucion_tasas_json/', views.evolucion_tasas_json, name='evolucion_tasas_json'),
     path('', views.monedas_list, name='monedas_list'),
     path('nueva/', views.moneda_create, name='moneda_create'),
     path('editar/<int:moneda_id>/', views.moneda_edit, name='moneda_edit'),
