@@ -217,7 +217,7 @@ def transaccion_create(request):
             medio_pago = form.cleaned_data["medio_pago"]
 
             try:
-                calculo = calcular_transaccion(cliente, tipo, moneda_operada, monto_operado)
+                calculo = calcular_transaccion(cliente, tipo, moneda_operada, monto_operado, medio_pago)
                 transaccion = crear_transaccion(
                     cliente,
                     tipo,
@@ -256,7 +256,8 @@ def calcular_api(request):
             moneda = Moneda.objects.get(pk=int(data["moneda"]))
             monto = Decimal(str(data["monto_operado"]))
 
-            calculo = calcular_transaccion(cliente, tipo, moneda, monto)
+            medio_pago = data.get("medio_pago")
+            calculo = calcular_transaccion(cliente, tipo, moneda, monto, medio_pago)
             return JsonResponse(
                 {
                     "descuento_pct": str(calculo.get("descuento_pct", "")),
