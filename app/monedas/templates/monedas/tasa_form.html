@@ -3,47 +3,55 @@
 {% block title %}{% if tasa %}Editar{% else %}Nueva Cotización{% endif %}{% endblock %}
 {% block content %}
 {% if request.user|has_any_permission:'comisiones.edit, cotizaciones.create' %}
-  <div class="card card-outline card-primary">
-    <div class="card-header">
-  <strong>{% if tasa %}Editar{% else %}Nueva Cotización{% endif %}</strong>
-    </div>
-    <div class="card-body">
-      <form method="post" novalidate>
-        {% csrf_token %}
-        <div class="row g-3">
-          <div class="col-md-4">
-            <label class="form-label">{{ form.moneda.label }}</label>
-            {{ form.moneda }}
+  <div class="container-fluid">
+    <div class="row justify-content-center">
+      <div class="col-md-10">
+        <div class="card">
+          <div class="card-header">
+            <strong>{% if tasa %}<i class="bi bi-pencil"></i> Editar Cotización{% else %}<i class="bi bi-plus-circle"></i> Nueva Cotización{% endif %}</strong>
+            <div class="card-header-actions">
+              <a href="{% url 'monedas:tasas_list' %}" class="btn btn-sm btn-secondary">
+                <i class="bi bi-arrow-left"></i> Volver
+              </a>
+            </div>
           </div>
-          <div class="col-md-4">
-            <label class="form-label">{{ form.compra.label }}</label>
-            {{ form.compra }}
+          <div class="card-body">
+            <form method="post" novalidate>
+              {% csrf_token %}
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <label class="form-label">{{ form.moneda.label }}</label>
+                  {{ form.moneda }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">{{ form.compra.label }}</label>
+                  {{ form.compra }}
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">{{ form.venta.label }}</label>
+                  {{ form.venta }}
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">{{ form.fuente.label }}</label>
+                  {{ form.fuente }}
+                  <small class="text-muted d-block">Ej.: BCP / Manual / API</small>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">{{ form.ts_fuente.label }}</label>
+                  {{ form.ts_fuente }}
+                </div>
+              </div>
+              {% if form.non_field_errors %}
+                <div class="alert alert-danger mt-3">{{ form.non_field_errors }}</div>
+              {% endif %}
+              <div class="mt-3 d-flex gap-2">
+                <button class="btn btn-success"><i class="bi bi-check-circle"></i> Guardar</button>
+                <a href="{% url 'monedas:tasas_list' %}" class="btn btn-secondary">Cancelar</a>
+              </div>
+            </form>
           </div>
-          <div class="col-md-4">
-            <label class="form-label">{{ form.venta.label }}</label>
-            {{ form.venta }}
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">{{ form.fuente.label }}</label>
-            {{ form.fuente }}
-            <small class="text-muted d-block">Ej.: BCP / Manual / API</small>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">{{ form.ts_fuente.label }}</label>
-            {{ form.ts_fuente }}
-          </div>
-          <!-- ❌ Quitar la sección del checkbox activa -->
         </div>
-
-        {% if form.non_field_errors %}
-          <div class="alert alert-danger mt-3">{{ form.non_field_errors }}</div>
-        {% endif %}
-
-        <div class="mt-3">
-          <button class="btn btn-primary">Guardar</button>
-          <a href="{% url 'monedas:tasas_list' %}" class="btn btn-outline-secondary">Cancelar</a>
-        </div>
-      </form>
+      </div>
     </div>
   </div>
 {% endif %}

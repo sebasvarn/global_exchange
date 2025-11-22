@@ -4,15 +4,29 @@
 
 {% block content %}
 {% if request.user|has_permission:'monedas.delete' %}
-<div class="container mt-4">
-  <h2>Inactivar Moneda</h2>
-  <p>¿Confirmás eliminar <strong>{{ moneda.codigo }} - {{ moneda.nombre }}</strong>?</p>
-
-  <form method="post">
-    {% csrf_token %}
-    <button type="submit" class="btn btn-danger">Sí, inactivar</button>
-    <a href="{% url 'monedas:monedas_list' %}" class="btn btn-secondary">Cancelar</a>
-  </form>
+<div class="container-fluid">
+  <div class="row justify-content-center">
+    <div class="col-md-8">
+      <div class="card border-danger">
+        <div class="card-header bg-danger text-white">
+          <strong><i class="bi bi-exclamation-triangle"></i> Inactivar Moneda</strong>
+          <div class="card-header-actions">
+            <a href="{% url 'monedas:monedas_list' %}" class="btn btn-sm btn-outline-light">
+              <i class="bi bi-arrow-left"></i> Volver
+            </a>
+          </div>
+        </div>
+        <div class="card-body">
+          <p>¿Confirmás eliminar <strong>{{ moneda.codigo }} - {{ moneda.nombre }}</strong>?</p>
+          <form method="post" class="d-flex gap-2">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger">Sí, inactivar</button>
+            <a href="{% url 'monedas:monedas_list' %}" class="btn btn-secondary">Cancelar</a>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 {% endif %}
 {% endblock %}
