@@ -217,7 +217,6 @@
   {"currency": "PYG", "value": 100, "type": "coin"},
   {"currency": "PYG", "value": 50, "type": "coin"},
 
-
   {"currency": "PEN", "value": 200, "type": "bill"},
   {"currency": "PEN", "value": 100, "type": "bill"},
   {"currency": "PEN", "value": 50, "type": "bill"},
