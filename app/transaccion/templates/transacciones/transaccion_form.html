@@ -275,10 +275,11 @@
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Calculando...';
 
+      const medio_pago = document.getElementById("id_medio_pago").value;
       fetch("{% url 'transacciones:calcular_api' %}", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF_TOKEN },
-        body: JSON.stringify({ cliente, tipo, moneda, monto_operado: monto })
+        body: JSON.stringify({ cliente, tipo, moneda, monto_operado: monto, medio_pago })
       })
       .then(resp => {
         if (!resp.ok) throw new Error("HTTP " + resp.status);
