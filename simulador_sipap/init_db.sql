@@ -40,7 +40,6 @@ VALUES
     ('TEST-003', 75000.00, 'tarjeta', 'PYG', 'fallo', NOW(), '4111111111111113')
 ON CONFLICT (id_pago) DO NOTHING;
 
--- Función para limpiar pagos antiguos (opcional)
 CREATE OR REPLACE FUNCTION limpiar_pagos_antiguos(dias INTEGER DEFAULT 30)
 RETURNS INTEGER AS $$
 DECLARE
@@ -53,7 +52,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Log de inicio
 DO $$ 
 BEGIN
     RAISE NOTICE 'Base de datos inicializada correctamente';
