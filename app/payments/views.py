@@ -93,26 +93,48 @@ def payment_method_create(request):
     - Asocia el método de pago al cliente y lo guarda.
     - Muestra mensajes de éxito o renderiza la plantilla del formulario.
     """
-    cliente_id = request.GET.get('cliente')
-    if request.method == 'POST' and not cliente_id:
-        cliente_id = request.POST.get('cliente_id')
+    # Obtener cliente_id desde GET o POST
+    cliente_id = request.GET.get('cliente') or request.POST.get('cliente_id')
     cliente = None
+    
     if cliente_id:
         try:
             cliente = Cliente.objects.get(pk=cliente_id, usuarios=request.user)
         except Cliente.DoesNotExist:
-            cliente = None
-    if request.method == 'POST':
-        form = PaymentMethodForm(request.POST)
-        if form.is_valid() and cliente:
-            metodo = form.save(commit=False)
-            metodo.cliente = cliente
-            metodo.save()
-            messages.success(request, 'Método de pago creado exitosamente.')
+            messages.error(request, 'Cliente no encontrado o no tiene permisos para acceder.')
             return redirect('payments:payment_methods_by_client')
+    
+    if request.method == 'POST':
+        if not cliente:
+            messages.error(request, 'Debe especificar un cliente.')
+            return redirect('payments:payment_methods_by_client')
+        
+        form = PaymentMethodForm(request.POST)
+        if form.is_valid():
+            try:
+                metodo = form.save(commit=False)
+                metodo.cliente = cliente
+                metodo.save()
+                messages.success(request, f'Método de pago creado exitosamente para {cliente.nombre}.')
+                return redirect('payments:payment_methods_by_client')
+            except Exception as e:
+                messages.error(request, f'Error al guardar el método de pago: {str(e)}')
+        else:
+            # Mostrar errores específicos del formulario
+            for field, errors in form.errors.items():
+                for error in errors:
+                    if field == '__all__':
+                        messages.error(request, error)
     else:
+        if not cliente:
+            messages.error(request, 'Debe especificar un cliente.')
+            return redirect('payments:payment_methods_by_client')
         form = PaymentMethodForm()
-    return render(request, 'payments/paymentmethod_form.html', {'form': form, 'cliente': cliente})
+    
+    return render(request, 'payments/paymentmethod_form.html', {
+        'form': form, 
+        'cliente': cliente
+    })
 
 
 def payment_method_update(request, pk):

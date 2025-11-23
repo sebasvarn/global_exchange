@@ -20,10 +20,6 @@
                                     <span class="me-2">Cuenta bancaria: {{ metodo.banco }} - {{ metodo.numero_cuenta }}</span>
                                 {% elif metodo.payment_type == 'billetera' %}
                                     <span class="me-2">Billetera: {{ metodo.proveedor_billetera }} - {{ metodo.billetera_email_telefono }}</span>
-                                {% elif metodo.payment_type == 'tarjeta' %}
-                                    <span class="me-2">Tarjeta: {{ metodo.tarjeta_nombre }} - {{ metodo.tarjeta_numero }}</span>
-                                {% elif metodo.payment_type == 'cheque' %}
-                                    <span class="me-2">Cheque: Nº {{ metodo.cheque_numero }} - {{ metodo.cheque_banco }} - {{ metodo.cheque_cuenta }} - {{ metodo.cheque_beneficiario }} - {{ metodo.cheque_monto }} {{ metodo.cheque_moneda }} - {{ metodo.cheque_fecha_emision|date:'d/m/Y' }}</span>
                                 {% else %}
                                     <span class="me-2">Método de pago {{ metodo.pk }}</span>
                                 {% endif %}

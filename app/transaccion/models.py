@@ -1,4 +1,6 @@
 import uuid
+import random
+import string
 from django.db import models
 
 from payments.models import PaymentMethod
@@ -8,8 +10,27 @@ from medios_acreditacion.models import MedioAcreditacion
 from monedas.models import Moneda
 
 
+def generar_codigo_verificacion():
+    """
+    Genera un código alfanumérico de 6 caracteres (mayúsculas y números).
+    Ejemplo: A3B7K9, X5M2P8, etc.
+    """
+    caracteres = string.ascii_uppercase + string.digits
+    return ''.join(random.choice(caracteres) for _ in range(6))
+
+
 class Transaccion(models.Model):
     uuid = models.UUIDField(default=uuid.uuid4, editable=False, null=True, blank=True)
+    
+    # Código de verificación amigable para el usuario (ej: "A3B7K9")
+    codigo_verificacion = models.CharField(
+        max_length=10,
+        unique=True,
+        default=generar_codigo_verificacion,
+        editable=False,
+        verbose_name="Código de Verificación"
+    )
+    
     cliente = models.ForeignKey(
         Cliente, on_delete=models.CASCADE,
         related_name="transacciones", verbose_name="Cliente"
@@ -42,9 +63,56 @@ class Transaccion(models.Model):
         default=EstadoTransaccionEnum.PENDIENTE
     )
     fecha = models.DateTimeField(auto_now_add=True)
+    
+    # Campos para gestión de pagos y expiración
+    datos_metodo_pago = models.JSONField(default=dict, blank=True, verbose_name="Datos del Método de Pago")
+    fecha_actualizacion = models.DateTimeField(auto_now=True, verbose_name="Fecha de Actualización")
+    fecha_expiracion = models.DateTimeField(null=True, blank=True, verbose_name="Fecha de Expiración")
+    fecha_pago = models.DateTimeField(null=True, blank=True, verbose_name="Fecha de Pago")
+
+    class Meta:
+        verbose_name = "Transacción"
+        verbose_name_plural = "Transacciones"
+        ordering = ["-fecha"]
+        indexes = [
+            models.Index(fields=['codigo_verificacion']),
+            models.Index(fields=['estado', 'fecha']),
+            models.Index(fields=['cliente', 'fecha']),
+        ]
 
     def __str__(self):
-        return f"#{self.id} | {self.uuid} | {self.get_tipo_display()} {self.moneda} - {self.cliente}"
+        return f"#{self.id} | {self.codigo_verificacion} | {self.get_tipo_display()} {self.moneda} - {self.cliente}"
+    
+    def save(self, *args, **kwargs):
+        """
+        Sobrescribe el método save para asegurar que siempre tenga un código único.
+        """
+        if not self.codigo_verificacion:
+            self.codigo_verificacion = generar_codigo_verificacion()
+            # Asegurar que sea único
+            while Transaccion.objects.filter(codigo_verificacion=self.codigo_verificacion).exists():
+                self.codigo_verificacion = generar_codigo_verificacion()
+        
+        super().save(*args, **kwargs)
+    
+    def esta_expirada(self):
+        """
+        Verifica si la transacción ha expirado.
+        """
+        from django.utils import timezone
+        if self.fecha_expiracion and timezone.now() > self.fecha_expiracion:
+            return True
+        return False
+    
+    def get_tiempo_restante(self):
+        """
+        Retorna el tiempo restante hasta la expiración en minutos.
+        """
+        from django.utils import timezone
+        if not self.fecha_expiracion:
+            return None
+        delta = self.fecha_expiracion - timezone.now()
+        return max(0, int(delta.total_seconds() / 60))
 
 
 class Movimiento(models.Model):

@@ -37,27 +37,6 @@ class PaymentMethodModelTest(TestCase):
 		self.assertIn("PayPal", str(pm))
 		self.assertIn("mail@test.com", str(pm))
 
-	def test_create_payment_method_tarjeta(self):
-		pm = PaymentMethod.objects.create(
-			cliente=self.cliente,
-			payment_type=PaymentTypeEnum.TARJETA.value,
-			tarjeta_nombre="Test User",
-			tarjeta_numero="4111111111111111"
-		)
-		self.assertIn("Test User", str(pm))
-		self.assertIn("4111111111111111", str(pm))
-
-	def test_str_cheque(self):
-		pm = PaymentMethod.objects.create(
-			cliente=self.cliente,
-			payment_type=PaymentTypeEnum.CHEQUE.value,
-			cheque_banco="BancoCheque",
-			cheque_cuenta="987654",
-			cheque_numero="5555"
-		)
-		self.assertIn("BancoCheque", str(pm))
-		self.assertIn("987654", str(pm))
-		self.assertIn("5555", str(pm))
 
 
 class PaymentMethodViewsTest(TestCase):
@@ -84,19 +63,7 @@ class PaymentMethodViewsTest(TestCase):
 		response = self.client.get(reverse('payments:payment_methods_by_client'))
 		self.assertContains(response, self.cliente.nombre)
 		self.assertContains(response, "Banco Test")
-		self.assertContains(response, "PayPal")
 
-	def test_create_payment_method_view(self):
-		url = reverse('payments:paymentmethod_create') + f'?cliente={self.cliente.id}'
-		response = self.client.post(url, {
-			'payment_type': PaymentTypeEnum.TARJETA.value,
-			'tarjeta_nombre': 'Test User',
-			'tarjeta_numero': '4111111111111111',
-			'tarjeta_vencimiento': '2030-12',
-			'tarjeta_cvv': '123',
-			'tarjeta_marca': 'Visa',
-		})
-		self.assertEqual(PaymentMethod.objects.filter(tarjeta_nombre='Test User').count(), 1)
 
 	def test_delete_view(self):
 		response = self.client.post(reverse('payments:paymentmethod_delete', args=[self.pm1.pk]))

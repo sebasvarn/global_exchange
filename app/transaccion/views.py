@@ -15,7 +15,7 @@ from django.http import (
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_http_methods
-from commons.enums import EstadoTransaccionEnum, TipoMovimientoEnum, TipoTransaccionEnum
+from commons.enums import EstadoTransaccionEnum, TipoMovimientoEnum, TipoTransaccionEnum, PaymentTypeEnum
 from clientes.models import Cliente
 from monedas.models import Moneda, TasaCambio
 from payments.models import PaymentMethod
@@ -48,6 +48,30 @@ def medios_pago_por_cliente(request):
         {
             "id": m.id,
             "tipo": m.payment_type,
+            "descripcion": str(m),
+        }
+        for m in medios
+    ]
+    return JsonResponse({"medios": medios_list})
+
+
+@require_GET
+def medios_acreditacion_por_cliente(request):
+    """
+    Devuelve los medios de acreditación asociados a un cliente en formato JSON.
+    Recibe ?cliente_id=<id> por GET.
+    """
+    from medios_acreditacion.models import MedioAcreditacion
+    
+    cliente_id = request.GET.get("cliente_id")
+    if not cliente_id:
+        return JsonResponse({"error": "Falta cliente_id"}, status=400)
+    
+    medios = MedioAcreditacion.objects.filter(cliente_id=cliente_id)
+    medios_list = [
+        {
+            "id": m.id,
+            "tipo": m.tipo_medio,
             "descripcion": str(m),
         }
         for m in medios
@@ -144,7 +168,7 @@ def transacciones_list(request):
     transacciones = (
         Transaccion.objects
         .all()
-        .select_related("cliente", "moneda")
+        .select_related("cliente", "moneda", "medio_pago")
     )
 
     # filtro por cliente (si aplica)
@@ -187,12 +211,57 @@ def transacciones_list(request):
 
 
 def confirmar_view(request, pk):
+    """
+    Confirma una transacción pendiente.
+    - Si no tiene medio_pago (tarjeta por Stripe) → redirigir a Stripe checkout
+    - Si tiene medio_pago guardado (transferencia/billetera) → procesa por SIPAP
+    - Si es efectivo → confirmación manual
+    """
     transaccion = get_object_or_404(Transaccion, pk=pk)
+    
     try:
+        # Si NO tiene medio_pago, asumimos que es tarjeta (Stripe)
+        if not transaccion.medio_pago:
+            messages.info(
+                request,
+                f"Redirigiendo a pasarela de pago Stripe para transacción {transaccion.id}..."
+            )
+            return redirect("transacciones:iniciar_pago_tarjeta", pk=transaccion.id)
+        
+        # Si tiene medio_pago, usar SIPAP automáticamente
         confirmar_transaccion(transaccion)
-        messages.success(request, f"Transacción {transaccion.id} confirmada correctamente.")
+        
+        # Mensaje personalizado según si usó SIPAP o no
+        if transaccion.medio_pago.puede_usar_sipap():
+            messages.success(
+                request, 
+                f"✅ Transacción {transaccion.id} confirmada exitosamente. "
+                f"Pago procesado via pasarela SIPAP ({transaccion.medio_pago.get_metodo_sipap()})."
+            )
+        else:
+            messages.success(
+                request, 
+                f"✅ Transacción {transaccion.id} confirmada correctamente (manual)."
+            )
+    
     except ValidationError as e:
-        messages.error(request, str(e))
+        # Error de validación o rechazo de SIPAP
+        messages.error(
+            request, 
+            f"❌ Error al confirmar transacción {transaccion.id}: {str(e)}"
+        )
+    except Exception as e:
+        # Error inesperado
+        logger.error(
+            f"Error inesperado al confirmar transacción {transaccion.id}: {str(e)}", 
+            exc_info=True
+        )
+        messages.error(
+            request, 
+            f"❌ Error inesperado al confirmar transacción {transaccion.id}. "
+            f"Contacte al administrador."
+        )
+    
     return redirect("transacciones:transacciones_list")
 
 
@@ -246,13 +315,213 @@ def transaccion_create(request):
     return render(request, "transacciones/transaccion_form.html", {"form": form})
 
 
+@require_http_methods(["GET", "POST"])
+def compra_moneda(request):
+    """
+    Vista dedicada para COMPRA de moneda extranjera.
+    El cliente PAGA en PYG:
+    - Efectivo → Terminal (Tauser)
+    - Tarjeta → Stripe (checkout directo, no se guarda en DB)
+    - Transferencia → SIPAP (usa cuenta bancaria guardada)
+    - Billetera → SIPAP (usa billetera guardada)
+    """
+    if request.method == "POST":
+        try:
+            cliente_id = request.POST.get("cliente_id")
+            moneda_id = request.POST.get("moneda_id")
+            monto_operado = request.POST.get("monto_operado")
+            metodo_pago = request.POST.get("metodo_pago")  # 'efectivo', 'tarjeta', 'transferencia', 'billetera'
+            metodo_pago_id = request.POST.get("metodo_pago_id")  # ID del PaymentMethod (si aplica)
+
+            # Validaciones básicas
+            if not all([cliente_id, moneda_id, monto_operado, metodo_pago]):
+                messages.error(request, "Faltan datos requeridos")
+                return redirect("transacciones:compra_moneda")
+
+            cliente = get_object_or_404(Cliente, pk=int(cliente_id))
+            moneda = get_object_or_404(Moneda, pk=int(moneda_id))
+            monto = Decimal(str(monto_operado))
+            
+            # Determinar medio_pago según el método seleccionado
+            medio_pago_obj = None
+            
+            if metodo_pago in ['transferencia', 'billetera']:
+                # Para transferencia y billetera, se requiere un método guardado
+                if not metodo_pago_id:
+                    messages.error(request, f"Debe seleccionar un método de {metodo_pago} guardado")
+                    return redirect("transacciones:compra_moneda")
+                medio_pago_obj = get_object_or_404(PaymentMethod, pk=int(metodo_pago_id), cliente=cliente)
+                
+                # Validar que el tipo de PaymentMethod corresponda al método seleccionado
+                if metodo_pago == 'transferencia' and medio_pago_obj.payment_type != PaymentTypeEnum.CUENTA_BANCARIA.value:
+                    messages.error(request, "El método seleccionado no es una cuenta bancaria válida")
+                    return redirect("transacciones:compra_moneda")
+                elif metodo_pago == 'billetera' and medio_pago_obj.payment_type != PaymentTypeEnum.BILLETERA.value:
+                    messages.error(request, "El método seleccionado no es una billetera válida")
+                    return redirect("transacciones:compra_moneda")
+            # Para efectivo y tarjeta, medio_pago_obj queda en None
+
+            # Calcular y crear transacción
+            calculo = calcular_transaccion(
+                cliente, 
+                TipoTransaccionEnum.COMPRA, 
+                moneda, 
+                monto
+            )
+            
+            transaccion = crear_transaccion(
+                cliente,
+                TipoTransaccionEnum.COMPRA,
+                moneda,
+                monto,
+                calculo["tasa_aplicada"],
+                calculo["comision"],
+                calculo["monto_pyg"],
+                medio_pago_obj,
+            )
+
+            # Preparar datos para el modal
+            context = {
+                'transaccion': transaccion,
+                'metodo_pago': metodo_pago,
+                'calculo': calculo,
+                'cliente': cliente,
+                'moneda': moneda,
+            }
+            
+            # Renderizar template con modal de confirmación
+            return render(request, "transacciones/transaccion_confirmada.html", context)
+
+        except ValidationError as e:
+            messages.error(request, f"Error de validación: {str(e)}")
+        except Exception as e:
+            logger.exception("Error al crear transacción de compra")
+            messages.error(request, f"Error inesperado: {str(e)}")
+        
+        return redirect("transacciones:compra_moneda")
+    
+    # GET: mostrar formulario
+    # Solo mostrar clientes asociados al usuario operador
+    clientes = Cliente.objects.filter(usuarios=request.user).order_by("nombre")
+    monedas = Moneda.objects.filter(activa=True).order_by("nombre")
+    
+    context = {
+        "clientes": clientes,
+        "monedas": monedas,
+    }
+    return render(request, "transacciones/compra_moneda.html", context)
+
+
+@require_http_methods(["GET", "POST"])
+def venta_moneda(request):
+    """
+    Vista dedicada para VENTA de moneda extranjera.
+    El cliente ENTREGA moneda extranjera en efectivo y RECIBE PYG 
+    (en efectivo o por transferencia).
+    """
+    if request.method == "POST":
+        try:
+            cliente_id = request.POST.get("cliente_id")
+            moneda_id = request.POST.get("moneda_id")
+            monto_operado = request.POST.get("monto_operado")
+            metodo_cobro = request.POST.get("metodo_cobro")  # 'efectivo', 'transferencia'
+            medio_cobro_id = request.POST.get("medio_cobro_id")  # ID del MedioAcreditacion (si aplica)
+
+            # Validaciones básicas
+            if not all([cliente_id, moneda_id, monto_operado, metodo_cobro]):
+                messages.error(request, "Faltan datos requeridos")
+                return redirect("transacciones:venta_moneda")
+
+            cliente = get_object_or_404(Cliente, pk=int(cliente_id))
+            moneda = get_object_or_404(Moneda, pk=int(moneda_id))
+            monto = Decimal(str(monto_operado))
+            
+            # Para VENTA, no usamos medio_pago del modelo actual
+            # (podríamos agregar medio_cobro como FK a MedioAcreditacion en el futuro)
+            # Por ahora, guardaremos el medio_cobro_id en algún lado o simplemente
+            # lo usaremos para la lógica pero no lo persistimos
+            
+            # Calcular y crear transacción
+            calculo = calcular_transaccion(
+                cliente, 
+                TipoTransaccionEnum.VENTA, 
+                moneda, 
+                monto
+            )
+            
+            transaccion = crear_transaccion(
+                cliente,
+                TipoTransaccionEnum.VENTA,
+                moneda,
+                monto,
+                calculo["tasa_aplicada"],
+                calculo["comision"],
+                calculo["monto_pyg"],
+                None,  # medio_pago=None para VENTA (el cliente no paga, cobra)
+            )
+
+            # Guardar referencia al medio de cobro si es transferencia
+            # (aquí podrías agregar un campo en el modelo o usar metadata)
+            if metodo_cobro == 'transferencia' and medio_cobro_id:
+                # Validar que el medio_cobro existe
+                from medios_acreditacion.models import MedioAcreditacion
+                medio_cobro_obj = get_object_or_404(
+                    MedioAcreditacion, 
+                    pk=int(medio_cobro_id), 
+                    cliente=cliente
+                )
+                # Por ahora solo lo usamos para validación
+                # En el futuro podrías agregarlo como FK al modelo Transaccion
+
+            # Preparar datos para el modal
+            context = {
+                'transaccion': transaccion,
+                'metodo_cobro': metodo_cobro,
+                'calculo': calculo,
+                'cliente': cliente,
+                'moneda': moneda,
+                'tipo': 'VENTA',
+            }
+            
+            # Renderizar template con modal de confirmación
+            return render(request, "transacciones/transaccion_confirmada.html", context)
+
+        except ValidationError as e:
+            messages.error(request, f"Error de validación: {str(e)}")
+        except Exception as e:
+            logger.exception("Error al crear transacción de venta")
+            messages.error(request, f"Error inesperado: {str(e)}")
+        
+        return redirect("transacciones:venta_moneda")
+    
+    # GET: mostrar formulario
+    # Solo mostrar clientes asociados al usuario operador
+    clientes = Cliente.objects.filter(usuarios=request.user).order_by("nombre")
+    monedas = Moneda.objects.filter(activa=True).order_by("nombre")
+    
+    context = {
+        "clientes": clientes,
+        "monedas": monedas,
+    }
+    return render(request, "transacciones/venta_moneda.html", context)
+
+
 @csrf_exempt
 def calcular_api(request):
     if request.method == "POST":
         try:
             data = json.loads(request.body)
             cliente = Cliente.objects.get(pk=int(data["cliente"]))
-            tipo = data["tipo"]
+            tipo_str = data["tipo"]
+            
+            # Convertir el string al enum correspondiente
+            if tipo_str == "COMPRA":
+                tipo = TipoTransaccionEnum.COMPRA
+            elif tipo_str == "VENTA":
+                tipo = TipoTransaccionEnum.VENTA
+            else:
+                return JsonResponse({"error": f"Tipo de transacción inválido: {tipo_str}"}, status=400)
+            
             moneda = Moneda.objects.get(pk=int(data["moneda"]))
             monto = Decimal(str(data["monto_operado"]))
 

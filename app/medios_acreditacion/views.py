@@ -9,6 +9,8 @@ Contiene funciones para:
 from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.contrib import messages
+from django.http import JsonResponse
+from django.views.decorators.http import require_GET
 from .models import MedioAcreditacion
 from .forms import MedioAcreditacionForm
 from clientes.models import Cliente
@@ -113,3 +115,36 @@ def medioacreditacion_update(request, pk):
         'medios_acreditacion/medioacreditacion_form.html',
         {'form': form, 'medio': medio, 'cliente': cliente}
     )
+
+
+@require_GET
+def medios_por_cliente_api(request):
+    """
+    API endpoint que devuelve los medios de acreditación asociados a un cliente en formato JSON.
+    Usado para cargar dinámicamente las cuentas de cobro en el formulario de VENTA.
+    
+    Recibe ?cliente_id=<id> por GET.
+    Retorna JSON con lista de medios: [{"id": x, "tipo": "...", "descripcion": "..."}]
+    """
+    cliente_id = request.GET.get("cliente_id")
+    if not cliente_id:
+        return JsonResponse({"error": "Falta cliente_id"}, status=400)
+    
+    try:
+        cliente = Cliente.objects.get(pk=int(cliente_id))
+    except (Cliente.DoesNotExist, ValueError):
+        return JsonResponse({"error": "Cliente no encontrado"}, status=404)
+    
+    medios = MedioAcreditacion.objects.filter(cliente=cliente)
+    medios_list = [
+        {
+            "id": m.id,
+            "tipo": m.tipo,
+            "descripcion": str(m),  # Usa el __str__ del modelo
+            "banco": getattr(m, 'banco', ''),
+            "numero_cuenta": getattr(m, 'numero_cuenta', ''),
+        }
+        for m in medios
+    ]
+    
+    return JsonResponse({"medios": medios_list})

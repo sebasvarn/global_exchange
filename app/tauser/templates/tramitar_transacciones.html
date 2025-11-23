@@ -5,11 +5,17 @@
 <form method="post" class="mb-4">
   {% csrf_token %}
   <div class="input-group mb-3">
-    <input type="text" name="transaccion_uuid" id="transaccion_uuid" class="form-control"
-           placeholder="Ingrese el código UUID de la transacción"
-           value="{{ transaccion_uuid }}" required>
-    <button type="submit" name="accion" value="buscar" class="btn btn-primary">Buscar</button>
+    <input type="text" name="codigo_verificacion" id="codigo_verificacion" class="form-control text-uppercase"
+           placeholder="Ingrese el código de verificación (ej: A3B7K9)"
+           value="{{ codigo_verificacion }}" maxlength="10" required
+           style="font-size: 1.2rem; letter-spacing: 0.2rem; text-align: center;">
+    <button type="submit" name="accion" value="buscar" class="btn btn-primary">
+      <i class="bi bi-search"></i> Buscar
+    </button>
   </div>
+  <small class="text-muted">
+    <i class="bi bi-info-circle"></i> Ingrese el código de 6 caracteres alfanumérico
+  </small>
 </form>
 
 {% if error %}
@@ -23,7 +29,12 @@
 <div class="card mt-4 shadow-sm">
   <div class="card-header bg-light">
     <strong>Transacción #{{ datos_transaccion.id }}</strong><br>
-    <small class="text-muted">Código: {{ datos_transaccion.uuid }}</small>
+    <div class="d-flex align-items-center gap-2 mt-2">
+      <span class="badge bg-success fs-6" style="letter-spacing: 0.2rem;">
+        {{ datos_transaccion.codigo_verificacion }}
+      </span>
+      <small class="text-muted">Código de Verificación</small>
+    </div>
   </div>
   <div class="card-body">
     <ul class="list-group list-group-flush">
@@ -43,7 +54,7 @@
           <div class="mt-2 d-flex gap-2">
             <form method="post">
               {% csrf_token %}
-              <input type="hidden" name="transaccion_uuid" value="{{ datos_transaccion.uuid }}">
+              <input type="hidden" name="codigo_verificacion" value="{{ datos_transaccion.codigo_verificacion }}">
               <button type="submit" name="accion" value="recalcular" class="btn btn-outline-warning btn-sm">
                 Recalcular con nueva tasa
               </button>
@@ -58,7 +69,7 @@
         </button>
         <form method="post">
           {% csrf_token %}
-          <input type="hidden" name="transaccion_uuid" value="{{ datos_transaccion.uuid }}">
+          <input type="hidden" name="codigo_verificacion" value="{{ datos_transaccion.codigo_verificacion }}">
           <button type="submit" name="accion" value="cancelar" class="btn btn-danger">
             Cancelar
           </button>
@@ -86,7 +97,7 @@
       <div class="modal-footer">
         <form method="post">
           {% csrf_token %}
-          <input type="hidden" name="transaccion_uuid" value="{{ datos_transaccion.uuid }}">
+          <input type="hidden" name="codigo_verificacion" value="{{ datos_transaccion.codigo_verificacion }}">
           <button type="submit" name="accion" value="confirmar" class="btn btn-success">Confirmar</button>
         </form>
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>

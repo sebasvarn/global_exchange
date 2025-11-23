@@ -89,7 +89,7 @@
               <table class="table table-striped table-hover align-middle">
                 <thead class="table-light">
                   <tr>
-                    <th>ID Transaccion</th>
+                    <th>Código</th>
                     <th>Cliente</th>
                     <th>Tipo</th>
                     <th>Moneda</th>
@@ -121,13 +121,13 @@
                     <tr>
                       <td class="text-center align-middle">
                         <div class="d-inline-flex align-items-center gap-2 px-2 py-1 rounded-pill bg-light border">
-                          <code id="uuid-{{ t.id }}" class="text-muted small mb-0">
-                            {{ t.uuid }}
+                          <code id="codigo-{{ t.codigo_verificacion }}" class="text-muted small mb-0">
+                            {{ t.codigo_verificacion }}
                           </code>
                           <button type="button"
                                   class="btn btn-sm btn-outline-primary border-0 p-1"
                                   style="line-height: 1; background-color: transparent;"
-                                  onclick="navigator.clipboard.writeText('{{ t.uuid }}'); this.innerHTML='<i class=&quot;bi bi-check2&quot;></i>'; setTimeout(()=>this.innerHTML='<i class=&quot;bi bi-clipboard&quot;></i>', 1500);"
+                                  onclick="navigator.clipboard.writeText('{{ t.codigo_verificacion }}'); this.innerHTML='<i class=&quot;bi bi-check2&quot;></i>'; setTimeout(()=>this.innerHTML='<i class=&quot;bi bi-clipboard&quot;></i>', 1500);"
                                   title="Copiar código">
                             <i class="bi bi-clipboard"></i>
                           </button>
@@ -163,33 +163,27 @@
                       <td class="text-center">
                         <div class="btn-group" role="group">
                           {% if estado == 'pendiente' %}
-                            {% if t.medio_pago_id and t.medio_pago_id == 1 %}
-                              <a href="{% url 'transacciones:iniciar_pago_tarjeta' t.id %}"
-                                 class="btn btn-sm btn-primary" data-bs-toggle="tooltip" title="Generar y abrir link de pago (Stripe)">
-                                <i class="bi bi-link-45deg"></i>
-                              </a>
-                              {% if request.user|has_permission:'transacciones.cancelar' %}
-                                <a href="{% url 'transacciones:cancelar' t.id %}"
-                                   class="btn btn-sm btn-outline-danger" data-bs-toggle="tooltip" title="Cancelar transacción">
-                                  <i class="bi bi-x-circle"></i>
-                                </a>
-                              {% endif %}
-                            {% else %}
+                            {# Solo mostrar botón de confirmar para pagos con tarjeta (sin medio_pago guardado) #}
+                            {% if t.medio_pago %}
                               {% if request.user|has_permission:'transacciones.confirmar' %}
                                 <a href="{% url 'transacciones:confirmar' t.id %}"
-                                   class="btn btn-sm btn-outline-success" data-bs-toggle="tooltip" title="Confirmar transacción">
-                                  <i class="bi bi-check2-circle"></i>
-                                </a>
-                              {% endif %}
-                              {% if request.user|has_permission:'transacciones.cancelar' %}
-                                <a href="{% url 'transacciones:cancelar' t.id %}"
-                                   class="btn btn-sm btn-outline-danger" data-bs-toggle="tooltip" title="Cancelar transacción">
-                                  <i class="bi bi-x-circle"></i>
+                                   class="btn btn-sm btn-primary" data-bs-toggle="tooltip" 
+                                   title="Confirmar transacción con tarjeta (Stripe)">
+                                  <i class="bi bi-credit-card"></i> Confirmar Pago
                                 </a>
                               {% endif %}
                             {% endif %}
-                          {% elif estado == 'pagada' %}
-                            {# espacio para comprobante, etc. #}
+                            
+                            {% if request.user|has_permission:'transacciones.cancelar' %}
+                              <a href="{% url 'transacciones:cancelar' t.id %}"
+                                 class="btn btn-sm btn-outline-danger" data-bs-toggle="tooltip" title="Cancelar transacción">
+                                <i class="bi bi-x-circle"></i>
+                              </a>
+                            {% endif %}
+                          {% elif estado == 'PAGADA' %}
+                            <span class="badge bg-success">
+                              <i class="bi bi-check-circle-fill"></i> Completada
+                            </span>
                           {% endif %}
                         </div>
                       </td>
