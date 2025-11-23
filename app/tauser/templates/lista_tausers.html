@@ -1,71 +1,155 @@
 {% extends 'base.html' %}
 
+{% block title %}Lista de Tausers{% endblock %}
+
 {% block content %}
-<h1>Tausers en el sistema</h1>
+<div class="container-fluid">
+	<div class="row">
+		<div class="col-12">
+			<div class="card">
+				<div class="card-header">
+					<strong>Tausers en el sistema</strong>
+					<div class="card-header-actions">
+						<a href="{% url 'tauser:nuevo_tauser' %}" class="btn btn-sm btn-success me-2">
+							<i class="bi bi-person-plus"></i> Nuevo Tauser
+						</a>
+					</div>
+				</div>
+				<div class="card-body">
+					<form method="get" class="row g-2 mb-3 align-items-end">
+						<div class="col-md-3">
+							<label for="estado" class="form-label mb-0">Estado</label>
+							<select name="estado" id="estado" class="form-select">
+								<option value="">Todos</option>
+								{% for value, label in estados %}
+									<option value="{{ value }}" {% if value == estado_selected %}selected{% endif %}>{{ label }}</option>
+								{% endfor %}
+							</select>
+						</div>
+						<div class="col-md-3">
+							<label for="fecha_inicio" class="form-label mb-0">Desde</label>
+							<input type="date" name="fecha_inicio" id="fecha_inicio" class="form-control" value="{{ fecha_inicio }}">
+						</div>
+						<div class="col-md-3">
+							<label for="fecha_fin" class="form-label mb-0">Hasta</label>
+							<input type="date" name="fecha_fin" id="fecha_fin" class="form-control" value="{{ fecha_fin }}">
+						</div>
+						<div class="col-md-2">
+							<button type="submit" class="btn btn-primary w-100">Filtrar</button>
+						</div>
+						<div class="col-md-1">
+							<a href="?" class="btn btn-secondary w-100">Limpiar</a>
+						</div>
+					</form>
 
-<form method="get" class="row g-2 mb-3 align-items-end">
-  <div class="col-md-3">
-    <label for="estado" class="form-label mb-0">Estado</label>
-    <select name="estado" id="estado" class="form-select">
-      <option value="">Todos</option>
-      {% for value, label in estados %}
-        <option value="{{ value }}" {% if value == estado_selected %}selected{% endif %}>{{ label }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <div class="col-md-3">
-    <label for="fecha_inicio" class="form-label mb-0">Desde</label>
-    <input type="date" name="fecha_inicio" id="fecha_inicio" class="form-control" value="{{ fecha_inicio }}">
-  </div>
-  <div class="col-md-3">
-    <label for="fecha_fin" class="form-label mb-0">Hasta</label>
-    <input type="date" name="fecha_fin" id="fecha_fin" class="form-control" value="{{ fecha_fin }}">
-  </div>
-  <div class="col-md-2">
-    <button type="submit" class="btn btn-primary w-100">Filtrar</button>
-  </div>
-  <div class="col-md-1">
-    <a href="?" class="btn btn-secondary w-100">Limpiar</a>
-  </div>
-</form>
+					<div class="table-responsive">
+						<table class="table table-striped table-hover">
+							<thead class="table-light">
+								<tr>
+									<th>#</th>
+									<th>Nombre</th>
+									<th>Ubicación</th>
+									<th>Fecha de alta</th>
+									<th>Estado</th>
+									<th class="text-center">Acciones</th>
+								</tr>
+							</thead>
+							<tbody>
+								{% for t in tausers %}
+									<tr>
+										<td><strong>{{ forloop.counter }}</strong></td>
+										<td>{{ t.nombre }}</td>
+										<td>{{ t.ubicacion }}</td>
+										<td>{{ t.fecha_alta|date:'d/m/Y H:i' }}</td>
+										<td>{{ t.get_estado_display }}</td>
+										<td class="text-center">
+											<a href="{% url 'tauser:editar_estado_tauser' t.id %}"
+												 class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1"
+												 data-bs-toggle="tooltip"
+												 title="Editar estado">
+												<i class="bi bi-pencil"></i> Editar
+											</a>
+											<a href="{% url 'tauser:ver_stock_tauser' t.id %}"
+												 class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1 ms-1"
+												 data-bs-toggle="tooltip"
+												 title="Ver stock">
+												<i class="bi bi-box"></i> Stock
+											</a>
+										</td>
+									</tr>
+								{% endfor %}
+							</tbody>
+						</table>
+					</div>
+								</div>
+						</div>
+						<!-- Estadísticas -->
+						<div class="row mt-4">
+							<div class="col-md-4">
+								<div class="card text-bg-primary">
+									<div class="card-body">
+										<div class="d-flex justify-content-between align-items-center">
+											<div>
+												<h5 class="card-title mb-0">Total Tausers</h5>
+												<h2 class="mb-0">{{ tausers|length }}</h2>
+											</div>
+											<i class="bi bi-person-badge fs-1 opacity-75"></i>
+										</div>
+									</div>
+								</div>
+							</div>
+							<div class="col-md-4">
+								<div class="card text-bg-success">
+									<div class="card-body">
+										<div class="d-flex justify-content-between align-items-center">
+											<div>
+												<h5 class="card-title mb-0">Tausers Activos</h5>
+												<h2 class="mb-0" id="tausers-activos">0</h2>
+											</div>
+											<i class="bi bi-check-circle fs-1 opacity-75"></i>
+										</div>
+									</div>
+								</div>
+							</div>
+							<div class="col-md-4">
+								<div class="card text-bg-secondary">
+									<div class="card-body">
+										<div class="d-flex justify-content-between align-items-center">
+											<div>
+												<h5 class="card-title mb-0">Tausers Inactivos</h5>
+												<h2 class="mb-0" id="tausers-inactivos">0</h2>
+											</div>
+											<i class="bi bi-slash-circle fs-1 opacity-75"></i>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+				</div>
+		</div>
+</div>
+{% endblock %}
 
-<table class="table table-bordered table-striped mt-2">
-	<thead>
-		<tr>
-			<th>#</th>
-			<th>Nombre</th>
-			<th>Ubicación</th>
-			<th>Fecha de alta</th>
-			<th>Estado</th>
-			<th>Acciones</th>
-		</tr>
-	</thead>
-	<tbody>
-		{% for t in tausers %}
-			<tr>
-				<td>{{ forloop.counter }}</td>
-				<td>{{ t.nombre }}</td>
-				<td>{{ t.ubicacion }}</td>
-				<td>{{ t.fecha_alta|date:'d/m/Y H:i' }}</td>
-				<td>{{ t.get_estado_display }}</td>
-				<td>
-					<a href="{% url 'tauser:editar_estado_tauser' t.id %}"
-						 class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1"
-						 data-bs-toggle="tooltip"
-						 title="Editar estado">
-						<i class="bi bi-pencil"></i> Editar
-					</a>
-					<a href="{% url 'tauser:ver_stock_tauser' t.id %}"
-						 class="btn btn-sm btn-outline-success d-inline-flex align-items-center gap-1 ms-1"
-						 data-bs-toggle="tooltip"
-						 title="Ver stock">
-						<i class="bi bi-box-seam"></i> Ver stock
-					</a>
-				</td>
-			</tr>
-		{% empty %}
-			<tr><td colspan="6" class="text-center">No hay Tausers registrados.</td></tr>
-		{% endfor %}
-	</tbody>
-</table>
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+		// Contar tausers activos e inactivos
+		const rows = document.querySelectorAll('tbody tr');
+		let activos = 0;
+		let inactivos = 0;
+		rows.forEach(row => {
+				const estado = row.querySelector('td:nth-child(5)');
+				if (estado && estado.textContent.trim().toLowerCase() === 'activo') {
+						activos++;
+				} else {
+						inactivos++;
+				}
+		});
+		document.getElementById('tausers-activos').textContent = activos;
+		document.getElementById('tausers-inactivos').textContent = inactivos;
+		// Inicializar tooltips
+		const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+		tooltipTriggerList.map(el => new bootstrap.Tooltip(el));
+});
+</script>
 {% endblock %}

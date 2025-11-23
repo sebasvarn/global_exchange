@@ -1,27 +1,49 @@
 {% extends 'base.html' %}
 
+{% block title %}Nuevo Tauser{% endblock %}
+
 {% block content %}
-<h1>Nuevo Tauser</h1>
-
-{% if mensaje %}
-	<div class="alert alert-success">{{ mensaje }}</div>
-{% endif %}
-
-<form method="post" class="mb-4">
-	{% csrf_token %}
-	<div class="row g-2 align-items-end">
-		<div class="col-md-5">
-			{{ form.ubicacion.label_tag }}
-			{{ form.ubicacion }}
-		</div>
-		<div class="col-md-3">
-			{{ form.estado.label_tag }}
-			{{ form.estado }}
-		</div>
-		<div class="col-md-2">
-			<button type="submit" class="btn btn-primary">Agregar Tauser</button>
+<div class="container-fluid">
+	<div class="row justify-content-center">
+		<div class="col-md-8">
+			<div class="card">
+				<div class="card-header">
+					<strong><i class="bi bi-person-plus"></i> Nuevo Tauser</strong>
+					<div class="card-header-actions">
+						<a href="{% url 'tauser:lista_tausers' %}" class="btn btn-sm btn-secondary">
+							<i class="bi bi-arrow-left"></i> Volver
+						</a>
+					</div>
+				</div>
+				<div class="card-body">
+					{% if mensaje %}
+						<div class="alert alert-success">{{ mensaje }}</div>
+					{% endif %}
+					<form method="post">
+						{% csrf_token %}
+						<div class="row g-2 align-items-end">
+							<div class="col-md-6">
+								<label for="{{ form.ubicacion.id_for_label }}" class="form-label"><strong>Ubicación *</strong></label>
+								{{ form.ubicacion }}
+								{% if form.ubicacion.errors %}
+									<div class="invalid-feedback d-block">{{ form.ubicacion.errors.0 }}</div>
+								{% endif %}
+							</div>
+							<div class="col-md-4">
+								<label for="{{ form.estado.id_for_label }}" class="form-label"><strong>Estado *</strong></label>
+								{{ form.estado }}
+								{% if form.estado.errors %}
+									<div class="invalid-feedback d-block">{{ form.estado.errors.0 }}</div>
+								{% endif %}
+							</div>
+							<div class="col-md-2 d-flex align-items-end">
+								<button type="submit" class="btn btn-success w-100 text-nowrap text-start" style="height: 38px; white-space: nowrap;">Agregar Tauser</button>
+							</div>
+						</div>
+					</form>
+				</div>
+			</div>
 		</div>
 	</div>
-</form>
-
+</div>
 {% endblock %}

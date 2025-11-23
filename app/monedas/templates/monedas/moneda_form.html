@@ -3,64 +3,135 @@
 {% block title %}{% if moneda %}Editar Moneda{% else %}Nueva Moneda{% endif %}{% endblock %}
 {% block content %}
 {% if request.user|has_any_permission:'monedas.edit, monedas.create' %}
-  <div class="container mt-4">
-    <h2>{% if moneda %}Editar Moneda{% else %}Nueva Moneda{% endif %}</h2>
-
-    {% if moneda and moneda.codigo == 'PYG' %}
-    <div class="alert alert-info">
-      <strong>Moneda base del sistema:</strong> Esta es la moneda base PYG. No puede ser desactivada ni eliminada.
-    </div>
-    {% endif %}
-
-    <form method="post" class="mt-3">
-      {% csrf_token %}
-      <div class="row g-3">
-        <div class="col-md-3">
-          <label class="form-label">Código ISO</label>
-          {{ form.codigo }}
-          {% for e in form.codigo.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
-          <div class="form-text">Ej: USD, EUR, BRL</div>
-        </div>
-        <div class="col-md-5">
-          <label class="form-label">Nombre</label>
-          {{ form.nombre }}
-          {% for e in form.nombre.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
-        </div>
-        <div class="col-md-2">
-          <label class="form-label">Símbolo</label>
-          {{ form.simbolo }}
-        </div>
-        <div class="col-md-2">
-          <label class="form-label">Decimales</label>
-          {{ form.decimales }}
-        </div>
-
-        {% if not moneda or moneda.codigo != 'PYG' %}
-        <div class="col-md-4 form-check ms-2">
-          {{ form.activa }} <label class="form-check-label">Activa</label>
-        </div>
-        {% else %}
-        <div class="col-md-4 form-check ms-2">
-          <input type="checkbox" checked disabled class="form-check-input">
-          <label class="form-check-label text-muted">Activa (moneda base)</label>
-          <input type="hidden" name="activa" value="on">
-        </div>
-        {% endif %}
-
-        {% if moneda and moneda.es_base %}
-        <div class="col-md-8">
-          <div class="alert alert-warning py-2">
-            <small>⭐ Esta es la moneda base del sistema</small>
+  <div class="container-fluid">
+    <div class="row justify-content-center">
+      <div class="col-md-10">
+        <div class="card">
+          <div class="card-header">
+            <strong>{% if moneda %}<i class="bi bi-pencil"></i> Editar Moneda{% else %}<i class="bi bi-plus-circle"></i> Nueva Moneda{% endif %}</strong>
+            <div class="card-header-actions">
+              <a href="{% url 'monedas:monedas_list' %}" class="btn btn-sm btn-secondary">
+                <i class="bi bi-arrow-left"></i> Volver
+              </a>
+            </div>
+          </div>
+          <div class="card-body">
+            {% if moneda and moneda.codigo == 'PYG' %}
+            <div class="alert alert-info">
+              <strong>Moneda base del sistema:</strong> Esta es la moneda base PYG. No puede ser desactivada ni eliminada.
+            </div>
+            {% endif %}
+            <form method="post">
+              {% csrf_token %}
+              <div class="row g-3">
+                <div class="col-md-3">
+                  <label class="form-label">Código ISO</label>
+                  {{ form.codigo }}
+                  {% for e in form.codigo.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                </div>
+                <div class="col-md-5">
+                  <label class="form-label">Nombre</label>
+                  {{ form.nombre }}
+                  {% for e in form.nombre.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">Símbolo</label>
+                  {{ form.simbolo }}
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">Decimales</label>
+                  {{ form.decimales }}
+                </div>
+                {% if not moneda or moneda.codigo != 'PYG' %}
+                <div class="col-md-4 form-check ms-2">
+                  {{ form.activa }} <label class="form-check-label">Activa</label>
+                </div>
+                {% else %}
+                <div class="col-md-4 form-check ms-2">
+                  <input type="checkbox" checked disabled class="form-check-input">
+                  <label class="form-check-label text-muted">Activa (moneda base)</label>
+                  <input type="hidden" name="activa" value="on">
+                </div>
+                {% endif %}
+                {% if moneda and moneda.es_base %}
+                <div class="col-md-8">
+                  <div class="alert alert-warning py-2">
+                    <small>⭐ Esta es la moneda base del sistema</small>
+                  </div>
+                </div>
+                {% endif %}
+              </div>
+              <div class="mt-3 d-flex gap-2">
+                <button type="submit" class="btn btn-success"><i class="bi bi-check-circle"></i> Guardar</button>
+                <a href="{% url 'monedas:monedas_list' %}" class="btn btn-secondary">Cancelar</a>
+              </div>
+            </form>
+            <script>
+              // Diccionario de código ISO a datos de moneda
+              const isoToData = {
+                "USD": {nombre: "Dólar estadounidense", simbolo: "$", decimales: 2},
+                "EUR": {nombre: "Euro", simbolo: "€", decimales: 2},
+                "GBP": {nombre: "Libra esterlina", simbolo: "£", decimales: 2},
+                "JPY": {nombre: "Yen japonés", simbolo: "¥", decimales: 0},
+                "CHF": {nombre: "Franco suizo", simbolo: "Fr.", decimales: 2},
+                "CAD": {nombre: "Dólar canadiense", simbolo: "$", decimales: 2},
+                "AUD": {nombre: "Dólar australiano", simbolo: "$", decimales: 2},
+                "NZD": {nombre: "Dólar neozelandés", simbolo: "$", decimales: 2},
+                "CNY": {nombre: "Yuan chino", simbolo: "¥", decimales: 2},
+                "SEK": {nombre: "Corona sueca", simbolo: "kr", decimales: 2},
+                "NOK": {nombre: "Corona noruega", simbolo: "kr", decimales: 2},
+                "DKK": {nombre: "Corona danesa", simbolo: "kr", decimales: 2},
+                "RUB": {nombre: "Rublo ruso", simbolo: "₽", decimales: 2},
+                "MXN": {nombre: "Peso mexicano", simbolo: "$", decimales: 2},
+                "ARS": {nombre: "Peso argentino", simbolo: "$", decimales: 2},
+                "CLP": {nombre: "Peso chileno", simbolo: "$", decimales: 0},
+                "COP": {nombre: "Peso colombiano", simbolo: "$", decimales: 2},
+                "BRL": {nombre: "Real brasileño", simbolo: "R$", decimales: 2},
+                "PYG": {nombre: "Guaraní paraguayo", simbolo: "₲", decimales: 0},
+                "PEN": {nombre: "Sol peruano", simbolo: "S/", decimales: 2},
+                "INR": {nombre: "Rupia india", simbolo: "₹", decimales: 2}
+              };
+              
+              document.addEventListener('DOMContentLoaded', function() {
+                const selectCodigo = document.querySelector('select[name="codigo"]');
+                const inputNombre = document.querySelector('input[name="nombre"]');
+                const inputSimbolo = document.querySelector('input[name="simbolo"]');
+                const inputDecimales = document.querySelector('input[name="decimales"]');
+                if (selectCodigo) {
+                  // Seleccionar la primera opción disponible si existe
+                  if (selectCodigo.options.length > 0) {
+                    selectCodigo.selectedIndex = 0;
+                    const firstValue = selectCodigo.options[0].value;
+                    const data = isoToData[firstValue];
+                    if (data) {
+                      if (inputNombre) inputNombre.value = data.nombre;
+                      if (inputSimbolo) inputSimbolo.value = data.simbolo;
+                      if (inputDecimales) inputDecimales.value = data.decimales;
+                    } else {
+                      if (inputNombre) inputNombre.value = '';
+                      if (inputSimbolo) inputSimbolo.value = '';
+                      if (inputDecimales) inputDecimales.value = '';
+                    }
+                  }
+                  selectCodigo.addEventListener('change', function() {
+                    const data = isoToData[this.value];
+                    if (data) {
+                      if (inputNombre) inputNombre.value = data.nombre;
+                      if (inputSimbolo) inputSimbolo.value = data.simbolo;
+                      if (inputDecimales) inputDecimales.value = data.decimales;
+                    } else {
+                      if (inputNombre) inputNombre.value = '';
+                      if (inputSimbolo) inputSimbolo.value = '';
+                      if (inputDecimales) inputDecimales.value = '';
+                    }
+                  });
+                }
+              });
+            </script>
           </div>
         </div>
-        {% endif %}
       </div>
-
-      <div class="mt-3 d-flex gap-2">
-        <button type="submit" class="btn btn-success"><i class="bi bi-check-circle"></i> Guardar</button>
-        <a href="{% url 'monedas:monedas_list' %}" class="btn btn-secondary">Cancelar</a>
-      </div>
-    </form>
+    </div>
   </div>
 {% endif %}
 {% endblock %}

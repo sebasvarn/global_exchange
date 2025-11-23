@@ -1,46 +1,63 @@
 {% extends 'base.html' %}
+
+{% block title %}Stock de {{ tauser.nombre }}{% endblock %}
+
 {% block content %}
-<div class="container mt-4">
-  <h2>Stock de {{ tauser.nombre }}</h2>
-  <a href="{% url 'tauser:lista_tausers' %}" class="btn btn-secondary mb-3">&larr; Volver a la lista</a>
-
-  <form method="get" class="row g-3 mb-3">
-    <div class="col-auto">
-      <label for="moneda" class="form-label">Filtrar por moneda:</label>
+<div class="container-fluid">
+  <div class="row justify-content-center">
+    <div class="col-md-10">
+      <div class="card">
+        <div class="card-header">
+          <strong><i class="bi bi-box"></i> Stock de {{ tauser.nombre }}</strong>
+          <div class="card-header-actions">
+            <a href="{% url 'tauser:lista_tausers' %}" class="btn btn-sm btn-secondary">
+              <i class="bi bi-arrow-left"></i> Volver a la lista
+            </a>
+          </div>
+        </div>
+        <div class="card-body">
+          <form method="get" class="row g-3 mb-3">
+            <div class="col-auto">
+              <label for="moneda" class="form-label">Filtrar por moneda:</label>
+            </div>
+            <div class="col-auto">
+              <select name="moneda" id="moneda" class="form-select" onchange="this.form.submit()">
+                <option value="">Todas</option>
+                {% for moneda in monedas %}
+                  <option value="{{ moneda.codigo }}" {% if moneda.codigo == moneda_codigo %}selected{% endif %}>{{ moneda.codigo }} - {{ moneda.nombre }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </form>
+          {% if stock %}
+            <div class="table-responsive">
+              <table class="table table-striped table-hover">
+                <thead class="table-light">
+                  <tr>
+                    <th>Moneda</th>
+                    <th>Denominación</th>
+                    <th>Tipo</th>
+                    <th>Cantidad</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for s in stock %}
+                  <tr>
+                    <td>{{ s.denominacion.moneda.codigo }}</td>
+                    <td>{{ s.denominacion.value }}</td>
+                    <td>{% if s.denominacion.type == 'bill' %}Billete{% else %}Moneda{% endif %}</td>
+                    <td>{{ s.quantity }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="alert alert-info">Este Tauser no tiene stock registrado{% if moneda_codigo %} para la moneda seleccionada{% endif %}.</div>
+          {% endif %}
+        </div>
+      </div>
     </div>
-    <div class="col-auto">
-      <select name="moneda" id="moneda" class="form-select" onchange="this.form.submit()">
-        <option value="">Todas</option>
-        {% for moneda in monedas %}
-          <option value="{{ moneda.codigo }}" {% if moneda.codigo == moneda_codigo %}selected{% endif %}>{{ moneda.codigo }} - {{ moneda.nombre }}</option>
-        {% endfor %}
-      </select>
-    </div>
-  </form>
-
-  {% if stock %}
-    <table class="table table-bordered table-striped">
-      <thead>
-        <tr>
-          <th>Moneda</th>
-          <th>Denominación</th>
-          <th>Tipo</th>
-          <th>Cantidad</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for s in stock %}
-        <tr>
-          <td>{{ s.denominacion.moneda.codigo }}</td>
-          <td>{{ s.denominacion.value }}</td>
-          <td>{% if s.denominacion.type == 'bill' %}Billete{% else %}Moneda{% endif %}</td>
-          <td>{{ s.quantity }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  {% else %}
-    <div class="alert alert-info">Este Tauser no tiene stock registrado{% if moneda_codigo %} para la moneda seleccionada{% endif %}.</div>
-  {% endif %}
+  </div>
 </div>
 {% endblock %}
