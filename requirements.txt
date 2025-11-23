@@ -13,6 +13,11 @@ httpx==0.28.1
 django-widget-tweaks==1.5.0
 django-browser-reload==1.18.0
 
+# --- FastAPI (para simulador de pasarela) ---
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+
 # --- Sphinx documentation stack ---
 Sphinx==8.2.3
 sphinx-autoapi==3.6.0

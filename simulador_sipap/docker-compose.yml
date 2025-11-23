@@ -1,0 +1,28 @@
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: simulador_pagos_db
+    environment:
+      POSTGRES_DB: simulador_pagos
+      POSTGRES_USER: simulador
+      POSTGRES_PASSWORD: simulador123
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U simulador -d simulador_pagos"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - simulador_network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  simulador_network:
+    driver: bridge

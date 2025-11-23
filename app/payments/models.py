@@ -24,13 +24,15 @@ class ComisionMetodoPago(models.Model):
 
 class PaymentMethod(models.Model):
     """
-    Modelo que representa un método de pago disponible en el sistema.
+    Modelo que representa un método de pago GUARDADO en el sistema.
+    Solo incluye métodos que se almacenan: CUENTA_BANCARIA y BILLETERA.
+    
+    TARJETA: Se procesa directamente con Stripe (no se guarda en DB por seguridad).
+    CHEQUE: No se utiliza en el sistema.
     """
     cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE, related_name="metodos_pago", verbose_name="Cliente")
     PAYMENT_TYPE_CHOICES = [(e.value, e.name.replace('_', ' ').title()) for e in PaymentTypeEnum]
     payment_type = models.CharField(max_length=20, choices=PAYMENT_TYPE_CHOICES, verbose_name="Tipo de Método de Pago", default=PaymentTypeEnum.CUENTA_BANCARIA.value)
-
-    #TODO unificar modelos a uno generico
 
     # Campos para Cuenta Bancaria
     titular_cuenta = models.CharField(max_length=100, blank=True, null=True, verbose_name="Nombre del titular")
@@ -42,22 +44,6 @@ class PaymentMethod(models.Model):
     proveedor_billetera = models.CharField(max_length=100, blank=True, null=True, verbose_name="Proveedor de billetera")
     billetera_email_telefono = models.CharField(max_length=100, blank=True, null=True, verbose_name="Email o teléfono asociado")
     billetera_titular = models.CharField(max_length=100, blank=True, null=True, verbose_name="Nombre del titular billetera")
-    # Campos para Tarjeta de Crédito
-    tarjeta_nombre = models.CharField(max_length=100, blank=True, null=True, verbose_name="Nombre en tarjeta")
-    tarjeta_numero = models.CharField(max_length=20, blank=True, null=True, verbose_name="Número de tarjeta")
-    tarjeta_vencimiento = models.CharField(max_length=7, blank=True, null=True, verbose_name="Fecha de vencimiento")
-    tarjeta_cvv = models.CharField(max_length=4, blank=True, null=True, verbose_name="CVV/CVC")
-    tarjeta_marca = models.CharField(max_length=20, blank=True, null=True, verbose_name="Marca de tarjeta")
-
-    # Campos para Cheque
-    cheque_numero = models.CharField(max_length=20, blank=True, null=True, verbose_name="Número de cheque")
-    cheque_banco = models.CharField(max_length=100, blank=True, null=True, verbose_name="Banco")
-    cheque_cuenta = models.CharField(max_length=50, blank=True, null=True, verbose_name="Cuenta")
-    cheque_orden = models.CharField(max_length=200, blank=True, null=True, verbose_name="Orden (Casa Matriz, dirección incluida)")
-    cheque_beneficiario = models.CharField(max_length=100, blank=True, null=True, verbose_name="Beneficiario")
-    cheque_monto = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True, verbose_name="Monto")
-    cheque_moneda = models.CharField(max_length=10, blank=True, null=True, verbose_name="Moneda")
-    cheque_fecha_emision = models.DateField(blank=True, null=True, verbose_name="Fecha de emisión")
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -72,8 +58,65 @@ class PaymentMethod(models.Model):
             return f"Cuenta bancaria ({self.banco or ''} - {self.numero_cuenta or ''})"
         elif self.payment_type == PaymentTypeEnum.BILLETERA.value:
             return f"Billetera ({self.proveedor_billetera or ''} - {self.billetera_email_telefono or ''})"
-        elif self.payment_type == PaymentTypeEnum.TARJETA.value:
-            return f"Tarjeta ({self.tarjeta_nombre or ''} - {self.tarjeta_numero or ''})"
-        elif self.payment_type == PaymentTypeEnum.CHEQUE.value:
-            return f"Cheque ({self.cheque_banco or ''} - {self.cheque_cuenta or ''} - N° {self.cheque_numero or ''})"
         return f"Método de pago {self.pk}"
+    
+    def puede_usar_sipap(self):
+        """
+        Determina si este método de pago puede procesarse a través de SIPAP.
+        Todos los métodos guardados (BILLETERA y CUENTA_BANCARIA) usan SIPAP.
+        """
+        return self.payment_type in [
+            PaymentTypeEnum.BILLETERA.value,
+            PaymentTypeEnum.CUENTA_BANCARIA.value,
+        ]
+    
+    def get_metodo_sipap(self):
+        """
+        Mapea el tipo de PaymentMethod al método esperado por SIPAP.
+        
+        Returns:
+            str: Nombre del método para SIPAP ('billetera', 'transferencia')
+            None: Si no puede procesarse por SIPAP
+        """
+        if not self.puede_usar_sipap():
+            return None
+        
+        mapping = {
+            PaymentTypeEnum.BILLETERA.value: 'billetera',
+            PaymentTypeEnum.CUENTA_BANCARIA.value: 'transferencia',
+        }
+        
+        return mapping.get(self.payment_type)
+    
+    def get_datos_sipap(self):
+        """
+        Extrae los datos necesarios para enviar a SIPAP según el tipo de método.
+        
+        Returns:
+            dict: Datos formateados para SIPAP
+        """
+        if not self.puede_usar_sipap():
+            return {}
+        
+        if self.payment_type == PaymentTypeEnum.BILLETERA.value:
+            # SIPAP valida: si últimos 2 dígitos son primos → rechaza
+            return {
+                'numero_billetera': self.billetera_email_telefono or '',
+            }
+        
+        elif self.payment_type == PaymentTypeEnum.CUENTA_BANCARIA.value:
+            # SIPAP valida: si contiene "000" o < 6 caracteres → rechaza
+            # Generamos comprobante único basado en cuenta + timestamp
+            import hashlib
+            from datetime import datetime
+            
+            cuenta = self.numero_cuenta or 'CUENTA'
+            data = f"{cuenta}{datetime.now().timestamp()}"
+            comprobante_hash = hashlib.md5(data.encode()).hexdigest()[:10].upper()
+            comprobante = f"TRF{comprobante_hash}"
+            
+            return {
+                'numero_comprobante': comprobante,
+            }
+        
+        return {}

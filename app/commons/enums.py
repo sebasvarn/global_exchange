@@ -16,12 +16,10 @@ class EstadoRegistroEnum(Enum):
 	ELIMINADO = "eliminado"
 	SUSPENDIDO = "suspendido"
 
-# Enum para tipos de pago
+# Enum para tipos de pago guardados (no incluye tarjeta ni cheque)
 class PaymentTypeEnum(Enum):
-	TARJETA = "tarjeta"
 	CUENTA_BANCARIA = "cuenta_bancaria"
 	BILLETERA = "billetera"
-	CHEQUE = "cheque"
 
 
 class TipoMovimientoEnum(models.TextChoices):

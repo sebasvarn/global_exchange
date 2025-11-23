@@ -87,10 +87,17 @@
                   {% endif %}
                   {% if request.user|has_permission:'transacciones.create' %}
                   <li class="nav-item">
-                    <a class="nav-link {% if request.resolver_match.url_name == 'transaccion_create' %}active{% endif %}"
-                       href="{% url 'transacciones:transaccion_create' %}">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'compra_moneda' %}active{% endif %}"
+                       href="{% url 'transacciones:compra_moneda' %}">
                       <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
-                      Nueva Transferencia
+                      Compra Moneda
+                    </a>
+                  </li>
+                  <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'venta_moneda' %}active{% endif %}"
+                       href="{% url 'transacciones:venta_moneda' %}">
+                      <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+                      Venta Moneda
                     </a>
                   </li>
                   {% endif %}

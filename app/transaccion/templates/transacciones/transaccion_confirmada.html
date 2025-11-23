@@ -1,0 +1,221 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Transacción Confirmada{% endblock %}
+
+{% block extra_css %}
+<style>
+    .codigo-verificacion {
+        font-size: 2.5rem;
+        font-weight: bold;
+        letter-spacing: 0.3rem;
+        color: #198754;
+        text-align: center;
+        padding: 20px;
+        background: #d1e7dd;
+        border-radius: 10px;
+        margin: 20px 0;
+    }
+    
+    .transaccion-detalle {
+        background: #f8f9fa;
+        border-left: 4px solid #0d6efd;
+        padding: 15px;
+        margin: 10px 0;
+    }
+    
+    .transaccion-detalle.compra {
+        border-left-color: #198754;
+    }
+    
+    .transaccion-detalle.venta {
+        border-left-color: #dc3545;
+    }
+    
+    .btn-action {
+        min-width: 200px;
+        padding: 12px 24px;
+        font-size: 1.1rem;
+    }
+    
+    .modal-header.success {
+        background: linear-gradient(135deg, #198754 0%, #20c997 100%);
+        color: white;
+    }
+    
+    .icon-success {
+        font-size: 4rem;
+        color: #198754;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Modal automático -->
+    <div class="modal fade" id="modalConfirmacion" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header success">
+                    <h4 class="modal-title w-100 text-center">
+                        <i class="bi bi-check-circle-fill me-2"></i>
+                        ¡Transacción Creada Exitosamente!
+                    </h4>
+                </div>
+                <div class="modal-body">
+                    <div class="text-center mb-4">
+                        <i class="bi bi-check-circle icon-success"></i>
+                    </div>
+                    
+                    <!-- Código de Verificación -->
+                    <div class="text-center mb-4">
+                        <h5 class="text-muted mb-2">Código de Verificación</h5>
+                        <div class="codigo-verificacion">
+                            {{ transaccion.codigo_verificacion }}
+                        </div>
+                        <small class="text-muted">
+                            <i class="bi bi-info-circle"></i> 
+                            Anote este código para identificar la transacción
+                        </small>
+                    </div>
+
+                    <!-- Detalles de la Transacción -->
+                    <div class="transaccion-detalle {% if tipo == 'VENTA' %}venta{% else %}compra{% endif %}">
+                        <h5 class="mb-3">
+                            <i class="bi bi-receipt"></i> Detalles de la Transacción
+                        </h5>
+                        
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <strong>Transacción ID:</strong><br>
+                                #{{ transaccion.id }}
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Tipo:</strong><br>
+                                <span class="badge {% if tipo == 'VENTA' %}bg-danger{% else %}bg-success{% endif %}">
+                                    {{ transaccion.get_tipo_display }}
+                                </span>
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Cliente:</strong><br>
+                                {{ cliente.nombre }} {{ cliente.apellido }}
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Documento:</strong><br>
+                                {{ cliente.documento }}
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Moneda:</strong><br>
+                                {{ moneda.nombre }} ({{ moneda.codigo }})
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Monto:</strong><br>
+                                {{ transaccion.monto_operado }} {{ moneda.codigo }}
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Tasa Aplicada:</strong><br>
+                                {{ transaccion.tasa_aplicada }} PYG
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Comisión:</strong><br>
+                                ₲ {{ transaccion.comision|floatformat:0 }}
+                            </div>
+                            <div class="col-12">
+                                <hr>
+                                <h5 class="text-center">
+                                    <strong>Total en PYG:</strong> 
+                                    <span class="text-primary">₲ {{ transaccion.monto_pyg|floatformat:0 }}</span>
+                                </h5>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Método de Pago/Cobro -->
+                    <div class="alert alert-info mt-3">
+                        <i class="bi bi-info-circle-fill me-2"></i>
+                        {% if metodo_pago %}
+                            <strong>Método de Pago:</strong> 
+                            {% if metodo_pago == 'efectivo' %}
+                                Efectivo (Tauser)
+                            {% elif metodo_pago == 'tarjeta' %}
+                                Tarjeta de Crédito/Débito (Stripe)
+                            {% elif metodo_pago == 'transferencia' %}
+                                Transferencia Bancaria (SIPAP)
+                            {% elif metodo_pago == 'billetera' %}
+                                Billetera Digital (SIPAP)
+                            {% endif %}
+                        {% elif metodo_cobro %}
+                            <strong>Método de Cobro:</strong> 
+                            {% if metodo_cobro == 'efectivo' %}
+                                Efectivo (Tauser)
+                            {% elif metodo_cobro == 'transferencia' %}
+                                Transferencia Bancaria
+                            {% endif %}
+                        {% endif %}
+                    </div>
+
+                    <!-- Estado -->
+                    <div class="text-center mt-3">
+                        <span class="badge bg-warning text-dark fs-6">
+                            <i class="bi bi-clock-history"></i> Estado: {{ transaccion.get_estado_display }}
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="modal-footer justify-content-center">
+                    {% if metodo_pago == 'tarjeta' %}
+                        <!-- Pago con Tarjeta: Ir a Stripe -->
+                        <a href="{% url 'transacciones:iniciar_pago_tarjeta' transaccion.id %}" 
+                           class="btn btn-primary btn-action">
+                            <i class="bi bi-credit-card"></i> Procesar Pago con Tarjeta
+                        </a>
+                    {% elif metodo_pago == 'efectivo' or metodo_cobro == 'efectivo' %}
+                        <!-- Efectivo: Ir a Terminal Tauser -->
+                        <a href="{% url 'transacciones:transacciones_list' %}" 
+                           class="btn btn-success btn-action">
+                            <i class="bi bi-cash-stack"></i> Ir a Terminal Tauser
+                        </a>
+                    {% else %}
+                        <!-- SIPAP o ir al listado -->
+                        <a href="{% url 'transacciones:confirmar' transaccion.id %}" 
+                           class="btn btn-primary btn-action">
+                            <i class="bi bi-check-circle"></i> Confirmar Transacción
+                        </a>
+                    {% endif %}
+                    
+                    <a href="{% url 'transacciones:transacciones_list' %}" 
+                       class="btn btn-outline-secondary btn-action">
+                        <i class="bi bi-list-ul"></i> Ver Todas las Transacciones
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Mostrar el modal automáticamente
+    const modal = new bootstrap.Modal(document.getElementById('modalConfirmacion'));
+    modal.show();
+    
+    // Copiar código al portapapeles
+    document.querySelector('.codigo-verificacion').addEventListener('click', function() {
+        const codigo = this.textContent.trim();
+        navigator.clipboard.writeText(codigo).then(function() {
+            // Mostrar feedback visual
+            const el = document.querySelector('.codigo-verificacion');
+            const originalBg = el.style.background;
+            el.style.background = '#198754';
+            el.style.color = 'white';
+            setTimeout(function() {
+                el.style.background = originalBg;
+                el.style.color = '#198754';
+            }, 500);
+        });
+    });
+});
+</script>
+{% endblock %}

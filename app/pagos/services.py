@@ -48,7 +48,7 @@ class PasarelaService:
         self.base_url = getattr(
             settings, 
             'PASARELA_BASE_URL', 
-            'http://localhost:3001'
+            'http://localhost:8080'
         )
         self.timeout = getattr(settings, 'PASARELA_TIMEOUT', 30)
         self.webhook_url = getattr(
