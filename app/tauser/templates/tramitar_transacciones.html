@@ -1,15 +1,40 @@
 {% extends 'base.html' %}
+
+{% block extra_css %}
+<style>
+    .otp-input-container {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+    }
+    .otp-input {
+        width: 45px;
+        height: 50px;
+        text-align: center;
+        font-size: 1.5rem;
+        border: 1px solid #ced4da;
+        border-radius: .25rem;
+        transition: border-color .15s ease-in-out,box-shadow .15s ease-in-out;
+    }
+    .otp-input:focus {
+        border-color: #86b7fe;
+        outline: 0;
+        box-shadow: 0 0 0 0.25rem rgb(13 110 253 / 25%);
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <h1>Terminal - Pago en Efectivo</h1>
 
-<form method="post" class="mb-4">
+<form method="post" class="mb-4" id="searchTransactionForm">
   {% csrf_token %}
   <div class="input-group mb-3">
     <input type="text" name="codigo_verificacion" id="codigo_verificacion" class="form-control text-uppercase"
            placeholder="Ingrese el código de verificación (ej: A3B7K9)"
            value="{{ codigo_verificacion }}" maxlength="10" required
            style="font-size: 1.2rem; letter-spacing: 0.2rem; text-align: center;">
-    <button type="submit" name="accion" value="buscar" class="btn btn-primary">
+    <button type="button" id="searchBtn" class="btn btn-primary">
       <i class="bi bi-search"></i> Buscar
     </button>
   </div>
@@ -64,10 +89,14 @@
       {% endif %}
 
       <div class="d-flex justify-content-center gap-3 mt-4">
-        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#confirmModal">
-          Confirmar Pago
-        </button>
-        <form method="post">
+        <form method="post" class="d-inline">
+          {% csrf_token %}
+          <input type="hidden" name="codigo_verificacion" value="{{ datos_transaccion.codigo_verificacion }}">
+          <button type="submit" name="accion" value="confirmar" class="btn btn-success">
+            Confirmar Pago
+          </button>
+        </form>
+        <form method="post" class="d-inline">
           {% csrf_token %}
           <input type="hidden" name="codigo_verificacion" value="{{ datos_transaccion.codigo_verificacion }}">
           <button type="submit" name="accion" value="cancelar" class="btn btn-danger">
@@ -78,32 +107,188 @@
     {% endif %}
   </div>
 </div>
+{% endif %}
 
-<!-- Modal de confirmación -->
-<div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="mfaModal" tabindex="-1" aria-labelledby="mfaModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
-      <div class="modal-header bg-success text-white">
-        <h5 class="modal-title">Confirmar Pago</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      <div class="modal-header">
+        <h5 class="modal-title" id="mfaModalLabel">Verificación de Operador</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
-        <p>¿Desea confirmar el pago de esta transacción?</p>
-        <ul class="list-group list-group-flush">
-          <li class="list-group-item"><strong>Monto total:</strong> {{ datos_transaccion.monto_pyg }} PYG</li>
-          <li class="list-group-item"><strong>Tasa actual:</strong> {{ datos_transaccion.tasa_recalculada }}</li>
-        </ul>
+        <p>Para continuar, por favor ingrese el código de verificación enviado a su correo.</p>
+        <form id="mfaForm" onsubmit="return false;">
+            <div class="otp-input-container mb-3">
+                <input type="text" class="form-control otp-input" id="otp-1" maxlength="1" autocomplete="off">
+                <input type="text" class="form-control otp-input" id="otp-2" maxlength="1" autocomplete="off">
+                <input type="text" class="form-control otp-input" id="otp-3" maxlength="1" autocomplete="off">
+                <input type="text" class="form-control otp-input" id="otp-4" maxlength="1" autocomplete="off">
+                <input type="text" class="form-control otp-input" id="otp-5" maxlength="1" autocomplete="off">
+                <input type="text" class="form-control otp-input" id="otp-6" maxlength="1" autocomplete="off">
+            </div>
+            <input type="hidden" id="mfaCode" name="mfaCode">
+            <div id="mfaError" class="alert alert-danger d-none"></div>
+        </form>
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <button type="button" id="resendOtpBtn" class="btn btn-sm btn-outline-secondary" disabled>Reenviar código</button>
+            <span id="otpTimer" class="text-muted"></span>
+        </div>
       </div>
       <div class="modal-footer">
-        <form method="post">
-          {% csrf_token %}
-          <input type="hidden" name="codigo_verificacion" value="{{ datos_transaccion.codigo_verificacion }}">
-          <button type="submit" name="accion" value="confirmar" class="btn btn-success">Confirmar</button>
-        </form>
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" id="verifyOtpBtn" class="btn btn-primary">Verificar y Buscar</button>
       </div>
     </div>
   </div>
 </div>
-{% endif %}
 {% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const searchBtn = document.getElementById('searchBtn');
+    const searchForm = document.getElementById('searchTransactionForm');
+    const mfaModal = new bootstrap.Modal(document.getElementById('mfaModal'));
+    const otpInputs = document.querySelectorAll('.otp-input');
+
+    otpInputs.forEach((input, index) => {
+        input.addEventListener('input', () => {
+            if (input.value.length === 1 && index < otpInputs.length - 1) {
+                otpInputs[index + 1].focus();
+            }
+            // Collect all inputs to form the full code
+            let otp = '';
+            otpInputs.forEach(i => otp += i.value);
+            document.getElementById('mfaCode').value = otp;
+        });
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Backspace' && input.value.length === 0 && index > 0) {
+                otpInputs[index - 1].focus();
+            }
+        });
+
+        // Handle pasting the code
+        input.addEventListener('paste', (e) => {
+            e.preventDefault();
+            const pasteData = (e.clipboardData || window.clipboardData).getData('text');
+            if (pasteData.length === 6) {
+                otpInputs.forEach((otpInput, i) => {
+                    otpInput.value = pasteData[i] || '';
+                });
+                document.getElementById('mfaCode').value = pasteData;
+                otpInputs[5].focus();
+            }
+        });
+    });
+    
+    if (searchBtn) {
+        searchBtn.addEventListener('click', function (event) {
+            event.preventDefault();
+            const transactionCodeInput = document.getElementById('codigo_verificacion');
+            if (!transactionCodeInput.value.trim()) {
+                alert('Por favor, ingrese un código de verificación.');
+                return;
+            }
+            
+            // Reset OTP fields and errors before showing
+            otpInputs.forEach(i => i.value = '');
+            document.getElementById('mfaError').classList.add('d-none');
+
+            // Solicitar OTP al servidor y mostrar el modal
+            requestOtp('tauser_search_transaction');
+            mfaModal.show();
+        });
+    }
+
+    let timerInterval;
+    const resendBtn = document.getElementById('resendOtpBtn');
+    const otpTimerSpan = document.getElementById('otpTimer');
+
+    function startOtpTimer(duration) {
+        let timer = duration;
+        resendBtn.disabled = true;
+        
+        timerInterval = setInterval(function () {
+            otpTimerSpan.textContent = `Puede reenviar en ${timer}s`;
+            timer--;
+            if (timer < 0) {
+                clearInterval(timerInterval);
+                otpTimerSpan.textContent = '';
+                resendBtn.disabled = false;
+            }
+        }, 1000);
+    }
+
+    function requestOtp(purpose) {
+        clearInterval(timerInterval);
+        document.getElementById('mfaError').classList.add('d-none');
+
+        fetch("{% url 'mfa:generate_otp_api' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                email: '{{ request.user.email }}',
+                purpose: purpose
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.ok) {
+                startOtpTimer(data.ttl_seconds || 60);
+            } else {
+                const mfaError = document.getElementById('mfaError');
+                mfaError.textContent = data.error || 'No se pudo enviar el código.';
+                mfaError.classList.remove('d-none');
+            }
+        })
+        .catch(error => {
+            const mfaError = document.getElementById('mfaError');
+            mfaError.textContent = 'Error de red al solicitar el código.';
+            mfaError.classList.remove('d-none');
+        });
+    }
+
+    resendBtn.addEventListener('click', function() {
+        requestOtp('tauser_search_transaction');
+    });
+
+    document.getElementById('verifyOtpBtn').addEventListener('click', function() {
+        const code = document.getElementById('mfaCode').value;
+        const mfaError = document.getElementById('mfaError');
+        mfaError.classList.add('d-none');
+
+        fetch("{% url 'mfa:api_verify_tauser_otp' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                code: code,
+                purpose: 'tauser_search_transaction'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.ok) {
+                // Si el OTP es correcto, enviar el formulario de búsqueda original
+                searchForm.submit();
+            } else {
+                mfaError.textContent = data.error || 'Error de verificación.';
+                mfaError.classList.remove('d-none');
+            }
+        })
+        .catch(error => {
+            mfaError.textContent = 'Error de red al verificar el código.';
+            mfaError.classList.remove('d-none');
+        });
+    });
+});
+</script>
+{% endblock %}
+

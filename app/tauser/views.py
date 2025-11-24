@@ -1,8 +1,8 @@
-
 from django.contrib import messages
 from django.shortcuts import render, get_object_or_404, redirect
 from django.utils import timezone
 from commons.enums import EstadoTransaccionEnum
+from mfa.services import generate_otp
 from monedas.models import TasaCambio
 from transaccion.models import Transaccion
 from transaccion.services import cancelar_transaccion, calcular_transaccion, confirmar_transaccion
@@ -89,6 +89,23 @@ def tramitar_transacciones(request):
 
     if request.method == "POST":
         accion = request.POST.get("accion", "buscar")
+
+        # --- Verificación de MFA solo para la acción de búsqueda ---
+        if accion == "buscar":
+            mfa_purpose = 'tauser_search_transaction'
+            mfa_verified_session_key = f'mfa_verified_{mfa_purpose}'
+
+            if not request.session.get(mfa_verified_session_key):
+                error = "Se requiere verificación de seguridad para realizar esta acción."
+                return render(request, "tramitar_transacciones.html", {
+                    "error": error,
+                    "codigo_verificacion": codigo_verificacion,
+                    "tausers": tausers_activos,
+                    "tauser_seleccionado": tauser_seleccionado,
+                })
+            
+            # Limpiar la marca de sesión para que no se reutilice en futuras búsquedas
+            del request.session[mfa_verified_session_key]
 
         if not codigo_verificacion:
             error = "Debe ingresar el código de verificación de la transacción."
