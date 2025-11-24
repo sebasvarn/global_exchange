@@ -67,7 +67,6 @@ def calcular_transaccion(cliente, tipo, moneda, monto_operado, medio_pago=None, 
             tipo_metodo = "transferencia"
     else:
         # Si no hay medio_pago ni tipo_metodo_override, usar 'efectivo' como default
-        # (o podrías lanzar error si prefieres ser estricto)
         tipo_metodo = "efectivo"
 
     # 1) Segmento del cliente (fallback 'MIN')
