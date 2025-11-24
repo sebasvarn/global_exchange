@@ -160,6 +160,18 @@
 </div>
 
 <script src="{% static 'payments/payment_form_restrict.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var selectTipo = document.getElementById('id_payment_type');
+    if (selectTipo) {
+        Array.from(selectTipo.options).forEach(function(opt) {
+            if (opt.value === 'efectivo' || opt.value === 'tarjeta') {
+                opt.style.display = 'none';
+            }
+        });
+    }
+});
+</script>
 
 <style>
     /* Estilos adicionales para mejorar la apariencia */

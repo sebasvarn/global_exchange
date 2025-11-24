@@ -81,7 +81,9 @@
                             <select name="moneda_id" id="moneda" class="form-select" required>
                                 <option value="">Seleccionar moneda...</option>
                                 {% for moneda in monedas %}
-                                <option value="{{ moneda.id }}">{{ moneda.nombre }} ({{ moneda.codigo }})</option>
+                                    {% if moneda.codigo != 'PYG' %}
+                                        <option value="{{ moneda.id }}">{{ moneda.nombre }} ({{ moneda.codigo }})</option>
+                                    {% endif %}
                                 {% endfor %}
                             </select>
                             <small class="form-text text-muted">El cliente entrega esta moneda en efectivo</small>
@@ -103,10 +105,6 @@
                             </div>
                             <small class="form-text text-muted">Monto que el cliente entrega en efectivo</small>
                             
-                            <!-- Botón Calcular Cotización -->
-                            <button type="button" class="btn btn-outline-info btn-sm mt-2" id="btn-calcular" onclick="calcularTransaccion()">
-                                <i class="bi bi-calculator"></i> Calcular Cotización
-                            </button>
                         </div>
 
                         <!-- Resumen del Cálculo -->
@@ -138,17 +136,7 @@
                                 </div>
                             </div>
 
-                            <div class="card mb-2">
-                                <div class="card-body p-2">
-                                    <small class="text-muted d-block mb-2">Comisiones Adicionales</small>
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <span>
-                                            <i class="bi bi-credit-card"></i> <span id="metodo-nombre-display">Método de Cobro</span> (<span id="porcentaje-metodo-display">0</span>%):
-                                        </span>
-                                        <strong class="text-danger" id="comision-metodo-display">₲ 0</strong>
-                                    </div>
-                                </div>
-                            </div>
+                            <!-- Comisiones Adicionales ocultas por requerimiento -->
 
                             <div class="card bg-danger text-white">
                                 <div class="card-body p-2">
@@ -301,39 +289,30 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             calculoActual = data;
-            
+
             // Actualizar desglose completo
             document.getElementById('precio-base-display').textContent = parseFloat(data.precio_base).toLocaleString('es-PY') + ' PYG';
             document.getElementById('comision-moneda-display').textContent = parseFloat(data.comision).toLocaleString('es-PY') + ' PYG';
             document.getElementById('tasa-display').textContent = parseFloat(data.tasa_aplicada).toLocaleString('es-PY') + ' PYG';
-            
-            // Mostrar descuento solo si existe
+
+            // Mostrar descuento solo si existe, limpiar siempre si no
+            const descuentoRow = document.getElementById('descuento-row');
+            const descuentoPctDisplay = document.getElementById('descuento-pct-display');
+            const descuentoValorDisplay = document.getElementById('descuento-valor-display');
             if (data.descuento_pct && parseFloat(data.descuento_pct) > 0) {
-                document.getElementById('descuento-pct-display').textContent = parseFloat(data.descuento_pct).toFixed(2);
+                descuentoPctDisplay.textContent = parseFloat(data.descuento_pct).toFixed(2);
                 const descuentoValor = parseFloat(data.comision) * parseFloat(data.descuento_pct) / 100;
-                document.getElementById('descuento-valor-display').textContent = '- ' + descuentoValor.toLocaleString('es-PY') + ' PYG';
-                document.getElementById('descuento-row').style.display = 'flex';
+                descuentoValorDisplay.textContent = '- ' + descuentoValor.toLocaleString('es-PY') + ' PYG';
+                descuentoRow.style.display = 'flex';
             } else {
-                document.getElementById('descuento-row').style.display = 'none';
+                descuentoPctDisplay.textContent = '0';
+                descuentoValorDisplay.textContent = '-';
+                descuentoRow.style.display = 'none';
             }
-            
-            // Comisión por método de cobro
-            const porcentajeMetodo = data.porcentaje_metodo_pago || 0;
-            const comisionMetodo = data.comision_metodo_pago || 0;
-            
-            // Actualizar nombre del método
-            const nombreMetodo = {
-                'efectivo': 'Efectivo',
-                'transferencia': 'Transferencia'
-            }[metodoSeleccionado] || 'Método de Cobro';
-            document.getElementById('metodo-nombre-display').textContent = nombreMetodo;
-            
-            document.getElementById('porcentaje-metodo-display').textContent = parseFloat(porcentajeMetodo).toFixed(2);
-            document.getElementById('comision-metodo-display').textContent = '₲ ' + parseFloat(comisionMetodo).toLocaleString('es-PY');
-            
+
             // Total
             document.getElementById('total-display').textContent = '₲ ' + parseFloat(data.monto_pyg).toLocaleString('es-PY');
-            
+
             calculoResumen.style.display = 'block';
         })
         .catch(err => console.error('Error al calcular:', err));
@@ -469,6 +448,9 @@ document.addEventListener('DOMContentLoaded', function() {
             return false;
         }
     });
+
+    // Ejecutar cálculo inicial si los campos ya tienen valores válidos
+    calcularTransaccion();
 });
 </script>
 {% endblock %}
