@@ -162,6 +162,18 @@
 </div>
 
 <script src="{% static 'medios_acreditacion/medioacreditacion_form.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var selectTipo = document.getElementById('id_tipo_medio');
+    if (selectTipo) {
+        Array.from(selectTipo.options).forEach(function(opt) {
+            if (opt.value === 'efectivo' || opt.value === 'tarjeta') {
+                opt.style.display = 'none';
+            }
+        });
+    }
+});
+</script>
 
 <style>
     .form-control, .form-select {

@@ -62,9 +62,17 @@
                             <select name="cliente_id" id="cliente" class="form-select" required>
                                 <option value="">Seleccionar cliente...</option>
                                 {% for cliente in clientes %}
-                                <option value="{{ cliente.id }}">{{ cliente.nombre }} {{ cliente.apellido }} - {{ cliente.documento }}</option>
+                                <option value="{{ cliente.id }}" data-tipo="{{ cliente.tipo }}" data-tipo-display="{{ cliente.get_tipo_display }}">
+                                    {{ cliente.nombre }} {{ cliente.apellido }} - {{ cliente.documento }}
+                                </option>
                                 {% endfor %}
                             </select>
+                            <div id="cliente-tipo-info" class="mt-2" style="display: none;">
+                                <small class="text-muted">
+                                    <i class="bi bi-person-badge"></i> Tipo de Cliente: 
+                                    <strong class="text-danger" id="cliente-tipo-display">-</strong>
+                                </small>
+                            </div>
                         </div>
 
                         <!-- Moneda -->
@@ -73,7 +81,9 @@
                             <select name="moneda_id" id="moneda" class="form-select" required>
                                 <option value="">Seleccionar moneda...</option>
                                 {% for moneda in monedas %}
-                                <option value="{{ moneda.id }}">{{ moneda.nombre }} ({{ moneda.codigo }})</option>
+                                    {% if moneda.codigo != 'PYG' %}
+                                        <option value="{{ moneda.id }}">{{ moneda.nombre }} ({{ moneda.codigo }})</option>
+                                    {% endif %}
                                 {% endfor %}
                             </select>
                             <small class="form-text text-muted">El cliente entrega esta moneda en efectivo</small>
@@ -95,29 +105,48 @@
                             </div>
                             <small class="form-text text-muted">Monto que el cliente entrega en efectivo</small>
                             
-                            <!-- Botón Calcular Cotización -->
-                            <button type="button" class="btn btn-outline-info btn-sm mt-2" id="btn-calcular" onclick="calcularTransaccion()">
-                                <i class="bi bi-calculator"></i> Calcular Cotización
-                            </button>
                         </div>
 
                         <!-- Resumen del Cálculo -->
-                        <div id="calculo-resumen" class="alert alert-info" style="display: none;">
-                            <h6><i class="bi bi-calculator"></i> Resumen</h6>
-                            <table class="table table-sm mb-0">
-                                <tr>
-                                    <td>Tasa de Cambio:</td>
-                                    <td class="text-end"><strong id="tasa-display">-</strong></td>
-                                </tr>
-                                <tr>
-                                    <td>Comisión:</td>
-                                    <td class="text-end"><strong id="comision-display">-</strong></td>
-                                </tr>
-                                <tr class="table-danger">
-                                    <td><strong>Total a Pagar al Cliente (PYG):</strong></td>
-                                    <td class="text-end"><strong id="total-display">-</strong></td>
-                                </tr>
-                            </table>
+                        <div id="calculo-resumen" class="alert alert-light border" style="display: none;">
+                            <h6 class="text-danger"><i class="bi bi-calculator-fill"></i> Desglose de Cálculo</h6>
+                            
+                            <div class="card mb-2">
+                                <div class="card-body p-2">
+                                    <small class="text-muted d-block mb-2">Tasa de Cambio</small>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span>Precio Base:</span>
+                                        <strong id="precio-base-display" class="text-primary">-</strong>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center" id="descuento-row" style="display: none !important;">
+                                        <span class="text-success">
+                                            <i class="bi bi-tag-fill"></i> Descuento (<span id="descuento-pct-display">0</span>%):
+                                        </span>
+                                        <strong class="text-success" id="descuento-valor-display">-</strong>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span>Comisión Moneda:</span>
+                                        <strong id="comision-moneda-display" class="text-warning">-</strong>
+                                    </div>
+                                    <hr class="my-2">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <strong>Tasa Aplicada:</strong>
+                                        <strong class="text-info" id="tasa-display">-</strong>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Comisiones Adicionales ocultas por requerimiento -->
+
+                            <div class="card bg-danger text-white">
+                                <div class="card-body p-2">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <strong><i class="bi bi-cash-stack"></i> Total a Pagar al Cliente (PYG):</strong>
+                                        <h4 class="mb-0" id="total-display">-</h4>
+                                    </div>
+                                    <small class="opacity-75">Monto redondeado a denominación válida</small>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Nota importante -->
@@ -175,7 +204,11 @@
                             <select id="medio-cliente-select" class="form-select">
                                 <option value="">Cargando...</option>
                             </select>
-                            <small class="text-muted">Cuenta donde recibirá el pago</small>
+                            <div class="mt-2">
+                                <a href="{% url 'medios_acreditacion:medioacreditacion_create' %}" class="btn btn-sm btn-outline-primary" target="_blank">
+                                    <i class="bi bi-plus-circle"></i> Agregar nueva cuenta
+                                </a>
+                            </div>
                         </div>
 
                         <!-- Botón Confirmar -->
@@ -228,10 +261,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Agregar información del método de cobro si está seleccionado
         if (metodoSeleccionado) {
-            if (metodoSeleccionado === 'efectivo') {
-                payload.tipo_metodo = 'efectivo';
-            } else if (metodoSeleccionado === 'transferencia') {
-                payload.tipo_metodo = 'transferencia';
+            // Siempre enviar tipo_metodo para calcular comisión
+            payload.tipo_metodo = metodoSeleccionado;
+            
+            // Si es transferencia y hay medio de cobro seleccionado, enviarlo
+            if (metodoSeleccionado === 'transferencia' && medioCobroIdInput.value) {
+                payload.medio_cobro_id = medioCobroIdInput.value;
             }
         } else {
             // Default: efectivo
@@ -254,9 +289,30 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             calculoActual = data;
-            document.getElementById('tasa-display').textContent = data.tasa_aplicada + ' PYG';
-            document.getElementById('comision-display').textContent = data.comision + ' PYG';
-            document.getElementById('total-display').textContent = data.monto_pyg + ' PYG';
+
+            // Actualizar desglose completo
+            document.getElementById('precio-base-display').textContent = parseFloat(data.precio_base).toLocaleString('es-PY') + ' PYG';
+            document.getElementById('comision-moneda-display').textContent = parseFloat(data.comision).toLocaleString('es-PY') + ' PYG';
+            document.getElementById('tasa-display').textContent = parseFloat(data.tasa_aplicada).toLocaleString('es-PY') + ' PYG';
+
+            // Mostrar descuento solo si existe, limpiar siempre si no
+            const descuentoRow = document.getElementById('descuento-row');
+            const descuentoPctDisplay = document.getElementById('descuento-pct-display');
+            const descuentoValorDisplay = document.getElementById('descuento-valor-display');
+            if (data.descuento_pct && parseFloat(data.descuento_pct) > 0) {
+                descuentoPctDisplay.textContent = parseFloat(data.descuento_pct).toFixed(2);
+                const descuentoValor = parseFloat(data.comision) * parseFloat(data.descuento_pct) / 100;
+                descuentoValorDisplay.textContent = '- ' + descuentoValor.toLocaleString('es-PY') + ' PYG';
+                descuentoRow.style.display = 'flex';
+            } else {
+                descuentoPctDisplay.textContent = '0';
+                descuentoValorDisplay.textContent = '-';
+                descuentoRow.style.display = 'none';
+            }
+
+            // Total
+            document.getElementById('total-display').textContent = '₲ ' + parseFloat(data.monto_pyg).toLocaleString('es-PY');
+
             calculoResumen.style.display = 'block';
         })
         .catch(err => console.error('Error al calcular:', err));
@@ -326,8 +382,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Selección de medio guardado del cliente
     medioClienteSelect.addEventListener('change', function() {
         medioCobroIdInput.value = this.value;
-        // Recalcular (aunque para venta el método no cambia mucho la comisión)
-        calcularTransaccion();
+        // Recalcular con el método específico seleccionado
+        if (this.value) {
+            calcularTransaccion();
+        }
         validarFormulario();
     });
 
@@ -344,6 +402,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Event listeners
     clienteSelect.addEventListener('change', function() {
+        // Mostrar tipo de cliente
+        const selectedOption = this.options[this.selectedIndex];
+        if (selectedOption.value) {
+            const tipoDisplay = selectedOption.dataset.tipoDisplay;
+            document.getElementById('cliente-tipo-display').textContent = tipoDisplay;
+            document.getElementById('cliente-tipo-info').style.display = 'block';
+        } else {
+            document.getElementById('cliente-tipo-info').style.display = 'none';
+        }
+        
         calcularTransaccion();
         if (metodoSeleccionado === 'transferencia') {
             cargarMediosCliente();
@@ -380,6 +448,9 @@ document.addEventListener('DOMContentLoaded', function() {
             return false;
         }
     });
+
+    // Ejecutar cálculo inicial si los campos ya tienen valores válidos
+    calcularTransaccion();
 });
 </script>
 {% endblock %}

@@ -165,9 +165,10 @@ def transacciones_list(request):
     if estado_qs not in estados_validos:
         estado_qs = "pendiente"
 
+    # Filtrar por clientes del usuario operador logueado
     transacciones = (
         Transaccion.objects
-        .all()
+        .filter(cliente__usuarios=request.user)
         .select_related("cliente", "moneda", "medio_pago", "medio_cobro")
     )
 
@@ -186,8 +187,8 @@ def transacciones_list(request):
     else:
         transacciones = transacciones.order_by("-fecha")
 
-    # ---- Contadores por estado (respetando cliente si está filtrado) ----
-    base = Transaccion.objects.all()
+    # ---- Contadores por estado (respetando cliente si está filtrado y usuario) ----
+    base = Transaccion.objects.filter(cliente__usuarios=request.user)
     if cliente_id:
         base = base.filter(cliente_id=cliente_id)
 
@@ -199,7 +200,7 @@ def transacciones_list(request):
         "todas": base.count(),
     }
 
-    clientes = Cliente.objects.all()
+    clientes = Cliente.objects.filter(usuarios=request.user).order_by('nombre')
     ctx = {
         "transacciones": transacciones,
         "clientes": clientes,
@@ -593,6 +594,8 @@ def calcular_api(request):
                     "tasa_aplicada": str(calculo["tasa_aplicada"]),
                     "comision": str(calculo["comision"]),
                     "monto_pyg": str(calculo["monto_pyg"]),
+                    "porcentaje_metodo_pago": str(calculo.get("porcentaje_metodo_pago", "0")),
+                    "comision_metodo_pago": str(calculo.get("comision_metodo_pago", "0")),
                 }
             )
         except Exception as e:
