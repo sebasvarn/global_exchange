@@ -4,6 +4,15 @@
 
 {% block title %}Historial de Transacciones{% endblock %}
 
+{% block extra_css %}
+<style>
+  .bg-purple {
+    background-color: #6f42c1 !important;
+    color: white !important;
+  }
+</style>
+{% endblock %}
+
 {% block breadcrumb %}
 <a href="{% url 'usuarios:dashboard' %}">Inicio</a>
 <span class="breadcrumb-item active">Transacciones</span>
@@ -96,6 +105,7 @@
                     <th class="text-end">Monto Operado</th>
                     <th class="text-end">Monto PYG</th>
                     <th class="text-end">Tasa</th>
+                    <th>Método</th>
                     <th>Estado</th>
                     <th>
                       Fecha
@@ -144,6 +154,65 @@
                       <td class="text-end">{{ t.monto_pyg }}</td>
                       <td class="text-end">{{ t.tasa_aplicada }}</td>
                       <td>
+                        {% if t.tipo == 'compra' or t.tipo == 'COMPRA' %}
+                          {# Para COMPRA, revisar medio_pago #}
+                          {% if t.medio_pago %}
+                            {% if t.medio_pago.payment_type == 'efectivo' %}
+                              <span class="badge bg-success">
+                                <i class="bi bi-cash-stack"></i> Efectivo
+                              </span>
+                            {% elif t.medio_pago.payment_type == 'tarjeta' %}
+                              <span class="badge bg-primary">
+                                <i class="bi bi-credit-card"></i> Tarjeta
+                              </span>
+                            {% elif t.medio_pago.payment_type == 'cuenta_bancaria' %}
+                              <span class="badge bg-info">
+                                <i class="bi bi-bank"></i> Transferencia
+                              </span>
+                            {% elif t.medio_pago.payment_type == 'billetera' %}
+                              <span class="badge bg-purple">
+                                <i class="bi bi-wallet2"></i> Billetera
+                              </span>
+                            {% else %}
+                              <span class="badge bg-secondary">
+                                {{ t.medio_pago.get_payment_type_display }}
+                              </span>
+                            {% endif %}
+                          {% else %}
+                            <span class="badge bg-secondary">N/A</span>
+                          {% endif %}
+                        {% elif t.tipo == 'venta' or t.tipo == 'VENTA' %}
+                          {# Para VENTA, revisar medio_cobro (siempre es MedioAcreditacion) #}
+                          {% if t.medio_cobro %}
+                            {% if t.medio_cobro.payment_type == 'efectivo' %}
+                              <span class="badge bg-success">
+                                <i class="bi bi-cash-stack"></i> Efectivo
+                              </span>
+                            {% elif t.medio_cobro.payment_type == 'tarjeta' %}
+                              <span class="badge bg-primary">
+                                <i class="bi bi-credit-card"></i> Tarjeta
+                              </span>
+                            {% elif t.medio_cobro.payment_type == 'cuenta_bancaria' %}
+                              <span class="badge bg-info">
+                                <i class="bi bi-bank"></i> Transferencia
+                              </span>
+                            {% elif t.medio_cobro.payment_type == 'billetera' %}
+                              <span class="badge bg-purple">
+                                <i class="bi bi-wallet2"></i> Billetera
+                              </span>
+                            {% else %}
+                              <span class="badge bg-secondary">
+                                {{ t.medio_cobro.tipo_medio }}
+                              </span>
+                            {% endif %}
+                          {% else %}
+                            <span class="badge bg-secondary">N/A</span>
+                          {% endif %}
+                        {% else %}
+                          <span class="badge bg-secondary">N/A</span>
+                        {% endif %}
+                      </td>
+                      <td>
                         {% if estado == 'pendiente' %}
                           <span class="badge bg-warning text-dark">Pendiente</span>
                         {% elif estado == 'pagada' %}
@@ -163,24 +232,26 @@
                       <td class="text-center">
                         <div class="btn-group" role="group">
                           {% if estado == 'pendiente' %}
-                            {# Solo mostrar botón de confirmar para pagos con tarjeta (sin medio_pago guardado) #}
-                            {% if t.medio_pago %}
-                              {% if request.user|has_permission:'transacciones.confirmar' %}
-                                <a href="{% url 'transacciones:confirmar' t.id %}"
-                                   class="btn btn-sm btn-primary" data-bs-toggle="tooltip" 
-                                   title="Confirmar transacción con tarjeta (Stripe)">
-                                  <i class="bi bi-credit-card"></i> Confirmar Pago
-                                </a>
+                            {% if t.tipo == 'compra' %}
+                              {% if t.medio_pago.payment_type == 'tarjeta' %}
+                                {% if request.user|has_permission:'transacciones.confirmar' %}
+                                  <a href="{% url 'transacciones:iniciar_pago_tarjeta' t.id %}"
+                                     class="btn btn-sm btn-primary" data-bs-toggle="tooltip" 
+                                     title="Pagar con tarjeta (Stripe)">
+                                    <i class="bi bi-credit-card"></i> Pagar
+                                  </a>
+                                {% endif %}
                               {% endif %}
                             {% endif %}
                             
+                            {# Botón de cancelar (para todas las transacciones pendientes) #}
                             {% if request.user|has_permission:'transacciones.cancelar' %}
                               <a href="{% url 'transacciones:cancelar' t.id %}"
                                  class="btn btn-sm btn-outline-danger" data-bs-toggle="tooltip" title="Cancelar transacción">
                                 <i class="bi bi-x-circle"></i>
                               </a>
                             {% endif %}
-                          {% elif estado == 'PAGADA' %}
+                          {% elif estado == 'pagada' %}
                             <span class="badge bg-success">
                               <i class="bi bi-check-circle-fill"></i> Completada
                             </span>

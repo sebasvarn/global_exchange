@@ -127,7 +127,7 @@ def tramitar_transacciones(request):
                 elif accion == "recalcular":
                     try:
                         # recalcular usando la tasa nueva
-                        recalculo = calcular_transaccion(tx.cliente, tx.tipo, tx.moneda, tx.monto_operado)
+                        recalculo = calcular_transaccion(tx.cliente, tx.tipo, tx.moneda, tx.monto_operado, tx.medio_pago)
                         tx.tasa_aplicada = recalculo["tasa_aplicada"]
                         tx.monto_pyg = recalculo["monto_pyg"]
                         tx.save(update_fields=["tasa_aplicada", "monto_pyg"])

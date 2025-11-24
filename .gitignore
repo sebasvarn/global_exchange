@@ -11,7 +11,6 @@ venv/
 #Entorno
 .env.dev
 .env.prod
-simulador_sipap/.env
 
 # Archivos de sistema
 .DS_Store
@@ -23,3 +22,7 @@ Thumbs.db
 
 # Build de Sphinx
 app/docs/build/
+
+#Sipap
+simulador_sipap/.env
+simulador_sipap/sipap.log
