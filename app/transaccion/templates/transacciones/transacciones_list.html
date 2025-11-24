@@ -59,11 +59,20 @@
     </a>
   </li>
 
+
   <li class="nav-item me-2 mb-2">
     <a class="nav-link {% if estado_qs == 'pendiente' %}active{% endif %}"
        href="?estado=pendiente{% if cliente_id %}&cliente={{ cliente_id }}{% endif %}{% if request.GET.order %}&order={{ request.GET.order }}{% endif %}{% if request.GET.dir %}&dir={{ request.GET.dir }}{% endif %}">
       Pendientes
       <span class="badge bg-warning text-dark ms-2">{{ counts.pendiente|default_if_none:0 }}</span>
+    </a>
+  </li>
+
+  <li class="nav-item me-2 mb-2">
+    <a class="nav-link {% if estado_qs == 'completada' %}active{% endif %}"
+       href="?estado=completada{% if cliente_id %}&cliente={{ cliente_id }}{% endif %}{% if request.GET.order %}&order={{ request.GET.order }}{% endif %}{% if request.GET.dir %}&dir={{ request.GET.dir }}{% endif %}">
+      Completadas
+      <span class="badge bg-primary ms-2">{{ counts.completada|default_if_none:0 }}</span>
     </a>
   </li>
 
@@ -122,7 +131,9 @@
                         {% endif %}
                       </a>
                     </th>
-                    <th class="text-center">Acciones</th>
+                    {% if estado_qs != 'completada' %}
+                      <th class="text-center">Acciones</th>
+                    {% endif %}
                   </tr>
                 </thead>
                 <tbody>
@@ -217,6 +228,8 @@
                           <span class="badge bg-warning text-dark">Pendiente</span>
                         {% elif estado == 'pagada' %}
                           <span class="badge bg-success">Pagada</span>
+                        {% elif estado == 'completada' %}
+                          <span class="badge bg-primary">Completada</span>
                         {% elif estado == 'cancelada' %}
                           <span class="badge bg-secondary">Cancelada</span>
                         {% elif estado == 'anulada' %}
@@ -229,10 +242,18 @@
                         {% endif %}
                       </td>
                       <td>{{ t.fecha|date:"d/m/Y H:i" }}</td>
+                    {% if estado_qs != 'completada' %}
                       <td class="text-center">
                         <div class="btn-group" role="group">
-                          {% if estado == 'pendiente' %}
-                            {% if t.tipo == 'compra' %}
+                          {% if estado == 'pendiente' or estado == 'pagada' %}
+                            <button type="button"
+                              class="btn btn-sm me-1 btn-elegir-tauser {% if t.tauser_id %}btn-warning text-dark fw-bold border-warning{% else %}btn-outline-info{% endif %}"
+                              data-bs-toggle="tooltip"
+                              title="{% if t.tauser_id %}Cambiar Tauser{% else %}Elegir Tauser{% endif %}"
+                              data-transaccionid="{{ t.id }}">
+                              <i class="bi bi-person-badge"></i> {% if t.tauser_id %}Cambiar Tauser{% else %}Elegir Tauser{% endif %}
+                            </button>
+                            {% if estado == 'pendiente' and t.tipo == 'compra' %}
                               {% if t.medio_pago.payment_type == 'tarjeta' %}
                                 {% if request.user|has_permission:'transacciones.confirmar' %}
                                   <a href="{% url 'transacciones:iniciar_pago_tarjeta' t.id %}"
@@ -243,21 +264,17 @@
                                 {% endif %}
                               {% endif %}
                             {% endif %}
-                            
-                            {# Botón de cancelar (para todas las transacciones pendientes) #}
-                            {% if request.user|has_permission:'transacciones.cancelar' %}
+                            {# Botón de cancelar (solo para pendientes) #}
+                            {% if estado == 'pendiente' and request.user|has_permission:'transacciones.cancelar' %}
                               <a href="{% url 'transacciones:cancelar' t.id %}"
                                  class="btn btn-sm btn-outline-danger" data-bs-toggle="tooltip" title="Cancelar transacción">
                                 <i class="bi bi-x-circle"></i>
                               </a>
                             {% endif %}
-                          {% elif estado == 'pagada' %}
-                            <span class="badge bg-success">
-                              <i class="bi bi-check-circle-fill"></i> Completada
-                            </span>
                           {% endif %}
                         </div>
                       </td>
+                    {% endif %}
                     </tr>
                     {% endwith %}
                   {% endfor %}
@@ -267,7 +284,13 @@
           {% else %}
             <div class="alert alert-info">
               <i class="bi bi-info-circle me-2"></i>
-              No hay transacciones {% if estado_qs and estado_qs != 'todas' %}en estado <strong>{{ estado_qs }}</strong>{% else %}registradas{% endif %}{% if cliente_id %} para el cliente seleccionado{% endif %}.
+              {% if estado_qs == 'completada' %}
+                No hay transacciones en estado <strong>completada</strong>.
+              {% elif estado_qs and estado_qs != 'todas' %}
+                No hay transacciones en estado <strong>{{ estado_qs }}</strong>{% if cliente_id %} para el cliente seleccionado{% endif %}.
+              {% else %}
+                No hay transacciones registradas{% if cliente_id %} para el cliente seleccionado{% endif %}.
+              {% endif %}
             </div>
           {% endif %}
 
@@ -276,15 +299,136 @@
 
     </div>
   </div>
-</div>
-{% endblock %}
+    </div>
+  </div>
 
-{% block extra_js %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  // tooltips
-  const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-  tooltipTriggerList.map(el => new bootstrap.Tooltip(el));
-});
-</script>
+  <!-- Modal Elegir Tauser -->
+  <div class="modal fade" id="modalElegirTauser" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title">Elegir Tauser para Retiro</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <form id="formVerificarTauser" autocomplete="off">
+          {% csrf_token %}
+          <input type="hidden" name="transaccion_id" id="modal_transaccion_id" value="">
+          <div class="modal-body">
+            <div class="mb-3">
+              <label for="modal_tauser_id" class="form-label"><strong>Seleccionar Tauser</strong></label>
+              <select name="tauser_id" id="modal_tauser_id" class="form-select" required>
+                <option value="">-- Seleccione un Tauser --</option>
+                {% for tauser in tausers %}
+                  <option value="{{ tauser.id }}">{{ tauser.nombre }} - {{ tauser.ubicacion }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div id="verificacionMensaje" class="mt-2"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-primary" id="btnVerificarTransaccion">Verificar Transacción</button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // tooltips
+      const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+      tooltipTriggerList.map(el => new bootstrap.Tooltip(el));
+
+      // Modal elegir tauser (Bootstrap puro)
+      var modalEl = document.getElementById('modalElegirTauser');
+      var modalTauser = new bootstrap.Modal(modalEl);
+      document.querySelectorAll('.btn-elegir-tauser').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var tid = btn.getAttribute('data-transaccionid');
+          document.getElementById('modal_transaccion_id').value = tid;
+          modalTauser.show();
+        });
+      });
+
+      // AJAX para verificar transacción
+      document.getElementById('formVerificarTauser').addEventListener('submit', function(e) {
+        e.preventDefault();
+        var tauserId = document.getElementById('modal_tauser_id').value;
+        var transaccionId = document.getElementById('modal_transaccion_id').value;
+        var mensajeDiv = document.getElementById('verificacionMensaje');
+        mensajeDiv.innerHTML = '';
+        if (!tauserId || !transaccionId) {
+          mensajeDiv.innerHTML = '<div class="alert alert-warning">Debe seleccionar un Tauser y una transacción.</div>';
+          return;
+        }
+        // Validar que el id sea numérico
+        if (isNaN(transaccionId)) {
+          mensajeDiv.innerHTML = '<div class="alert alert-danger">Error interno: el id de la transacción no es válido.</div>';
+          return;
+        }
+        var btn = document.getElementById('btnVerificarTransaccion');
+        btn.disabled = true;
+        btn.innerText = 'Verificando...';
+        fetch('{% url "transacciones:validar_stock_tauser" %}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+          },
+          body: 'transaccion_id=' + encodeURIComponent(transaccionId) + '&tauser_id=' + encodeURIComponent(tauserId)
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.ok) {
+            mensajeDiv.innerHTML = `
+              <div class="alert alert-success mb-2">${data.mensaje}</div>
+              <div class="mb-2">¿Desea realizar la transacción con este Tauser?</div>
+              <div class="d-flex gap-2">
+                <button type="button" class="btn btn-success" id="btnVincularTauser">Sí</button>
+                <button type="button" class="btn btn-outline-secondary" id="btnNoVincularTauser">No</button>
+              </div>
+            `;
+            // Botón Sí: vincular Tauser
+            document.getElementById('btnVincularTauser').onclick = function() {
+              mensajeDiv.innerHTML = '<div class="alert alert-info">Vinculando Tauser...</div>';
+              fetch('{% url "transacciones:vincular_tauser" %}', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/x-www-form-urlencoded',
+                  'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: 'transaccion_id=' + encodeURIComponent(transaccionId) + '&tauser_id=' + encodeURIComponent(tauserId)
+              })
+              .then(response => response.json())
+              .then(data => {
+                if (data.ok) {
+                  mensajeDiv.innerHTML = '<div class="alert alert-success">' + data.mensaje + '</div>';
+                  setTimeout(() => { location.reload(); }, 1200);
+                } else {
+                  mensajeDiv.innerHTML = '<div class="alert alert-danger">' + data.mensaje + '</div>';
+                }
+              })
+              .catch(() => {
+                mensajeDiv.innerHTML = '<div class="alert alert-danger">Error al vincular Tauser. Intente nuevamente.</div>';
+              });
+            };
+            // Botón No: limpiar mensaje
+            document.getElementById('btnNoVincularTauser').onclick = function() {
+              mensajeDiv.innerHTML = '';
+            };
+          } else {
+            mensajeDiv.innerHTML = '<div class="alert alert-danger">' + data.mensaje + '</div>';
+          }
+        })
+        .catch(() => {
+          mensajeDiv.innerHTML = '<div class="alert alert-danger">Error al verificar stock. Intente nuevamente.</div>';
+        })
+        .finally(() => {
+          btn.disabled = false;
+          btn.innerText = 'Verificar Transacción';
+        });
+      });
+    });
+  </script>
 {% endblock %}

@@ -30,6 +30,45 @@ from .services import (
     requiere_pago_tarjeta,
     verificar_pago_stripe,
 )
+from tauser.services import validar_stock_tauser_para_transaccion
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def vincular_tauser(request):
+    """
+    Recibe transaccion_id y tauser_id por POST, vincula el Tauser a la transacción (actualiza campo tauser_id).
+    """
+    transaccion_id = request.POST.get("transaccion_id")
+    tauser_id = request.POST.get("tauser_id")
+    if not transaccion_id or not tauser_id:
+        return JsonResponse({"ok": False, "mensaje": "Faltan parámetros."}, status=400)
+    try:
+        tx = Transaccion.objects.get(id=transaccion_id)
+        tx.tauser_id = tauser_id
+        tx.save(update_fields=["tauser_id"])
+        return JsonResponse({"ok": True, "mensaje": "Tauser vinculado correctamente a la transacción."})
+    except Transaccion.DoesNotExist:
+        return JsonResponse({"ok": False, "mensaje": "Transacción no encontrada."}, status=404)
+    except Exception as e:
+        return JsonResponse({"ok": False, "mensaje": f"Error al vincular Tauser: {str(e)}"}, status=500)
+
+# --- API para validar stock de tauser para una transacción ---
+from django.views.decorators.csrf import csrf_exempt
+@csrf_exempt
+@require_http_methods(["POST"])
+def validar_stock_tauser(request):
+    """
+    Recibe transaccion_id y tauser_id por POST, llama a validar_stock_tauser_para_transaccion y retorna el resultado como JSON.
+    """
+    transaccion_id = request.POST.get("transaccion_id")
+    tauser_id = request.POST.get("tauser_id")
+    if not transaccion_id or not tauser_id:
+        return JsonResponse({"ok": False, "mensaje": "Faltan parámetros."}, status=400)
+    resultado = validar_stock_tauser_para_transaccion(transaccion_id, tauser_id)
+    # Serializar el objeto moneda si está presente
+    if "moneda" in resultado and resultado["moneda"]:
+        resultado["moneda"] = str(resultado["moneda"])
+    return JsonResponse(resultado)
 
 logger = logging.getLogger(__name__)
 stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -157,6 +196,7 @@ def transacciones_list(request):
     estados_validos = {
         "pendiente": EstadoTransaccionEnum.PENDIENTE,
         "pagada": EstadoTransaccionEnum.PAGADA,
+        "completada": EstadoTransaccionEnum.COMPLETADA,
         "cancelada": EstadoTransaccionEnum.CANCELADA,
         "anulada": EstadoTransaccionEnum.ANULADA,
         "todas": None,
@@ -194,18 +234,22 @@ def transacciones_list(request):
     counts = {
         "pendiente": base.filter(estado=EstadoTransaccionEnum.PENDIENTE).count(),
         "pagada": base.filter(estado=EstadoTransaccionEnum.PAGADA).count(),
+        "completada": base.filter(estado=EstadoTransaccionEnum.COMPLETADA).count(),
         "cancelada": base.filter(estado=EstadoTransaccionEnum.CANCELADA).count(),
         "anulada": base.filter(estado=EstadoTransaccionEnum.ANULADA).count(),
         "todas": base.count(),
     }
 
     clientes = Cliente.objects.all()
+    from tauser.models import Tauser
+    tausers = Tauser.objects.filter(estado="activo")
     ctx = {
         "transacciones": transacciones,
         "clientes": clientes,
         "cliente_id": cliente_id,
         "estado_qs": estado_qs,
         "counts": counts,
+        "tausers": tausers,
     }
     return render(request, "transacciones/transacciones_list.html", ctx)
 
@@ -674,6 +718,11 @@ def pago_success(request):
         except Exception as e:
             logger.exception(f"[SUCCESS] Error en plan B para tx #{tx_id}: {e}")
 
+        # Redirigir a historial de transacciones después de pago exitoso
+        messages.success(request, "¡Pago recibido! La transacción fue procesada correctamente.")
+        return redirect("transacciones:transacciones_list")
+
+    # Si no es pago exitoso, mostrar la página de éxito (fallback)
     return render(request, "pagos/success.html", {
         "tx_id": tx_id,
         "session_id": session_id,
