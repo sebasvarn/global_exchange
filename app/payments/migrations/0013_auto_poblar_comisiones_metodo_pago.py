@@ -3,8 +3,7 @@ from django.db import migrations
 def poblar_comisiones_metodo_pago(apps, schema_editor):
     ComisionMetodoPago = apps.get_model('payments', 'ComisionMetodoPago')
     comisiones = [
-        {"tipo_metodo": "tarjeta", "porcentaje_comision": 4.5},
-        {"tipo_metodo": "transferencia", "porcentaje_comision": 1.0},
+        {"tipo_metodo": "cuenta_bancaria", "porcentaje_comision": 1.0},
         {"tipo_metodo": "billetera", "porcentaje_comision": 2.5},
     ]
     for com in comisiones:
@@ -12,7 +11,7 @@ def poblar_comisiones_metodo_pago(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("payments", "0011_auto_poblar_metodos_pago"),
+        ("payments", "0012_auto_poblar_metodos_pago"),
     ]
 
     operations = [

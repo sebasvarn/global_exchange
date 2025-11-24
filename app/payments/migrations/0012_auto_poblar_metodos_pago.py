@@ -29,12 +29,10 @@ def poblar_metodos_pago(apps, schema_editor):
                 'numero_cuenta': '2222222222',
             },
             {
-                'payment_type': 'tarjeta',
-                'tarjeta_nombre': 'Titular 2',
-                'tarjeta_numero': '4111111111112222',
-                'tarjeta_vencimiento': '11/29',
-                'tarjeta_cvv': '234',
-                'tarjeta_marca': 'Mastercard',
+                'payment_type': 'billetera',
+                'proveedor_billetera': 'MercadoPago',
+                'billetera_email_telefono': 'cliente2@email.com',
+                'billetera_titular': 'Titular 2',
             },
         ],
         [
@@ -45,12 +43,11 @@ def poblar_metodos_pago(apps, schema_editor):
                 'billetera_titular': 'Titular 3',
             },
             {
-                'payment_type': 'tarjeta',
-                'tarjeta_nombre': 'Titular 3',
-                'tarjeta_numero': '4111111111113333',
-                'tarjeta_vencimiento': '10/28',
-                'tarjeta_cvv': '345',
-                'tarjeta_marca': 'Visa',
+                'payment_type': 'cuenta_bancaria',
+                'titular_cuenta': 'Titular 3',
+                'tipo_cuenta': 'Caja de ahorro',
+                'banco': 'Banco Continental',
+                'numero_cuenta': '3333333333',
             },
         ],
         [
@@ -70,12 +67,11 @@ def poblar_metodos_pago(apps, schema_editor):
         ],
         [
             {
-                'payment_type': 'tarjeta',
-                'tarjeta_nombre': 'Titular 5',
-                'tarjeta_numero': '4111111111115555',
-                'tarjeta_vencimiento': '09/27',
-                'tarjeta_cvv': '456',
-                'tarjeta_marca': 'Visa',
+                'payment_type': 'cuenta_bancaria',
+                'titular_cuenta': 'Titular 5',
+                'tipo_cuenta': 'Corriente',
+                'banco': 'Banco Nación',
+                'numero_cuenta': '5555555555',
             },
             {
                 'payment_type': 'billetera',
@@ -91,8 +87,7 @@ def poblar_metodos_pago(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("payments", "0010_descuentometodopago"),
-        ("clientes", "0009_auto_poblar_clientes"),
+        ("payments", "0011_remove_paymentmethod_cheque_banco_and_more"),
     ]
 
     operations = [
