@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+
+{% block title %}Verificar Código OTP{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Verificar Código de Autenticación</h3>
+                </div>
+                <div class="card-body">
+                    <p>Se ha enviado un código de verificación a su dirección de correo electrónico. Por favor, ingréselo a continuación.</p>
+                    
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {% for error in form.non_field_errors %}
+                                {{ error }}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="id_code" class="form-label">Código OTP</label>
+                            <input type="text" name="code" class="form-control" id="id_code" required autofocus>
+                            {% if form.code.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.code.errors.0 }}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Verificar</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
