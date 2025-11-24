@@ -168,7 +168,7 @@ def transacciones_list(request):
     transacciones = (
         Transaccion.objects
         .all()
-        .select_related("cliente", "moneda", "medio_pago")
+        .select_related("cliente", "moneda", "medio_pago", "medio_cobro")
     )
 
     # filtro por cliente (si aplica)
@@ -344,9 +344,18 @@ def compra_moneda(request):
             
             # Determinar medio_pago según el método seleccionado
             medio_pago_obj = None
+            tipo_metodo_override = None
             
-            if metodo_pago in ['transferencia', 'billetera']:
-                # Para transferencia y billetera, se requiere un método guardado
+            if metodo_pago == 'efectivo':
+                # Para efectivo, usar método del sistema
+                medio_pago_obj = PaymentMethod.get_metodo_sistema('efectivo')
+                tipo_metodo_override = 'efectivo'
+            elif metodo_pago == 'tarjeta':
+                # Para tarjeta, usar método del sistema
+                medio_pago_obj = PaymentMethod.get_metodo_sistema('tarjeta')
+                tipo_metodo_override = 'tarjeta'
+            elif metodo_pago in ['transferencia', 'billetera']:
+                # Para transferencia y billetera, se requiere un método guardado del cliente
                 if not metodo_pago_id:
                     messages.error(request, f"Debe seleccionar un método de {metodo_pago} guardado")
                     return redirect("transacciones:compra_moneda")
@@ -359,14 +368,18 @@ def compra_moneda(request):
                 elif metodo_pago == 'billetera' and medio_pago_obj.payment_type != PaymentTypeEnum.BILLETERA.value:
                     messages.error(request, "El método seleccionado no es una billetera válida")
                     return redirect("transacciones:compra_moneda")
-            # Para efectivo y tarjeta, medio_pago_obj queda en None
+            else:
+                messages.error(request, f"Método de pago '{metodo_pago}' no reconocido")
+                return redirect("transacciones:compra_moneda")
 
             # Calcular y crear transacción
             calculo = calcular_transaccion(
                 cliente, 
                 TipoTransaccionEnum.COMPRA, 
                 moneda, 
-                monto
+                monto,
+                medio_pago_obj,
+                tipo_metodo_override
             )
             
             transaccion = crear_transaccion(
@@ -436,17 +449,49 @@ def venta_moneda(request):
             moneda = get_object_or_404(Moneda, pk=int(moneda_id))
             monto = Decimal(str(monto_operado))
             
-            # Para VENTA, no usamos medio_pago del modelo actual
-            # (podríamos agregar medio_cobro como FK a MedioAcreditacion en el futuro)
-            # Por ahora, guardaremos el medio_cobro_id en algún lado o simplemente
-            # lo usaremos para la lógica pero no lo persistimos
+            # Para VENTA, el cliente COBRA en PYG (no paga)
+            # Determinar el tipo de método para calcular comisiones
+            tipo_metodo_override = None
+            medio_pago_obj = None
+            medio_cobro_obj = None
+            
+            if metodo_cobro == 'efectivo':
+                # Cliente cobra en efectivo - usar sistema MedioAcreditacion
+                from medios_acreditacion.models import MedioAcreditacion
+                medio_cobro_obj = MedioAcreditacion.get_metodo_sistema('efectivo')
+                tipo_metodo_override = 'efectivo'
+            elif metodo_cobro == 'tarjeta':
+                # Cliente cobra en tarjeta - usar sistema MedioAcreditacion
+                from medios_acreditacion.models import MedioAcreditacion
+                medio_cobro_obj = MedioAcreditacion.get_metodo_sistema('tarjeta')
+                tipo_metodo_override = 'tarjeta'
+            elif metodo_cobro == 'transferencia':
+                # Cliente cobra por transferencia - usar MedioAcreditacion del cliente
+                tipo_metodo_override = 'transferencia'
+                
+                # Validar que tenga un medio de cobro configurado
+                if not medio_cobro_id:
+                    messages.error(request, "Debe seleccionar una cuenta bancaria para recibir la transferencia")
+                    return redirect("transacciones:venta_moneda")
+                
+                from medios_acreditacion.models import MedioAcreditacion
+                medio_cobro_obj = get_object_or_404(
+                    MedioAcreditacion, 
+                    pk=int(medio_cobro_id), 
+                    cliente=cliente
+                )
+            else:
+                messages.error(request, f"Método de cobro '{metodo_cobro}' no reconocido")
+                return redirect("transacciones:venta_moneda")
             
             # Calcular y crear transacción
             calculo = calcular_transaccion(
                 cliente, 
                 TipoTransaccionEnum.VENTA, 
                 moneda, 
-                monto
+                monto,
+                medio_pago=None,  # Para VENTA no hay medio_pago (el cliente cobra)
+                tipo_metodo_override=tipo_metodo_override
             )
             
             transaccion = crear_transaccion(
@@ -457,21 +502,13 @@ def venta_moneda(request):
                 calculo["tasa_aplicada"],
                 calculo["comision"],
                 calculo["monto_pyg"],
-                None,  # medio_pago=None para VENTA (el cliente no paga, cobra)
+                None,  # medio_pago=None para VENTA
             )
-
-            # Guardar referencia al medio de cobro si es transferencia
-            # (aquí podrías agregar un campo en el modelo o usar metadata)
-            if metodo_cobro == 'transferencia' and medio_cobro_id:
-                # Validar que el medio_cobro existe
-                from medios_acreditacion.models import MedioAcreditacion
-                medio_cobro_obj = get_object_or_404(
-                    MedioAcreditacion, 
-                    pk=int(medio_cobro_id), 
-                    cliente=cliente
-                )
-                # Por ahora solo lo usamos para validación
-                # En el futuro podrías agregarlo como FK al modelo Transaccion
+            
+            # Guardar el medio de cobro (siempre es MedioAcreditacion)
+            if medio_cobro_obj:
+                transaccion.medio_cobro = medio_cobro_obj
+                transaccion.save(update_fields=['medio_cobro'])
 
             # Preparar datos para el modal
             context = {
@@ -525,8 +562,30 @@ def calcular_api(request):
             moneda = Moneda.objects.get(pk=int(data["moneda"]))
             monto = Decimal(str(data["monto_operado"]))
 
-            medio_pago = data.get("medio_pago")
-            calculo = calcular_transaccion(cliente, tipo, moneda, monto, medio_pago)
+            # Obtener método de pago (ID de PaymentMethod o tipo de método)
+            medio_pago_id = data.get("medio_pago_id")  # ID del PaymentMethod
+            tipo_metodo = data.get("tipo_metodo")  # 'efectivo', 'tarjeta', etc.
+            
+            # Si viene medio_pago_id, usarlo; si no, usar tipo_metodo como override
+            medio_pago = None
+            tipo_metodo_override = None
+            
+            if medio_pago_id:
+                medio_pago = medio_pago_id
+            elif tipo_metodo:
+                tipo_metodo_override = tipo_metodo
+            else:
+                # Default: efectivo (para compatibilidad con código antiguo)
+                tipo_metodo_override = 'efectivo'
+            
+            calculo = calcular_transaccion(
+                cliente, 
+                tipo, 
+                moneda, 
+                monto, 
+                medio_pago, 
+                tipo_metodo_override
+            )
             return JsonResponse(
                 {
                     "descuento_pct": str(calculo.get("descuento_pct", "")),

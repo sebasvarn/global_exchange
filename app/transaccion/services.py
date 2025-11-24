@@ -28,30 +28,47 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 # =========================
 # Cálculo de transacción
 # =========================
-def calcular_transaccion(cliente, tipo, moneda, monto_operado, medio_pago):
+def calcular_transaccion(cliente, tipo, moneda, monto_operado, medio_pago=None, tipo_metodo_override=None):
     """
-    Calcula tasa, comisión y monto_pyg, sumando comisión por método de pago (obligatorio).
+    Calcula tasa, comisión y monto_pyg, sumando comisión por método de pago.
+    
+    Args:
+        cliente: Cliente que realiza la transacción
+        tipo: TipoTransaccionEnum (COMPRA/VENTA)
+        moneda: Moneda operada
+        monto_operado: Monto en la moneda extranjera
+        medio_pago: PaymentMethod o ID (opcional si tipo_metodo_override está definido)
+        tipo_metodo_override: str - Tipo de método para casos especiales como 'efectivo' o 'tarjeta'
+                               que no requieren PaymentMethod guardado
     """
 
     from payments.models import ComisionMetodoPago, PaymentMethod
 
-    if medio_pago is None:
-        raise ValidationError("Debe especificar el método de pago.")
+    # Determinar el tipo de método de pago
+    tipo_metodo = None
+    
+    if tipo_metodo_override:
+        # Caso especial: efectivo o tarjeta (no requieren PaymentMethod guardado)
+        tipo_metodo = tipo_metodo_override
+    elif medio_pago is not None:
+        # Si medio_pago es un ID (int o str), obtener el objeto PaymentMethod
+        payment_method_obj = None
+        if isinstance(medio_pago, (int, str)):
+            try:
+                payment_method_obj = PaymentMethod.objects.get(pk=medio_pago)
+            except PaymentMethod.DoesNotExist:
+                raise ValidationError("El método de pago seleccionado no existe.")
+        else:
+            payment_method_obj = medio_pago  # ya es objeto
 
-    # Si medio_pago es un ID (int o str), obtener el objeto PaymentMethod
-    payment_method_obj = None
-    if isinstance(medio_pago, (int, str)):
-        try:
-            payment_method_obj = PaymentMethod.objects.get(pk=medio_pago)
-        except PaymentMethod.DoesNotExist:
-            raise ValidationError("El método de pago seleccionado no existe.")
+        tipo_metodo = payment_method_obj.payment_type
+        # Mapear 'cuenta_bancaria' a 'transferencia' para la tabla de comisiones
+        if tipo_metodo == "cuenta_bancaria":
+            tipo_metodo = "transferencia"
     else:
-        payment_method_obj = medio_pago  # ya es objeto
-
-    tipo_metodo = payment_method_obj.payment_type
-    # Mapear 'cuenta_bancaria' a 'transferencia' para la tabla de comisiones
-    if tipo_metodo == "cuenta_bancaria":
-        tipo_metodo = "transferencia"
+        # Si no hay medio_pago ni tipo_metodo_override, usar 'efectivo' como default
+        # (o podrías lanzar error si prefieres ser estricto)
+        tipo_metodo = "efectivo"
 
     # 1) Segmento del cliente (fallback 'MIN')
     segmento = getattr(cliente, "tipo", "MIN").upper()

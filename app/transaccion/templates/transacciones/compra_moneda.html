@@ -243,18 +243,38 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
+        // Preparar payload con tipo de método
+        const payload = {
+            cliente: clienteId,
+            tipo: 'COMPRA',
+            moneda: monedaId,
+            monto_operado: monto
+        };
+
+        // Agregar información del método de pago si está seleccionado
+        if (metodoSeleccionado) {
+            if (metodoSeleccionado === 'efectivo' || metodoSeleccionado === 'tarjeta') {
+                // Para efectivo y tarjeta, enviar tipo_metodo
+                payload.tipo_metodo = metodoSeleccionado;
+            } else if (metodoPagoIdInput.value) {
+                // Para transferencia/billetera, enviar el ID del PaymentMethod
+                payload.medio_pago_id = metodoPagoIdInput.value;
+            } else {
+                // Si no hay método seleccionado aún, usar efectivo por defecto
+                payload.tipo_metodo = 'efectivo';
+            }
+        } else {
+            // Default: efectivo
+            payload.tipo_metodo = 'efectivo';
+        }
+
         fetch('{% url "transacciones:calcular_api" %}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': '{{ csrf_token }}'
             },
-            body: JSON.stringify({
-                cliente: clienteId,
-                tipo: 'COMPRA',
-                moneda: monedaId,
-                monto_operado: monto
-            })
+            body: JSON.stringify(payload)
         })
         .then(res => res.json())
         .then(data => {
@@ -334,6 +354,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 metodoPagoIdInput.value = '';
             }
 
+            // Recalcular con el nuevo método de pago
+            calcularTransaccion();
             validarFormulario();
         });
     });
@@ -341,6 +363,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Selección de método guardado del cliente
     metodoClienteSelect.addEventListener('change', function() {
         metodoPagoIdInput.value = this.value;
+        // Recalcular con el método específico seleccionado
+        calcularTransaccion();
         validarFormulario();
     });
 

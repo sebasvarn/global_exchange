@@ -218,18 +218,33 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
+        // Preparar payload con tipo de método
+        const payload = {
+            cliente: clienteId,
+            tipo: 'VENTA',
+            moneda: monedaId,
+            monto_operado: monto
+        };
+
+        // Agregar información del método de cobro si está seleccionado
+        if (metodoSeleccionado) {
+            if (metodoSeleccionado === 'efectivo') {
+                payload.tipo_metodo = 'efectivo';
+            } else if (metodoSeleccionado === 'transferencia') {
+                payload.tipo_metodo = 'transferencia';
+            }
+        } else {
+            // Default: efectivo
+            payload.tipo_metodo = 'efectivo';
+        }
+
         fetch('{% url "transacciones:calcular_api" %}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': '{{ csrf_token }}'
             },
-            body: JSON.stringify({
-                cliente: clienteId,
-                tipo: 'VENTA',
-                moneda: monedaId,
-                monto_operado: monto
-            })
+            body: JSON.stringify(payload)
         })
         .then(res => res.json())
         .then(data => {
@@ -302,6 +317,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 medioCobroIdInput.value = '';
             }
 
+            // Recalcular con el nuevo método de cobro
+            calcularTransaccion();
             validarFormulario();
         });
     });
@@ -309,6 +326,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Selección de medio guardado del cliente
     medioClienteSelect.addEventListener('change', function() {
         medioCobroIdInput.value = this.value;
+        // Recalcular (aunque para venta el método no cambia mucho la comisión)
+        calcularTransaccion();
         validarFormulario();
     });
 
