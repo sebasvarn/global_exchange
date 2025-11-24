@@ -76,7 +76,7 @@ def asignar_stock_tauser(request):
 def tramitar_transacciones(request):
     """
     Vista para tramitar transacciones de un cliente activo.
-    Permite consultar datos de una transacción por ID y muestra mensajes de error si corresponde.
+    Permite consultar datos de una transacción por código de verificación.
     """
 
     tausers_activos = Tauser.objects.filter(estado="activo").order_by('nombre')
@@ -85,19 +85,19 @@ def tramitar_transacciones(request):
     datos_transaccion = None
     error = None
     mensaje = None
-    transaccion_uuid = request.POST.get("transaccion_uuid", "").strip()
+    codigo_verificacion = request.POST.get("codigo_verificacion", "").strip().upper()
 
     if request.method == "POST":
         accion = request.POST.get("accion", "buscar")
 
-        if not transaccion_uuid:
-            error = "Debe ingresar el código de transacción."
+        if not codigo_verificacion:
+            error = "Debe ingresar el código de verificación de la transacción."
         else:
             try:
-                tx = Transaccion.objects.select_related("moneda", "cliente").get(uuid=transaccion_uuid)
+                tx = Transaccion.objects.select_related("moneda", "cliente").get(codigo_verificacion=codigo_verificacion)
             except Transaccion.DoesNotExist:
                 tx = None
-                error = "No se encontró ninguna transacción con ese código."
+                error = f"No se encontró ninguna transacción con el código '{codigo_verificacion}'."
 
             if tx:
                 # Buscar tasa actual según tipo de transacción
@@ -111,7 +111,7 @@ def tramitar_transacciones(request):
 
                 if accion == "buscar":
                     datos_transaccion = {
-                        "uuid": tx.uuid,
+                        "codigo_verificacion": tx.codigo_verificacion,
                         "id": tx.id,
                         "cliente": tx.cliente,
                         "tipo": tx.get_tipo_display(),
@@ -133,7 +133,7 @@ def tramitar_transacciones(request):
                         tx.save(update_fields=["tasa_aplicada", "monto_pyg"])
                         mensaje = "Transacción recalculada con la nueva tasa."
                         datos_transaccion = {
-                            "uuid": tx.uuid,
+                            "codigo_verificacion": tx.codigo_verificacion,
                             "id": tx.id,
                             "cliente": tx.cliente,
                             "tipo": tx.get_tipo_display(),
@@ -151,14 +151,14 @@ def tramitar_transacciones(request):
                 elif accion == "confirmar":
                     try:
                         confirmar_transaccion(tx)
-                        mensaje = f"Transacción #{tx.id} confirmada correctamente."
+                        mensaje = f"Transacción #{tx.id} (código: {tx.codigo_verificacion}) confirmada correctamente."
                     except Exception as e:
                         error = str(e)
 
                 elif accion == "cancelar":
                     try:
                         cancelar_transaccion(tx)
-                        mensaje = f"Transacción #{tx.id} cancelada correctamente."
+                        mensaje = f"Transacción #{tx.id} (código: {tx.codigo_verificacion}) cancelada correctamente."
                     except Exception as e:
                         error = str(e)
 
@@ -166,7 +166,7 @@ def tramitar_transacciones(request):
         "datos_transaccion": datos_transaccion,
         "error": error,
         "mensaje": mensaje,
-        "transaccion_uuid": transaccion_uuid,
+        "codigo_verificacion": codigo_verificacion,
         "tausers": tausers_activos,
         "tauser_seleccionado": tauser_seleccionado,
     })

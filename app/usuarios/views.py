@@ -76,6 +76,9 @@ def dashboard_view(request):
             'total_transacciones': total_transacciones,
         })
 
+        # Para el gráfico: monedas activas (no base)
+        context['monedas_activas'] = list(monedas_activas)
+
     return render(request, "dashboard.html", context)
 
 

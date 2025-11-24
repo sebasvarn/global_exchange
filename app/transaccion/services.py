@@ -11,10 +11,15 @@ from django.db.models import Sum
 from django.urls import reverse
 from django.utils import timezone
 
+# Redondeo a denominación PYG
+from commons.redondeo import redondear_a_denom_py
+
 from clientes.models import LimitePYG, LimiteMoneda, TasaComision
 from monedas.models import TasaCambio, PrecioBaseComision
 from .models import Transaccion, Movimiento
 from commons.enums import EstadoTransaccionEnum, TipoTransaccionEnum, TipoMovimientoEnum
+from pagos.services import PaymentOrchestrator
+from pagos.models import PagoPasarela
 
 logger = logging.getLogger(__name__)
 stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -23,10 +28,31 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 # =========================
 # Cálculo de transacción
 # =========================
-def calcular_transaccion(cliente, tipo, moneda, monto_operado):
+def calcular_transaccion(cliente, tipo, moneda, monto_operado, medio_pago):
     """
-    Calcula tasa, comisión y monto_pyg.
+    Calcula tasa, comisión y monto_pyg, sumando comisión por método de pago (obligatorio).
     """
+
+    from payments.models import ComisionMetodoPago, PaymentMethod
+
+    if medio_pago is None:
+        raise ValidationError("Debe especificar el método de pago.")
+
+    # Si medio_pago es un ID (int o str), obtener el objeto PaymentMethod
+    payment_method_obj = None
+    if isinstance(medio_pago, (int, str)):
+        try:
+            payment_method_obj = PaymentMethod.objects.get(pk=medio_pago)
+        except PaymentMethod.DoesNotExist:
+            raise ValidationError("El método de pago seleccionado no existe.")
+    else:
+        payment_method_obj = medio_pago  # ya es objeto
+
+    tipo_metodo = payment_method_obj.payment_type
+    # Mapear 'cuenta_bancaria' a 'transferencia' para la tabla de comisiones
+    if tipo_metodo == "cuenta_bancaria":
+        tipo_metodo = "transferencia"
+
     # 1) Segmento del cliente (fallback 'MIN')
     segmento = getattr(cliente, "tipo", "MIN").upper()
 
@@ -42,6 +68,7 @@ def calcular_transaccion(cliente, tipo, moneda, monto_operado):
 
     monto_operado = Decimal(monto_operado)
 
+
     if tipo == TipoTransaccionEnum.VENTA:
         # Comisión de compra
         comision = Decimal(str(pb.comision_compra))
@@ -49,7 +76,6 @@ def calcular_transaccion(cliente, tipo, moneda, monto_operado):
         comision_final = comision - comision_descuento
         tasa_aplicada = Decimal(str(pb.precio_base)) - comision_final
         monto_pyg = monto_operado * tasa_aplicada
-
     elif tipo == TipoTransaccionEnum.COMPRA:
         # Comisión de venta
         comision = Decimal(str(pb.comision_venta))
@@ -57,16 +83,31 @@ def calcular_transaccion(cliente, tipo, moneda, monto_operado):
         comision_final = comision - comision_descuento
         tasa_aplicada = Decimal(str(pb.precio_base)) + comision_final
         monto_pyg = monto_operado * tasa_aplicada
-
     else:
         raise ValidationError("Tipo de transacción inválido.")
+
+    # Comisión por método de pago (obligatorio)
+    comision_metodo_pago = Decimal("0")
+    porcentaje_metodo_pago = Decimal("0")
+    try:
+        cmp = ComisionMetodoPago.objects.get(tipo_metodo=tipo_metodo)
+        porcentaje_metodo_pago = Decimal(str(cmp.porcentaje_comision))
+        comision_metodo_pago = monto_pyg * porcentaje_metodo_pago / Decimal("100")
+        monto_pyg += comision_metodo_pago
+    except ComisionMetodoPago.DoesNotExist:
+        pass  # Si no hay comisión configurada, no suma nada
+
+    # Redondear monto_pyg a denominación válida de PYG
+    monto_pyg_redondeado = redondear_a_denom_py(monto_pyg)
 
     return {
         "descuento_pct": descuento_pct,
         "precio_base": Decimal(str(pb.precio_base)),
         "tasa_aplicada": tasa_aplicada,
         "comision": comision,
-        "monto_pyg": monto_pyg,
+        "monto_pyg": monto_pyg_redondeado,
+        "comision_metodo_pago": comision_metodo_pago,
+        "porcentaje_metodo_pago": porcentaje_metodo_pago,
     }
 
 #creo que esta funcion ya no se usa mas
@@ -254,19 +295,120 @@ def crear_transaccion(
 # =========================
 # Confirmar / Cancelar
 # =========================
+def procesar_pago_via_sipap(transaccion: Transaccion):
+    """
+    Procesa el pago de una transacción a través de SIPAP.
+    
+    Args:
+        transaccion: Instancia de Transacción en estado PENDIENTE
+    
+    Returns:
+        tuple: (success: bool, mensaje: str, pago_pasarela: PagoPasarela or None)
+    
+    Raises:
+        ValidationError: Si la transacción no cumple requisitos
+    """
+    # Validaciones previas
+    if transaccion.estado != EstadoTransaccionEnum.PENDIENTE:
+        raise ValidationError("Solo transacciones PENDIENTES pueden procesarse por SIPAP.")
+    
+    if not transaccion.medio_pago:
+        raise ValidationError("La transacción debe tener un medio de pago asignado.")
+    
+    if not transaccion.medio_pago.puede_usar_sipap():
+        raise ValidationError(
+            f"El método de pago '{transaccion.medio_pago.get_payment_type_display()}' "
+            f"no puede procesarse por pasarela SIPAP."
+        )
+    
+    # Obtener datos del método de pago
+    metodo_sipap = transaccion.medio_pago.get_metodo_sipap()
+    datos_sipap = transaccion.medio_pago.get_datos_sipap()
+    
+    if not metodo_sipap or not datos_sipap:
+        raise ValidationError(
+            f"No se pudieron extraer los datos necesarios del método de pago "
+            f"'{transaccion.medio_pago}'."
+        )
+    
+    # Calcular monto total (monto_pyg + comisión)
+    monto_total = transaccion.monto_pyg + transaccion.comision
+    
+    logger.info(
+        f"Procesando pago via SIPAP | Transacción: {transaccion.uuid} | "
+        f"Método: {metodo_sipap} | Monto: {monto_total} PYG"
+    )
+    
+    # Procesar pago a través del orquestador
+    orchestrator = PaymentOrchestrator()
+    
+    try:
+        resultado = orchestrator.procesar_pago(
+            transaccion=transaccion,
+            monto=float(monto_total),
+            metodo=metodo_sipap,
+            moneda='PYG',
+            datos=datos_sipap
+        )
+        
+        # Verificar resultado
+        if resultado and resultado.es_exitoso():
+            logger.info(
+                f"Pago EXITOSO via SIPAP | Transacción: {transaccion.uuid} | "
+                f"ID Externo: {resultado.id_pago_externo}"
+            )
+            return (True, "Pago procesado exitosamente", resultado)
+        
+        else:
+            # Pago fallido o pendiente
+            estado = resultado.estado if resultado else 'desconocido'
+            mensaje_error = resultado.respuesta_pasarela.get('mensaje', 'Error desconocido') if resultado else 'Sin respuesta'
+            
+            logger.warning(
+                f"Pago FALLIDO via SIPAP | Transacción: {transaccion.uuid} | "
+                f"Estado: {estado} | Mensaje: {mensaje_error}"
+            )
+            return (False, mensaje_error, resultado)
+    
+    except Exception as e:
+        logger.error(
+            f"Error al procesar pago via SIPAP | Transacción: {transaccion.uuid} | "
+            f"Error: {str(e)}",
+            exc_info=True
+        )
+        return (False, f"Error al procesar pago: {str(e)}", None)
+
+
 def confirmar_transaccion(transaccion: Transaccion):
     """
-    Confirmar manualmente (fuera de Stripe).
-    Crea movimiento y marca PAGADA.
+    Confirmar transacción.
+    - Si el medio_pago puede usar SIPAP → procesa automáticamente por pasarela
+    - Si no → confirmación manual (crea movimiento y marca PAGADA)
     """
     if transaccion.estado != EstadoTransaccionEnum.PENDIENTE:
         raise ValidationError("Solo transacciones pendientes pueden confirmarse.")
-
+    
+    # Verificar si debe procesarse por SIPAP
+    if transaccion.medio_pago and transaccion.medio_pago.puede_usar_sipap():
+        logger.info(
+            f"Transacción {transaccion.uuid} se procesará por SIPAP "
+            f"(método: {transaccion.medio_pago.get_payment_type_display()})"
+        )
+        
+        success, mensaje, pago_pasarela = procesar_pago_via_sipap(transaccion)
+        
+        if not success:
+            raise ValidationError(f"Error al procesar pago por SIPAP: {mensaje}")
+        
+        # Si el pago fue exitoso, continuar con la confirmación
+        logger.info(f"Pago exitoso por SIPAP, confirmando transacción {transaccion.uuid}")
+    
+    # Confirmación manual o después de SIPAP exitoso
     with dj_tx.atomic():
         transaccion.estado = EstadoTransaccionEnum.PAGADA
         transaccion.save(update_fields=["estado"])
 
-        # Mapear a INGRESO/EGRESO en PYG según tipo de operación
+        # Mapear a DEBITO/CREDITO en PYG según tipo de operación
         mov_tipo = (
             TipoMovimientoEnum.DEBITO
             if transaccion.tipo == TipoTransaccionEnum.COMPRA

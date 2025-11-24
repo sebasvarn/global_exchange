@@ -1,0 +1,366 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Venta de Moneda{% endblock %}
+
+{% block extra_css %}
+<style>
+    .card-venta {
+        border-left: 4px solid #dc3545;
+    }
+    .metodo-cobro-card {
+        cursor: pointer;
+        transition: all 0.3s;
+        border: 2px solid #e0e0e0;
+    }
+    .metodo-cobro-card:hover {
+        border-color: #dc3545;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .metodo-cobro-card.selected {
+        border-color: #dc3545;
+        background-color: #fff5f5;
+    }
+    .metodo-icon {
+        font-size: 3rem;
+        color: #dc3545;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="bi bi-arrow-left-right"></i> Vender Moneda Extranjera</h2>
+                <a href="{% url 'transacciones:transacciones_list' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Volver
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <form method="post" id="venta-form">
+        {% csrf_token %}
+        <input type="hidden" name="tipo" value="VENTA">
+        <input type="hidden" name="metodo_cobro" id="metodo_cobro">
+        <input type="hidden" name="medio_cobro_id" id="medio_cobro_id">
+
+        <div class="row">
+            <!-- Columna Izquierda: Datos de la Transacción -->
+            <div class="col-md-6">
+                <div class="card card-venta mb-4">
+                    <div class="card-header bg-danger text-white">
+                        <h5 class="mb-0"><i class="bi bi-info-circle"></i> Datos de la Transacción</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Cliente -->
+                        <div class="mb-3">
+                            <label for="cliente" class="form-label">Cliente *</label>
+                            <select name="cliente_id" id="cliente" class="form-select" required>
+                                <option value="">Seleccionar cliente...</option>
+                                {% for cliente in clientes %}
+                                <option value="{{ cliente.id }}">{{ cliente.nombre }} {{ cliente.apellido }} - {{ cliente.documento }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Moneda -->
+                        <div class="mb-3">
+                            <label for="moneda" class="form-label">Moneda a Vender *</label>
+                            <select name="moneda_id" id="moneda" class="form-select" required>
+                                <option value="">Seleccionar moneda...</option>
+                                {% for moneda in monedas %}
+                                <option value="{{ moneda.id }}">{{ moneda.nombre }} ({{ moneda.codigo }})</option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted">El cliente entrega esta moneda en efectivo</small>
+                        </div>
+
+                        <!-- Monto -->
+                        <div class="mb-3">
+                            <label for="monto_operado" class="form-label">Monto a Vender *</label>
+                            <div class="input-group">
+                                <input type="number" 
+                                       name="monto_operado" 
+                                       id="monto_operado" 
+                                       class="form-control" 
+                                       step="0.01" 
+                                       min="0.01"
+                                       placeholder="Ej: 100.00"
+                                       required>
+                                <span class="input-group-text" id="moneda-simbolo">USD</span>
+                            </div>
+                            <small class="form-text text-muted">Monto que el cliente entrega en efectivo</small>
+                            
+                            <!-- Botón Calcular Cotización -->
+                            <button type="button" class="btn btn-outline-info btn-sm mt-2" id="btn-calcular" onclick="calcularTransaccion()">
+                                <i class="bi bi-calculator"></i> Calcular Cotización
+                            </button>
+                        </div>
+
+                        <!-- Resumen del Cálculo -->
+                        <div id="calculo-resumen" class="alert alert-info" style="display: none;">
+                            <h6><i class="bi bi-calculator"></i> Resumen</h6>
+                            <table class="table table-sm mb-0">
+                                <tr>
+                                    <td>Tasa de Cambio:</td>
+                                    <td class="text-end"><strong id="tasa-display">-</strong></td>
+                                </tr>
+                                <tr>
+                                    <td>Comisión:</td>
+                                    <td class="text-end"><strong id="comision-display">-</strong></td>
+                                </tr>
+                                <tr class="table-danger">
+                                    <td><strong>Total a Pagar al Cliente (PYG):</strong></td>
+                                    <td class="text-end"><strong id="total-display">-</strong></td>
+                                </tr>
+                            </table>
+                        </div>
+
+                        <!-- Nota importante -->
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            <strong>Importante:</strong> El cliente debe entregar la moneda extranjera en efectivo en la caja (Tauser)
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Columna Derecha: Método de Cobro -->
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0"><i class="bi bi-wallet2"></i> Seleccionar Método de Cobro</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-3">¿Cómo desea recibir el pago?</p>
+
+                        <div class="row" id="metodos-cobro-container">
+                            <!-- Efectivo -->
+                            <div class="col-12 mb-3">
+                                <div class="card metodo-cobro-card" data-metodo="efectivo" data-requiere-terminal="true">
+                                    <div class="card-body text-center">
+                                        <div class="metodo-icon">
+                                            <i class="bi bi-cash-stack"></i>
+                                        </div>
+                                        <h5 class="mt-2">Efectivo</h5>
+                                        <p class="text-muted mb-0">Recibir en la caja (Tauser)</p>
+                                        <small class="text-success">✓ Entrega inmediata</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Transferencia -->
+                            <div class="col-12 mb-3">
+                                <div class="card metodo-cobro-card" data-metodo="transferencia">
+                                    <div class="card-body text-center">
+                                        <div class="metodo-icon">
+                                            <i class="bi bi-bank"></i>
+                                        </div>
+                                        <h5 class="mt-2">Transferencia</h5>
+                                        <p class="text-muted mb-0">Transferencia a su cuenta bancaria</p>
+                                        <small class="text-info">⏱ Procesamiento 24-48hs</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Selección de Medio de Cobro del Cliente -->
+                        <div id="medios-cliente-container" style="display: none;">
+                            <hr>
+                            <h6>Seleccione su medio de cobro guardado:</h6>
+                            <select id="medio-cliente-select" class="form-select">
+                                <option value="">Cargando...</option>
+                            </select>
+                            <small class="text-muted">Cuenta donde recibirá el pago</small>
+                        </div>
+
+                        <!-- Botón Confirmar -->
+                        <div class="d-grid gap-2 mt-4">
+                            <button type="submit" class="btn btn-danger btn-lg" id="btn-confirmar" disabled>
+                                <i class="bi bi-check-circle"></i> Confirmar Venta
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('venta-form');
+    const clienteSelect = document.getElementById('cliente');
+    const monedaSelect = document.getElementById('moneda');
+    const montoInput = document.getElementById('monto_operado');
+    const calculoResumen = document.getElementById('calculo-resumen');
+    const btnConfirmar = document.getElementById('btn-confirmar');
+    const metodosCobro = document.querySelectorAll('.metodo-cobro-card');
+    const mediosClienteContainer = document.getElementById('medios-cliente-container');
+    const medioClienteSelect = document.getElementById('medio-cliente-select');
+    const medioCobroIdInput = document.getElementById('medio_cobro_id');
+
+    let metodoSeleccionado = null;
+    let calculoActual = null;
+
+    // Calcular automáticamente cuando cambian los datos
+    function calcularTransaccion() {
+        const clienteId = clienteSelect.value;
+        const monedaId = monedaSelect.value;
+        const monto = montoInput.value;
+
+        if (!clienteId || !monedaId || !monto || monto <= 0) {
+            calculoResumen.style.display = 'none';
+            return;
+        }
+
+        fetch('{% url "transacciones:calcular_api" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                cliente: clienteId,
+                tipo: 'VENTA',
+                moneda: monedaId,
+                monto_operado: monto
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+
+            calculoActual = data;
+            document.getElementById('tasa-display').textContent = data.tasa_aplicada + ' PYG';
+            document.getElementById('comision-display').textContent = data.comision + ' PYG';
+            document.getElementById('total-display').textContent = data.monto_pyg + ' PYG';
+            calculoResumen.style.display = 'block';
+        })
+        .catch(err => console.error('Error al calcular:', err));
+    }
+
+    // Cargar medios de cobro del cliente
+    function cargarMediosCliente() {
+        const clienteId = clienteSelect.value;
+        if (!clienteId) {
+            mediosClienteContainer.style.display = 'none';
+            return;
+        }
+
+        fetch(`{% url 'transacciones:medios_acreditacion_por_cliente' %}?cliente_id=${clienteId}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) {
+                console.error(data.error);
+                medioClienteSelect.innerHTML = '<option value="">No hay medios de cobro registrados</option>';
+                return;
+            }
+
+            medioClienteSelect.innerHTML = '<option value="">Seleccionar...</option>';
+            
+            if (data.medios && data.medios.length > 0) {
+                data.medios.forEach(medio => {
+                    const option = document.createElement('option');
+                    option.value = medio.id;
+                    option.textContent = medio.descripcion;
+                    medioClienteSelect.appendChild(option);
+                });
+            } else {
+                medioClienteSelect.innerHTML = '<option value="">No hay medios de cobro registrados</option>';
+            }
+        })
+        .catch(err => {
+            console.error('Error al cargar medios:', err);
+            medioClienteSelect.innerHTML = '<option value="">Error al cargar</option>';
+        });
+    }
+
+    // Seleccionar método de cobro
+    metodosCobro.forEach(card => {
+        card.addEventListener('click', function() {
+            metodosCobro.forEach(c => c.classList.remove('selected'));
+            this.classList.add('selected');
+            metodoSeleccionado = this.dataset.metodo;
+            
+            // Actualizar el campo hidden metodo_cobro
+            document.getElementById('metodo_cobro').value = metodoSeleccionado;
+
+            // Mostrar medios del cliente si seleccionó transferencia
+            if (metodoSeleccionado === 'transferencia' && clienteSelect.value) {
+                mediosClienteContainer.style.display = 'block';
+                cargarMediosCliente();
+            } else {
+                mediosClienteContainer.style.display = 'none';
+                medioCobroIdInput.value = '';
+            }
+
+            validarFormulario();
+        });
+    });
+
+    // Selección de medio guardado del cliente
+    medioClienteSelect.addEventListener('change', function() {
+        medioCobroIdInput.value = this.value;
+        validarFormulario();
+    });
+
+    // Validar formulario completo
+    function validarFormulario() {
+        const valido = clienteSelect.value && 
+                      monedaSelect.value && 
+                      montoInput.value > 0 &&
+                      metodoSeleccionado &&
+                      (metodoSeleccionado === 'efectivo' || medioCobroIdInput.value);
+
+        btnConfirmar.disabled = !valido;
+    }
+
+    // Event listeners
+    clienteSelect.addEventListener('change', function() {
+        calcularTransaccion();
+        if (metodoSeleccionado === 'transferencia') {
+            cargarMediosCliente();
+        }
+        validarFormulario();
+    });
+
+    monedaSelect.addEventListener('change', function() {
+        const option = this.options[this.selectedIndex];
+        const match = option.textContent.match(/\(([^)]+)\)/);
+        if (match) {
+            document.getElementById('moneda-simbolo').textContent = match[1];
+        }
+        calcularTransaccion();
+        validarFormulario();
+    });
+
+    montoInput.addEventListener('input', function() {
+        calcularTransaccion();
+        validarFormulario();
+    });
+
+    // Validar antes de enviar
+    form.addEventListener('submit', function(e) {
+        if (!metodoSeleccionado) {
+            e.preventDefault();
+            alert('Por favor seleccione un método de cobro');
+            return false;
+        }
+
+        if (metodoSeleccionado === 'transferencia' && !medioCobroIdInput.value) {
+            e.preventDefault();
+            alert('Por favor seleccione una cuenta para recibir la transferencia');
+            return false;
+        }
+    });
+});
+</script>
+{% endblock %}

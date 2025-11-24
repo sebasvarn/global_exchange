@@ -1,28 +1,41 @@
 {% extends 'base.html' %}
+{% block title %}Comisiones por Métodos de Pago{% endblock %}
 {% block content %}
-<div class="container mt-4">
-    <h2 class="mb-4">Comisiones por Métodos de Pago</h2>
-    <form method="post">
-        {% csrf_token %}
-        <table class="table table-bordered table-hover">
-            <thead class="table-light">
-                <tr>
-                    <th>Tipo de Método</th>
-                    <th>Porcentaje de Comisión (%)</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for c in comisiones %}
-                <tr>
-                    <td>{{ c.get_tipo_metodo_display }}</td>
-                    <td>
-                        <input type="number" name="comision_{{ c.pk }}" value="{{ c.porcentaje_comision }}" step="0.01" min="0" max="100" class="form-control" style="max-width:120px;">
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        <button type="submit" class="btn btn-success">Guardar Cambios</button>
-    </form>
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card">
+                <div class="card-header">
+                    <strong>Comisiones por Métodos de Pago</strong>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Tipo de Método</th>
+                                        <th>Porcentaje de Comisión (%)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for c in comisiones %}
+                                    <tr>
+                                        <td>{{ c.get_tipo_metodo_display }}</td>
+                                        <td>
+                                            <input type="number" name="comision_{{ c.pk }}" value="{{ c.porcentaje_comision }}" step="0.01" min="0" max="100" class="form-control" style="max-width:120px;">
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <button type="submit" class="btn btn-success mt-3">Guardar Cambios</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}

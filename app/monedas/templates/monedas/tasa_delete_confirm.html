@@ -2,14 +2,29 @@
 {% block title %}Eliminar tasa{% endblock %}
 {% block content %}
 {% if request.user|has_permission:'comisiones.delete' %}
-  <div class="alert alert-warning">
-    <h5 class="mb-2"><i class="bi bi-exclamation-triangle"></i> Confirmar eliminación</h5>
-    <p>¿Eliminar la tasa <strong>#{{ tasa.id }}</strong> de <strong>{{ tasa.moneda.codigo }}</strong>?</p>
-    <form method="post" class="mt-3">
-      {% csrf_token %}
-      <a href="{% url 'monedas:tasas_list' %}" class="btn btn-outline-secondary">Cancelar</a>
-      <button class="btn btn-danger">Eliminar</button>
-    </form>
+  <div class="container-fluid">
+    <div class="row justify-content-center">
+      <div class="col-md-8">
+        <div class="card border-danger">
+          <div class="card-header bg-danger text-white">
+            <strong><i class="bi bi-exclamation-triangle"></i> Eliminar tasa</strong>
+            <div class="card-header-actions">
+              <a href="{% url 'monedas:tasas_list' %}" class="btn btn-sm btn-outline-light">
+                <i class="bi bi-arrow-left"></i> Volver
+              </a>
+            </div>
+          </div>
+          <div class="card-body">
+            <p>¿Eliminar la tasa <strong>#{{ tasa.id }}</strong> de <strong>{{ tasa.moneda.codigo }}</strong>?</p>
+            <form method="post" class="d-flex gap-2 mt-3">
+              {% csrf_token %}
+              <button class="btn btn-danger">Eliminar</button>
+              <a href="{% url 'monedas:tasas_list' %}" class="btn btn-secondary">Cancelar</a>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
-{ % endif %}
+{% endif %}
 {% endblock %}

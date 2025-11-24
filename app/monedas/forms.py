@@ -10,7 +10,8 @@ Contiene formularios para la gestión de Moneda y TasaCambio:
 
 Los widgets utilizan clases de Bootstrap para una interfaz consistente.
 """
-
+import json
+from pathlib import Path
 from django import forms
 from django.core.exceptions import ValidationError
 from django.utils import timezone
@@ -35,7 +36,9 @@ class PrecioBaseComisionForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['moneda'].queryset = Moneda.objects.filter(activa=True, es_base=False)
+        # Solo monedas activas, no base y que no tengan ya un precio base/comisión asignado
+        usadas = PrecioBaseComision.objects.values_list('moneda_id', flat=True)
+        self.fields['moneda'].queryset = Moneda.objects.filter(activa=True, es_base=False).exclude(id__in=usadas)
 
 
 class MonedaForm(forms.ModelForm):
@@ -46,6 +49,25 @@ class MonedaForm(forms.ModelForm):
     - Código de moneda único, considerando monedas inactivas.
     - Solo 'PYG' puede ser moneda base del sistema.
     """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Leer denominaciones.json y extraer códigos únicos
+        json_path = Path(__file__).resolve().parent.parent / 'tauser' / 'denominaciones.json'
+        try:
+            with open(json_path, encoding='utf-8') as f:
+                data = json.load(f)
+            codigos = sorted(set([item['currency'] for item in data]))
+        except Exception:
+            codigos = []
+        # Obtener los códigos ya existentes en la base de datos (incluyendo inactivas)
+        from .models import Moneda
+        existentes = set(Moneda.objects.all_with_inactive().values_list('codigo', flat=True))
+        # Si es edición, permitir el código actual
+        codigo_actual = self.instance.codigo if self.instance and self.instance.pk else None
+        codigos_filtrados = [c for c in codigos if c not in existentes or c == codigo_actual]
+
+        self.fields['codigo'].widget = forms.Select(choices=[(c, c) for c in codigos_filtrados], attrs={'class': 'form-select'})
 
     class Meta:
         model = Moneda
@@ -58,7 +80,6 @@ class MonedaForm(forms.ModelForm):
             'activa': 'Activa para operar',
         }
         widgets = {
-            'codigo': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'PYG'}),
             'nombre': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Guaraní paraguayo'}),
             'simbolo': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '₲'}),
             'decimales': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'max': 6}),

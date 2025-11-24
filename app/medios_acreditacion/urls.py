@@ -26,4 +26,7 @@ urlpatterns = [
 
     # Eliminar un medio de acreditación existente
     path('medios/<int:pk>/delete/', views.medioacreditacion_delete, name='medioacreditacion_delete'),
+    
+    # API endpoint para cargar medios de cobro por cliente (usado en VENTA)
+    path('api/medios-por-cliente/', views.medios_por_cliente_api, name='medios_por_cliente_api'),
 ]

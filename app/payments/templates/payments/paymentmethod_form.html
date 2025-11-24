@@ -18,19 +18,6 @@
                     {% elif field == 'proveedor_billetera' %}Proveedor
                     {% elif field == 'billetera_email_telefono' %}Email o teléfono asociado
                     {% elif field == 'billetera_titular' %}Nombre del titular (opcional)
-                    {% elif field == 'tarjeta_nombre' %}Nombre en tarjeta
-                    {% elif field == 'tarjeta_numero' %}Número de tarjeta
-                    {% elif field == 'tarjeta_vencimiento' %}Fecha de vencimiento
-                    {% elif field == 'tarjeta_cvv' %}CVV/CVC
-                    {% elif field == 'tarjeta_marca' %}Marca de tarjeta
-                    {% elif field == 'cheque_numero' %}Número de cheque
-                    {% elif field == 'cheque_banco' %}Banco
-                    {% elif field == 'cheque_cuenta' %}Cuenta
-                    {% elif field == 'cheque_orden' %}Orden (Casa Matriz, dirección incluida)
-                    {% elif field == 'cheque_beneficiario' %}Beneficiario
-                    {% elif field == 'cheque_monto' %}Monto
-                    {% elif field == 'cheque_moneda' %}Moneda
-                    {% elif field == 'cheque_fecha_emision' %}Fecha de emisión
                     {% else %}{{ field|capfirst }}
                     {% endif %}
                 :</strong> {{ error }}</li>
@@ -57,6 +44,7 @@
                 {% csrf_token %}
                 
                 {% if cliente %}
+                    <input type="hidden" name="cliente_id" value="{{ cliente.id }}">
                     <div class="mb-4">
                         <label class="form-label fw-bold">
                             <i class="bi bi-person-fill me-1"></i>Cliente
@@ -76,62 +64,6 @@
                     {% else %}
                         {{ form.payment_type }}
                     {% endif %}
-                </div>
-
-                <!-- CAMPOS TARJETA -->
-                <div id="campos-tarjeta" style="display:none;">
-                    <div class="card mb-3 border-primary">
-                        <div class="card-header bg-light">
-                            <h5 class="mb-0"><i class="bi bi-credit-card me-2"></i>Datos de la Tarjeta</h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-12 mb-3">
-                                    <label class="form-label fw-semibold">
-                                        Nombre en tarjeta <span class="text-danger">*</span>
-                                    </label>
-                                    {{ form.tarjeta_nombre }}
-                                    <small class="form-text text-muted">Como aparece en la tarjeta</small>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-12 mb-3">
-                                    <label class="form-label fw-semibold">
-                                        Número de tarjeta <span class="text-danger">*</span>
-                                    </label>
-                                    <div style="position: relative;">
-                                        {{ form.tarjeta_numero }}
-                                    </div>
-                                    <small class="form-text text-muted">
-                                        <i class="bi bi-info-circle me-1"></i>Ingresa los 16 dígitos de tu tarjeta (se formatearán automáticamente)
-                                    </small>
-                                </div>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label fw-semibold">
-                                        Fecha de vencimiento <span class="text-danger">*</span>
-                                    </label>
-                                    {{ form.tarjeta_vencimiento }}
-                                        <small class="form-text text-muted">Formato: MM/AAAA</small>
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label fw-semibold">
-                                        CVV/CVC <span class="text-danger">*</span>
-                                    </label>
-                                    {{ form.tarjeta_cvv }}
-                                    <small class="form-text text-muted">Código de seguridad</small>
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label fw-semibold">
-                                        Marca de tarjeta <span class="text-danger">*</span>
-                                    </label>
-                                    {{ form.tarjeta_marca }}
-                                    <small class="form-text text-muted">Se detecta automáticamente</small>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- CAMPOS CUENTA BANCARIA -->
@@ -196,69 +128,6 @@
                                     Nombre del titular <small class="text-muted">(opcional)</small>
                                 </label>
                                 {{ form.billetera_titular }}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- CAMPOS CHEQUE -->
-                <div id="campos-cheque" style="display:none;">
-                    <div class="card mb-3 border-warning">
-                        <div class="card-header bg-light">
-                            <h5 class="mb-0"><i class="bi bi-cash-coin me-2"></i>Datos del Cheque</h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label fw-semibold">
-                                        Banco <span class="text-danger">*</span>
-                                    </label>
-                                    {{ form.cheque_banco }}
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label fw-semibold">
-                                        Cuenta <span class="text-danger">*</span>
-                                    </label>
-                                    {{ form.cheque_cuenta }}
-                                </div>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label fw-semibold">
-                                    Número de cheque <span class="text-danger">*</span>
-                                </label>
-                                {{ form.cheque_numero }}
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label fw-semibold">
-                                    Orden (Casa Matriz, dirección incluida) <span class="text-danger">*</span>
-                                </label>
-                                {{ form.cheque_orden }}
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label fw-semibold">
-                                    Beneficiario <span class="text-danger">*</span>
-                                </label>
-                                {{ form.cheque_beneficiario }}
-                            </div>
-                            <div class="row">
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label fw-semibold">
-                                        Monto <span class="text-danger">*</span>
-                                    </label>
-                                    {{ form.cheque_monto }}
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label fw-semibold">
-                                        Moneda <span class="text-danger">*</span>
-                                    </label>
-                                    {{ form.cheque_moneda }}
-                                </div>
-                                <div class="col-md-4 mb-3">
-                                    <label class="form-label fw-semibold">
-                                        Fecha de emisión <span class="text-danger">*</span>
-                                    </label>
-                                    {{ form.cheque_fecha_emision }}
-                                </div>
                             </div>
                         </div>
                     </div>

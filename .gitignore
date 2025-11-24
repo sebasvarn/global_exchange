@@ -11,6 +11,7 @@ venv/
 #Entorno
 .env.dev
 .env.prod
+simulador_sipap/.env
 
 # Archivos de sistema
 .DS_Store

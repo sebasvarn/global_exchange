@@ -33,6 +33,70 @@ from usuarios.decorators import role_required
 from django.http import JsonResponse
 from django.core import serializers
 from django.views.decorators.csrf import csrf_exempt
+from datetime import date, timedelta
+from django.views.decorators.http import require_GET
+
+@require_GET
+def evolucion_tasas_json(request):
+    """
+    Devuelve la evolución diaria de la tasa de una moneda (última cotización de cada día) en formato JSON.
+    Parámetros GET:
+        - moneda: código de moneda (ej: USD)
+        - dias: cantidad de días hacia atrás (opcional, default=365)
+    """
+    codigo = request.GET.get('moneda')
+    desde_str = request.GET.get('desde')
+    hasta_str = request.GET.get('hasta')
+    if not codigo:
+        return JsonResponse({'error': 'Falta el parámetro moneda'}, status=400)
+    try:
+        moneda = Moneda.objects.get(codigo=codigo)
+    except Moneda.DoesNotExist:
+        return JsonResponse({'error': 'Moneda no encontrada'}, status=404)
+    try:
+        if desde_str:
+            desde = date.fromisoformat(desde_str)
+        else:
+            desde = date.today() - timedelta(days=365)
+        if hasta_str:
+            hasta = date.fromisoformat(hasta_str)
+        else:
+            hasta = date.today()
+    except Exception:
+        return JsonResponse({'error': 'Fechas inválidas'}, status=400)
+    tasas = list(TasaCambio.ultimas_por_dia(moneda, desde, hasta))
+    # Crear un dict {fecha: tasa}
+    tasas_por_fecha = {t.fecha_creacion.date(): t for t in tasas}
+    data = []
+    ultimo_compra = None
+    ultimo_venta = None
+    dia = desde
+    dias_sin_cambio = 0
+    while dia <= hasta:
+        t = tasas_por_fecha.get(dia)
+        cambio = False
+        if t:
+            nuevo_compra = float(t.compra)
+            nuevo_venta = float(t.venta)
+            if nuevo_compra != ultimo_compra or nuevo_venta != ultimo_venta:
+                cambio = True
+            ultimo_compra = nuevo_compra
+            ultimo_venta = nuevo_venta
+            dias_sin_cambio = 0
+        else:
+            dias_sin_cambio += 1
+        # Agregar si hay cambio real, o si pasaron 7 días desde el último punto agregado
+        if ultimo_compra is not None and ultimo_venta is not None:
+            if cambio or dias_sin_cambio == 13 or dia == hasta:
+                data.append({
+                    'fecha': dia.strftime('%d-%m-%Y'),
+                    'compra': ultimo_compra,
+                    'venta': ultimo_venta,
+                })
+                if dias_sin_cambio == 13:
+                    dias_sin_cambio = 0
+        dia += timedelta(days=1)
+    return JsonResponse({'evolucion': data})
 
 # -----------------------------
 # Endpoints JSON
