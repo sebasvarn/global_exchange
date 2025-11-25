@@ -150,9 +150,27 @@
       <div class="text-center mt-4">
         <span class="badge bg-primary fs-5">Completada</span>
       </div>
+
+      <div class="d-flex justify-content-center gap-3 mt-4">
+        <form method="post" class="d-inline">
+          {% csrf_token %}
+          <input type="hidden" name="codigo_verificacion" value="{{ datos_transaccion.codigo_verificacion }}">
+          <button type="submit" name="accion" value="confirmar" class="btn btn-success">
+            Confirmar Pago
+          </button>
+        </form>
+        <form method="post" class="d-inline">
+          {% csrf_token %}
+          <input type="hidden" name="codigo_verificacion" value="{{ datos_transaccion.codigo_verificacion }}">
+          <button type="submit" name="accion" value="cancelar" class="btn btn-danger">
+            Cancelar
+          </button>
+        </form>
+      </div>
     {% endif %}
   </div>
 </div>
+{% endif %}
 
 
 <!-- ========== MODAL CONFIRMACIÓN ========== -->
@@ -170,6 +188,41 @@
     </div>
   </div>
 </div>
+<div class="modal fade" id="mfaModal" tabindex="-1" aria-labelledby="mfaModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="mfaModalLabel">Verificación de Operador</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p>Para continuar, por favor ingrese el código de verificación enviado a su correo.</p>
+        <form id="mfaForm" onsubmit="return false;">
+            <div class="otp-input-container mb-3">
+                <input type="text" class="form-control otp-input" id="otp-1" maxlength="1" autocomplete="off">
+                <input type="text" class="form-control otp-input" id="otp-2" maxlength="1" autocomplete="off">
+                <input type="text" class="form-control otp-input" id="otp-3" maxlength="1" autocomplete="off">
+                <input type="text" class="form-control otp-input" id="otp-4" maxlength="1" autocomplete="off">
+                <input type="text" class="form-control otp-input" id="otp-5" maxlength="1" autocomplete="off">
+                <input type="text" class="form-control otp-input" id="otp-6" maxlength="1" autocomplete="off">
+            </div>
+            <input type="hidden" id="mfaCode" name="mfaCode">
+            <div id="mfaError" class="alert alert-danger d-none"></div>
+        </form>
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <button type="button" id="resendOtpBtn" class="btn btn-sm btn-outline-secondary" disabled>Reenviar código</button>
+            <span id="otpTimer" class="text-muted"></span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" id="verifyOtpBtn" class="btn btn-primary">Verificar y Buscar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== MODAL MFA ========== -->
 <div class="modal fade" id="mfaModal" tabindex="-1" aria-labelledby="mfaModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
@@ -249,7 +302,10 @@
   </div>
 </div>
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 7f41f52886d758cb67e3a05481d113da2181f836
 <script>
 document.addEventListener("DOMContentLoaded", () => {
   // Lógica para formulario de denominaciones en venta
