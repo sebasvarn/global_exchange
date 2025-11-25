@@ -1,11 +1,15 @@
 from decimal import Decimal
+
 from .models import Tauser, Denominacion
-from transaccion.models import Transaccion
 from monedas.models import Moneda
 
-def validar_stock_tauser_para_transaccion(transaccion_id, tauser_id):
+def validar_stock_tauser_para_transaccion(tauser_id, monto, moneda_id):
     """
-    Verifica si el Tauser puede entregar el monto exacto de la transacción usando su stock de denominaciones.
+    Verifica si el Tauser puede entregar el monto exacto usando su stock de denominaciones.
+    Recibe:
+      - tauser_id: ID del Tauser
+      - monto: Decimal (monto a entregar)
+      - moneda_id: ID de la moneda a entregar
     Retorna un diccionario con:
       - 'ok': True/False
       - 'faltante': monto faltante (Decimal, si aplica)
@@ -14,25 +18,18 @@ def validar_stock_tauser_para_transaccion(transaccion_id, tauser_id):
       - 'mensaje': mensaje de resultado
     """
     try:
-        tx = Transaccion.objects.select_related("moneda").get(id=transaccion_id)
-    except Transaccion.DoesNotExist:
-        return {'ok': False, 'mensaje': 'Transacción no encontrada.'}
-    try:
         tauser = Tauser.objects.get(id=tauser_id)
     except Tauser.DoesNotExist:
         return {'ok': False, 'mensaje': 'Tauser no encontrado.'}
-
-    if tx.tipo == "venta":
-        moneda_entrega = Moneda.objects.get(codigo="PYG")
-        monto_entregar = tx.monto_pyg
-    else:  # compra
-        moneda_entrega = tx.moneda
-        monto_entregar = tx.monto_operado
+    try:
+        moneda_entrega = Moneda.objects.get(id=moneda_id)
+    except Moneda.DoesNotExist:
+        return {'ok': False, 'mensaje': 'Moneda no encontrada.'}
 
     stock_qs = tauser.stocks.filter(denominacion__moneda=moneda_entrega, quantity__gt=0).select_related('denominacion').order_by('-denominacion__value')
     stock_list = [(s.denominacion.value, s.quantity) for s in stock_qs]
 
-    monto_restante = Decimal(monto_entregar)
+    monto_restante = Decimal(monto)
     entregado = []
     for valor, cantidad in stock_list:
         valor = Decimal(valor)
@@ -45,7 +42,7 @@ def validar_stock_tauser_para_transaccion(transaccion_id, tauser_id):
         return {
             'ok': True,
             'faltante': Decimal('0'),
-            'moneda': moneda_entrega,
+            'moneda': str(moneda_entrega),
             'entregado': entregado,
             'mensaje': 'Stock suficiente: el Tauser puede entregar el monto exacto usando las denominaciones disponibles.'
         }
@@ -53,7 +50,7 @@ def validar_stock_tauser_para_transaccion(transaccion_id, tauser_id):
         return {
             'ok': False,
             'faltante': monto_restante,
-            'moneda': moneda_entrega,
+            'moneda': str(moneda_entrega),
             'entregado': entregado,
             'mensaje': f'Stock insuficiente: el Tauser no puede entregar el monto exacto con las denominaciones disponibles. Faltante: {monto_restante} {moneda_entrega.codigo}.'
         }

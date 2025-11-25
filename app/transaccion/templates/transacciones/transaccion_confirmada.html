@@ -101,8 +101,12 @@
                                 {{ cliente.nombre }} {{ cliente.apellido }}
                             </div>
                             <div class="col-md-6">
-                                <strong>Documento:</strong><br>
-                                {{ cliente.documento }}
+                                <strong>Dirección Tauser:</strong><br>
+                                {% if transaccion.tauser and transaccion.tauser.ubicacion %}
+                                    {{ transaccion.tauser.ubicacion }}
+                                {% else %}
+                                    -
+                                {% endif %}
                             </div>
                             <div class="col-md-6">
                                 <strong>Moneda:</strong><br>

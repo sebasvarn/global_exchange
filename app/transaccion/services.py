@@ -62,12 +62,11 @@ def calcular_transaccion(cliente, tipo, moneda, monto_operado, medio_pago=None, 
             payment_method_obj = medio_pago  # ya es objeto
 
         tipo_metodo = payment_method_obj.payment_type
-        # Mapear 'cuenta_bancaria' a 'transferencia' para la tabla de comisiones
-        if tipo_metodo == "cuenta_bancaria":
-            tipo_metodo = "transferencia"
+        # Mapear 'transferencia' a 'cuenta_bancaria' para la tabla de comisiones (si fuera necesario)
+        if tipo_metodo == "transferencia":
+            tipo_metodo = "cuenta_bancaria"
     else:
         # Si no hay medio_pago ni tipo_metodo_override, usar 'efectivo' como default
-        # (o podrías lanzar error si prefieres ser estricto)
         tipo_metodo = "efectivo"
 
     # 1) Segmento del cliente (fallback 'MIN')

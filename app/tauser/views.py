@@ -1,8 +1,8 @@
-
 from django.contrib import messages
 from django.shortcuts import render, get_object_or_404, redirect
 from django.utils import timezone
 from commons.enums import EstadoTransaccionEnum
+from mfa.services import generate_otp
 from monedas.models import TasaCambio
 from transaccion.models import Transaccion
 from transaccion.services import cancelar_transaccion, calcular_transaccion, confirmar_transaccion
@@ -90,6 +90,23 @@ def tramitar_transacciones(request):
     if request.method == "POST":
         accion = request.POST.get("accion", "buscar")
 
+        # --- Verificación de MFA solo para la acción de búsqueda ---
+        if accion == "buscar":
+            mfa_purpose = 'tauser_search_transaction'
+            mfa_verified_session_key = f'mfa_verified_{mfa_purpose}'
+
+            if not request.session.get(mfa_verified_session_key):
+                error = "Se requiere verificación de seguridad para realizar esta acción."
+                return render(request, "tramitar_transacciones.html", {
+                    "error": error,
+                    "codigo_verificacion": codigo_verificacion,
+                    "tausers": tausers_activos,
+                    "tauser_seleccionado": tauser_seleccionado,
+                })
+            
+            # Limpiar la marca de sesión para que no se reutilice en futuras búsquedas
+            del request.session[mfa_verified_session_key]
+
         if not codigo_verificacion:
             error = "Debe ingresar el código de verificación de la transacción."
         else:
@@ -103,10 +120,27 @@ def tramitar_transacciones(request):
                 # Validación 1: Tauser asignado
                 if not tx.tauser:
                     error = "Por favor, seleccione un Tauser válido para esta transacción antes de continuar."
-                # Validación 2: Solo bloquear si el método NO es efectivo y no está pagada ni completada
-                elif tx.medio_pago and tx.medio_pago.payment_type != 'efectivo' and tx.estado not in [EstadoTransaccionEnum.PAGADA, EstadoTransaccionEnum.COMPLETADA]:
-                    error = "Debe registrar el pago antes de continuar con la transacción (solo efectivo puede verificarse aquí)."
+                # Validación de acceso:
                 else:
+                    # Solo permitir acceso a pagadas, excepto efectivo en pendiente
+                    if tx.tipo == 'compra':
+                        es_efectivo = tx.medio_pago and tx.medio_pago.payment_type == 'efectivo'
+                    else:
+                        es_efectivo = tx.medio_cobro and getattr(tx.medio_cobro, 'payment_type', None) == 'efectivo'
+                    estado = tx.estado
+                    if es_efectivo:
+                        if estado == EstadoTransaccionEnum.PENDIENTE:
+                            pass  # permitido
+                        elif estado == EstadoTransaccionEnum.PAGADA:
+                            pass  # permitido
+                        else:
+                            error = "Solo se pueden tramitar transacciones en efectivo si están pendientes o pagadas."
+                    else:
+                        if estado == EstadoTransaccionEnum.PAGADA:
+                            pass  # permitido
+                        else:
+                            error = "Solo se pueden tramitar transacciones pagadas, excepto efectivo pendiente."
+                if not error:
                     # Buscar tasa actual según tipo de transacción
                     tasa_obj = TasaCambio.objects.filter(moneda=tx.moneda, activa=True).latest("fecha_creacion")
                     if tx.tipo == "compra":
@@ -169,7 +203,11 @@ def tramitar_transacciones(request):
                             if not tauser_id:
                                 error = "Debe seleccionar un Tauser para validar la transacción."
                             else:
-                                resultado = validar_stock_tauser_para_transaccion(tx.id, tauser_id)
+                                resultado = validar_stock_tauser_para_transaccion(
+                                    int(tauser_id),
+                                    tx.monto_operado,
+                                    tx.moneda.id
+                                )
                                 if resultado['ok']:
                                     mensaje = resultado['mensaje']
                                 else:
@@ -202,15 +240,20 @@ def tramitar_transacciones(request):
                         except Exception as e:
                             error = str(e)
 
-    # Si es venta, pasar denominaciones de la moneda
+    # Si es venta o compra en efectivo, pasar denominaciones de la moneda
     denominaciones_venta = []
-    if datos_transaccion and str(datos_transaccion.get("tipo", "")).lower() == "venta":
+    if datos_transaccion:
+        tipo = str(datos_transaccion.get("tipo", "")).lower()
         denominaciones_json_path = os.path.join(os.path.dirname(__file__), 'denominaciones.json')
         with open(denominaciones_json_path, 'r') as f:
             denominaciones_data = json.load(f)
-        moneda_codigo = datos_transaccion["moneda"].codigo if hasattr(datos_transaccion["moneda"], "codigo") else str(datos_transaccion["moneda"])
-        denominaciones_venta = [d for d in denominaciones_data if d["currency"] == moneda_codigo]
-        denominaciones_venta.sort(key=lambda x: float(x["value"]), reverse=True)
+        if tipo == "compra" and datos_transaccion.get("medio_pago") == "Efectivo":
+            denominaciones_venta = [d for d in denominaciones_data if d["currency"] == "PYG"]
+            denominaciones_venta.sort(key=lambda x: float(x["value"]), reverse=True)
+        elif tipo == "venta":
+            moneda_codigo = datos_transaccion["moneda"].codigo if hasattr(datos_transaccion["moneda"], "codigo") else str(datos_transaccion["moneda"])
+            denominaciones_venta = [d for d in denominaciones_data if d["currency"] == moneda_codigo]
+            denominaciones_venta.sort(key=lambda x: float(x["value"]), reverse=True)
 
     return render(request, "tramitar_transacciones.html", {
         "datos_transaccion": datos_transaccion,
