@@ -35,7 +35,8 @@ class TipoTransaccionEnum(models.TextChoices):
     VENTA = "venta", "Venta"
 
 class EstadoTransaccionEnum(models.TextChoices):
-    PENDIENTE = "pendiente", "Pendiente"
-    PAGADA = "pagada", "Pagada"
-    ANULADA = "anulada", "Anulada"
-    CANCELADA = "cancelada", "Cancelada"
+	PENDIENTE = "pendiente", "Pendiente"
+	PAGADA = "pagada", "Pagada"
+	ANULADA = "anulada", "Anulada"
+	CANCELADA = "cancelada", "Cancelada"
+	COMPLETADA = "completada", "Completada"

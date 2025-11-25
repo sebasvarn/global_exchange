@@ -43,6 +43,22 @@
     </div>
 
     <form method="post" id="venta-form">
+                <!-- Selección de Tauser activo y verificación -->
+                <div class="mt-3">
+                    <label for="tauser_id" class="form-label">Seleccionar Tauser Activo</label>
+                    <select name="tauser_id" id="tauser_id" class="form-select" required>
+                        <option value="">-- Seleccione un Tauser --</option>
+                        {% for tauser in tausers %}
+                            <option value="{{ tauser.id }}">{{ tauser.nombre }} - {{ tauser.ubicacion }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="d-grid gap-2 mt-2">
+                        <button type="button" id="btn-verificar-tauser" class="btn btn-outline-info">
+                            <i class="bi bi-person-badge"></i> Verificar Tauser
+                        </button>
+                    </div>
+                    <div id="mensaje-verificacion-tauser" class="mt-2"></div>
+                </div>
         {% csrf_token %}
         <input type="hidden" name="tipo" value="VENTA">
         <input type="hidden" name="metodo_cobro" id="metodo_cobro">
@@ -83,6 +99,8 @@
                                 {% for moneda in monedas %}
                                     {% if moneda.codigo != 'PYG' %}
                                         <option value="{{ moneda.id }}">{{ moneda.nombre }} ({{ moneda.codigo }})</option>
+                                    {% else %}
+                                        <option value="{{ moneda.id }}" style="display:none;" disabled hidden>{{ moneda.nombre }} ({{ moneda.codigo }})</option>
                                     {% endif %}
                                 {% endfor %}
                             </select>
@@ -226,6 +244,56 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+        let tauserValido = false;
+        const btnVerificarTauser = document.getElementById('btn-verificar-tauser');
+        btnVerificarTauser.addEventListener('click', function() {
+            const mensajeDiv = document.getElementById('mensaje-verificacion-tauser');
+            mensajeDiv.innerHTML = '';
+            // Obtener datos necesarios
+            const tauserId = document.getElementById('tauser_id').value;
+            // Usar monto_pyg del cálculo actual
+            const montoPyg = calculoActual && calculoActual.monto_pyg ? calculoActual.monto_pyg : null;
+            // Validar datos mínimos
+            if (!tauserId || !montoPyg) {
+                mensajeDiv.innerHTML = '<div class="alert alert-warning">Complete todos los campos y calcule el total antes de verificar el stock del Tauser.</div>';
+                tauserValido = false;
+                validarFormulario();
+                return;
+            }
+            // Moneda PYG (buscar id de la moneda PYG)
+            const optionPyg = Array.from(document.getElementById('moneda').options).find(opt => opt.textContent.includes('(PYG)'));
+            const monedaPygId = optionPyg ? optionPyg.value : '';
+            if (!monedaPygId) {
+                mensajeDiv.innerHTML = '<div class="alert alert-danger">No se encontró la moneda PYG en el sistema.</div>';
+                tauserValido = false;
+                validarFormulario();
+                return;
+            }
+            fetch('{% url "transacciones:validar_stock_tauser" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: `tauser_id=${tauserId}&monto=${montoPyg}&moneda_id=${monedaPygId}`
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.ok) {
+                    mensajeDiv.innerHTML = `<div class='alert alert-success'>${data.mensaje}</div>`;
+                    tauserValido = true;
+                } else {
+                    mensajeDiv.innerHTML = `<div class='alert alert-danger'>${data.mensaje}</div>`;
+                    tauserValido = false;
+                }
+                validarFormulario();
+            })
+            .catch(err => {
+                mensajeDiv.innerHTML = `<div class='alert alert-danger'>Error al verificar stock: ${err}</div>`;
+                tauserValido = false;
+                validarFormulario();
+            });
+        });
     const form = document.getElementById('venta-form');
     const clienteSelect = document.getElementById('cliente');
     const monedaSelect = document.getElementById('moneda');
@@ -391,12 +459,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Validar formulario completo
     function validarFormulario() {
-        const valido = clienteSelect.value && 
+        let valido = clienteSelect.value && 
                       monedaSelect.value && 
                       montoInput.value > 0 &&
                       metodoSeleccionado &&
-                      (metodoSeleccionado === 'efectivo' || medioCobroIdInput.value);
+                      tauserValido;
 
+        if (metodoSeleccionado === 'transferencia') {
+            valido = valido && medioCobroIdInput.value;
+        }
         btnConfirmar.disabled = !valido;
     }
 
@@ -441,7 +512,11 @@ document.addEventListener('DOMContentLoaded', function() {
             alert('Por favor seleccione un método de cobro');
             return false;
         }
-
+        if (!tauserValido) {
+            e.preventDefault();
+            alert('Debe verificar y seleccionar un Tauser válido antes de confirmar la transacción.');
+            return false;
+        }
         if (metodoSeleccionado === 'transferencia' && !medioCobroIdInput.value) {
             e.preventDefault();
             alert('Por favor seleccione una cuenta para recibir la transferencia');

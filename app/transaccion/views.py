@@ -30,6 +30,47 @@ from .services import (
     requiere_pago_tarjeta,
     verificar_pago_stripe,
 )
+from tauser.services import validar_stock_tauser_para_transaccion
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def vincular_tauser(request):
+    """
+    Recibe transaccion_id y tauser_id por POST, vincula el Tauser a la transacción (actualiza campo tauser_id).
+    """
+    transaccion_id = request.POST.get("transaccion_id")
+    tauser_id = request.POST.get("tauser_id")
+    if not transaccion_id or not tauser_id:
+        return JsonResponse({"ok": False, "mensaje": "Faltan parámetros."}, status=400)
+    try:
+        tx = Transaccion.objects.get(id=transaccion_id)
+        tx.tauser_id = tauser_id
+        tx.save(update_fields=["tauser_id"])
+        return JsonResponse({"ok": True, "mensaje": "Tauser vinculado correctamente a la transacción."})
+    except Transaccion.DoesNotExist:
+        return JsonResponse({"ok": False, "mensaje": "Transacción no encontrada."}, status=404)
+    except Exception as e:
+        return JsonResponse({"ok": False, "mensaje": f"Error al vincular Tauser: {str(e)}"}, status=500)
+
+# --- API para validar stock de tauser para una transacción ---
+from django.views.decorators.csrf import csrf_exempt
+@csrf_exempt
+@require_http_methods(["POST"])
+def validar_stock_tauser(request):
+    """
+    Recibe transaccion_id y tauser_id por POST, llama a validar_stock_tauser_para_transaccion y retorna el resultado como JSON.
+    """
+    tauser_id = request.POST.get("tauser_id")
+    monto = request.POST.get("monto")
+    moneda_id = request.POST.get("moneda_id")
+    if not tauser_id or not monto or not moneda_id:
+        return JsonResponse({"ok": False, "mensaje": "Faltan parámetros."}, status=400)
+    # Llama a la función de validación adaptada para estos parámetros
+    resultado = validar_stock_tauser_para_transaccion(tauser_id=tauser_id, monto=monto, moneda_id=moneda_id)
+    # Serializar el objeto moneda si está presente
+    if "moneda" in resultado and resultado["moneda"]:
+        resultado["moneda"] = str(resultado["moneda"])
+    return JsonResponse(resultado)
 
 logger = logging.getLogger(__name__)
 stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -157,6 +198,7 @@ def transacciones_list(request):
     estados_validos = {
         "pendiente": EstadoTransaccionEnum.PENDIENTE,
         "pagada": EstadoTransaccionEnum.PAGADA,
+        "completada": EstadoTransaccionEnum.COMPLETADA,
         "cancelada": EstadoTransaccionEnum.CANCELADA,
         "anulada": EstadoTransaccionEnum.ANULADA,
         "todas": None,
@@ -195,18 +237,22 @@ def transacciones_list(request):
     counts = {
         "pendiente": base.filter(estado=EstadoTransaccionEnum.PENDIENTE).count(),
         "pagada": base.filter(estado=EstadoTransaccionEnum.PAGADA).count(),
+        "completada": base.filter(estado=EstadoTransaccionEnum.COMPLETADA).count(),
         "cancelada": base.filter(estado=EstadoTransaccionEnum.CANCELADA).count(),
         "anulada": base.filter(estado=EstadoTransaccionEnum.ANULADA).count(),
         "todas": base.count(),
     }
 
-    clientes = Cliente.objects.filter(usuarios=request.user).order_by('nombre')
+    clientes = Cliente.objects.all()
+    from tauser.models import Tauser
+    tausers = Tauser.objects.filter(estado="activo")
     ctx = {
         "transacciones": transacciones,
         "clientes": clientes,
         "cliente_id": cliente_id,
         "estado_qs": estado_qs,
         "counts": counts,
+        "tausers": tausers,
     }
     return render(request, "transacciones/transacciones_list.html", ctx)
 
@@ -287,6 +333,11 @@ def transaccion_create(request):
             medio_pago = form.cleaned_data["medio_pago"]
 
             try:
+                tauser_id = request.POST.get("tauser_id")
+                tauser = None
+                if tauser_id:
+                    from tauser.models import Tauser
+                    tauser = Tauser.objects.filter(id=tauser_id).first()
                 calculo = calcular_transaccion(cliente, tipo, moneda_operada, monto_operado, medio_pago)
                 transaccion = crear_transaccion(
                     cliente,
@@ -297,6 +348,7 @@ def transaccion_create(request):
                     calculo["comision"],
                     calculo["monto_pyg"],
                     medio_pago,
+                    tauser
                 )
                 messages.success(request, 
                     f"Transacción {transaccion.id} creada correctamente. "
@@ -374,6 +426,11 @@ def compra_moneda(request):
                 return redirect("transacciones:compra_moneda")
 
             # Calcular y crear transacción
+            tauser_id = request.POST.get("tauser_id")
+            tauser = None
+            if tauser_id:
+                from tauser.models import Tauser
+                tauser = Tauser.objects.filter(id=tauser_id).first()
             calculo = calcular_transaccion(
                 cliente, 
                 TipoTransaccionEnum.COMPRA, 
@@ -382,7 +439,6 @@ def compra_moneda(request):
                 medio_pago_obj,
                 tipo_metodo_override
             )
-            
             transaccion = crear_transaccion(
                 cliente,
                 TipoTransaccionEnum.COMPRA,
@@ -392,6 +448,7 @@ def compra_moneda(request):
                 calculo["comision"],
                 calculo["monto_pyg"],
                 medio_pago_obj,
+                tauser
             )
 
             # Preparar datos para el modal
@@ -402,7 +459,6 @@ def compra_moneda(request):
                 'cliente': cliente,
                 'moneda': moneda,
             }
-            
             # Renderizar template con modal de confirmación
             return render(request, "transacciones/transaccion_confirmada.html", context)
 
@@ -418,10 +474,12 @@ def compra_moneda(request):
     # Solo mostrar clientes asociados al usuario operador
     clientes = Cliente.objects.filter(usuarios=request.user).order_by("nombre")
     monedas = Moneda.objects.filter(activa=True).order_by("nombre")
-    
+    from tauser.models import Tauser
+    tausers = Tauser.objects.filter(estado="activo")
     context = {
         "clientes": clientes,
         "monedas": monedas,
+        "tausers": tausers,
     }
     return render(request, "transacciones/compra_moneda.html", context)
 
@@ -486,6 +544,11 @@ def venta_moneda(request):
                 return redirect("transacciones:venta_moneda")
             
             # Calcular y crear transacción
+            tauser_id = request.POST.get("tauser_id")
+            tauser = None
+            if tauser_id:
+                from tauser.models import Tauser
+                tauser = Tauser.objects.filter(id=tauser_id).first()
             calculo = calcular_transaccion(
                 cliente, 
                 TipoTransaccionEnum.VENTA, 
@@ -494,7 +557,6 @@ def venta_moneda(request):
                 medio_pago=None,  # Para VENTA no hay medio_pago (el cliente cobra)
                 tipo_metodo_override=tipo_metodo_override
             )
-            
             transaccion = crear_transaccion(
                 cliente,
                 TipoTransaccionEnum.VENTA,
@@ -504,12 +566,9 @@ def venta_moneda(request):
                 calculo["comision"],
                 calculo["monto_pyg"],
                 None,  # medio_pago=None para VENTA
+                tauser,
+                medio_cobro_obj
             )
-            
-            # Guardar el medio de cobro (siempre es MedioAcreditacion)
-            if medio_cobro_obj:
-                transaccion.medio_cobro = medio_cobro_obj
-                transaccion.save(update_fields=['medio_cobro'])
 
             # Preparar datos para el modal
             context = {
@@ -520,7 +579,6 @@ def venta_moneda(request):
                 'moneda': moneda,
                 'tipo': 'VENTA',
             }
-            
             # Renderizar template con modal de confirmación
             return render(request, "transacciones/transaccion_confirmada.html", context)
 
@@ -536,10 +594,12 @@ def venta_moneda(request):
     # Solo mostrar clientes asociados al usuario operador
     clientes = Cliente.objects.filter(usuarios=request.user).order_by("nombre")
     monedas = Moneda.objects.filter(activa=True).order_by("nombre")
-    
+    from tauser.models import Tauser
+    tausers = Tauser.objects.filter(estado="activo")
     context = {
         "clientes": clientes,
         "monedas": monedas,
+        "tausers": tausers,
     }
     return render(request, "transacciones/venta_moneda.html", context)
 
@@ -594,8 +654,8 @@ def calcular_api(request):
                     "tasa_aplicada": str(calculo["tasa_aplicada"]),
                     "comision": str(calculo["comision"]),
                     "monto_pyg": str(calculo["monto_pyg"]),
-                    "porcentaje_metodo_pago": str(calculo.get("porcentaje_metodo_pago", "0")),
-                    "comision_metodo_pago": str(calculo.get("comision_metodo_pago", "0")),
+                    "comision_metodo_pago": str(calculo.get("comision_metodo_pago", 0)),
+                    "porcentaje_metodo_pago": str(calculo.get("porcentaje_metodo_pago", 0)),
                 }
             )
         except Exception as e:
@@ -617,6 +677,9 @@ def iniciar_pago_tarjeta(request, pk):
         return redirect("transacciones:transacciones_list")
 
     try:
+        # Guardar el user_id autenticado en la sesión antes de redirigir a Stripe
+        if request.user.is_authenticated:
+            request.session['stripe_user_id'] = request.user.pk
         url = crear_checkout_para_transaccion(tx)
         return HttpResponseRedirect(url)
     except Exception as e:
@@ -626,9 +689,24 @@ def iniciar_pago_tarjeta(request, pk):
 
 
 def pago_success(request):
+
+    from django.contrib.auth import get_user_model, login
     session_id = request.GET.get("session_id")
     tx_id = request.GET.get("tx_id")
     info = None
+
+    # Si el usuario no está autenticado pero hay un stripe_user_id en sesión, re-autenticar
+    if not request.user.is_authenticated:
+        user_id = request.session.get('stripe_user_id')
+        if user_id:
+            User = get_user_model()
+            try:
+                user = User.objects.get(pk=user_id)
+                login(request, user)
+            except User.DoesNotExist:
+                pass
+        # Limpiar el stripe_user_id de la sesión para evitar reusos
+        request.session.pop('stripe_user_id', None)
 
     if session_id:
         try:
@@ -677,6 +755,11 @@ def pago_success(request):
         except Exception as e:
             logger.exception(f"[SUCCESS] Error en plan B para tx #{tx_id}: {e}")
 
+        # Redirigir a historial de transacciones después de pago exitoso
+        messages.success(request, "¡Pago recibido! La transacción fue procesada correctamente.")
+        return redirect("transacciones:transacciones_list")
+
+    # Si no es pago exitoso, mostrar la página de éxito (fallback)
     return render(request, "pagos/success.html", {
         "tx_id": tx_id,
         "session_id": session_id,

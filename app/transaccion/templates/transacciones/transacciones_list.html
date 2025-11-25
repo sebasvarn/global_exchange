@@ -59,11 +59,20 @@
     </a>
   </li>
 
+
   <li class="nav-item me-2 mb-2">
     <a class="nav-link {% if estado_qs == 'pendiente' %}active{% endif %}"
        href="?estado=pendiente{% if cliente_id %}&cliente={{ cliente_id }}{% endif %}{% if request.GET.order %}&order={{ request.GET.order }}{% endif %}{% if request.GET.dir %}&dir={{ request.GET.dir }}{% endif %}">
       Pendientes
       <span class="badge bg-warning text-dark ms-2">{{ counts.pendiente|default_if_none:0 }}</span>
+    </a>
+  </li>
+
+  <li class="nav-item me-2 mb-2">
+    <a class="nav-link {% if estado_qs == 'completada' %}active{% endif %}"
+       href="?estado=completada{% if cliente_id %}&cliente={{ cliente_id }}{% endif %}{% if request.GET.order %}&order={{ request.GET.order }}{% endif %}{% if request.GET.dir %}&dir={{ request.GET.dir }}{% endif %}">
+      Completadas
+      <span class="badge bg-primary ms-2">{{ counts.completada|default_if_none:0 }}</span>
     </a>
   </li>
 
@@ -122,7 +131,9 @@
                         {% endif %}
                       </a>
                     </th>
-                    <th class="text-center">Acciones</th>
+                    {% if estado_qs != 'completada' %}
+                      <th class="text-center">Acciones</th>
+                    {% endif %}
                   </tr>
                 </thead>
                 <tbody>
@@ -217,6 +228,8 @@
                           <span class="badge bg-warning text-dark">Pendiente</span>
                         {% elif estado == 'pagada' %}
                           <span class="badge bg-success">Pagada</span>
+                        {% elif estado == 'completada' %}
+                          <span class="badge bg-primary">Completada</span>
                         {% elif estado == 'cancelada' %}
                           <span class="badge bg-secondary">Cancelada</span>
                         {% elif estado == 'anulada' %}
@@ -229,10 +242,11 @@
                         {% endif %}
                       </td>
                       <td>{{ t.fecha|date:"d/m/Y H:i" }}</td>
+                    {% if estado_qs != 'completada' %}
                       <td class="text-center">
                         <div class="btn-group" role="group">
-                          {% if estado == 'pendiente' %}
-                            {% if t.tipo == 'compra' %}
+                          {% if estado == 'pendiente' or estado == 'pagada' %}
+                            {% if estado == 'pendiente' and t.tipo == 'compra' %}
                               {% if t.medio_pago.payment_type == 'tarjeta' %}
                                 {% if request.user|has_permission:'transacciones.confirmar' %}
                                   <a href="{% url 'transacciones:iniciar_pago_tarjeta' t.id %}"
@@ -243,21 +257,17 @@
                                 {% endif %}
                               {% endif %}
                             {% endif %}
-                            
-                            {# Botón de cancelar (para todas las transacciones pendientes) #}
-                            {% if request.user|has_permission:'transacciones.cancelar' %}
+                            {# Botón de cancelar (solo para pendientes) #}
+                            {% if estado == 'pendiente' and request.user|has_permission:'transacciones.cancelar' %}
                               <a href="{% url 'transacciones:cancelar' t.id %}"
                                  class="btn btn-sm btn-outline-danger" data-bs-toggle="tooltip" title="Cancelar transacción">
                                 <i class="bi bi-x-circle"></i>
                               </a>
                             {% endif %}
-                          {% elif estado == 'pagada' %}
-                            <span class="badge bg-success">
-                              <i class="bi bi-check-circle-fill"></i> Completada
-                            </span>
                           {% endif %}
                         </div>
                       </td>
+                    {% endif %}
                     </tr>
                     {% endwith %}
                   {% endfor %}
@@ -267,7 +277,13 @@
           {% else %}
             <div class="alert alert-info">
               <i class="bi bi-info-circle me-2"></i>
-              No hay transacciones {% if estado_qs and estado_qs != 'todas' %}en estado <strong>{{ estado_qs }}</strong>{% else %}registradas{% endif %}{% if cliente_id %} para el cliente seleccionado{% endif %}.
+              {% if estado_qs == 'completada' %}
+                No hay transacciones en estado <strong>completada</strong>.
+              {% elif estado_qs and estado_qs != 'todas' %}
+                No hay transacciones en estado <strong>{{ estado_qs }}</strong>{% if cliente_id %} para el cliente seleccionado{% endif %}.
+              {% else %}
+                No hay transacciones registradas{% if cliente_id %} para el cliente seleccionado{% endif %}.
+              {% endif %}
             </div>
           {% endif %}
 
@@ -276,15 +292,16 @@
 
     </div>
   </div>
-</div>
-{% endblock %}
+    </div>
+  </div>
 
-{% block extra_js %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  // tooltips
-  const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-  tooltipTriggerList.map(el => new bootstrap.Tooltip(el));
-});
-</script>
+
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // tooltips
+      const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+      tooltipTriggerList.map(el => new bootstrap.Tooltip(el));
+    });
+  </script>
 {% endblock %}
