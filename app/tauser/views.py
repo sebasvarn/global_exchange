@@ -224,7 +224,41 @@ def tramitar_transacciones(request):
                     elif accion == "concluir_venta":
                         # Procesar denominaciones y concluir la venta
                         try:
-                            # Aquí podrías guardar las denominaciones si lo deseas
+                            # 1. Parsear denominaciones del POST
+                            denominaciones = {}
+                            for key, value in request.POST.items():
+                                if key.startswith("den_"):
+                                    try:
+                                        cantidad = int(value)
+                                    except (ValueError, TypeError):
+                                        cantidad = 0
+                                    if cantidad > 0:
+                                        # key format: den_{type}_{value}
+                                        _, tipo, valor_str = key.split("_", 2)
+                                        valor = float(valor_str.replace("_", ".")) if "_" in valor_str else float(valor_str)
+                                        denominaciones[(tipo, valor)] = cantidad
+
+                            # 2. Actualizar stock del tauser
+                            tauser = tx.tauser
+                            if not tauser:
+                                raise Exception("No hay TAUser asignado a la transacción.")
+                            from .models import Denominacion, TauserStock
+                            from monedas.models import Moneda
+                            moneda = tx.moneda if tx.tipo == "venta" else Moneda.objects.get(codigo="PYG")
+                            for (tipo, valor), cantidad in denominaciones.items():
+                                denom_obj, _ = Denominacion.objects.get_or_create(
+                                    moneda=moneda,
+                                    value=valor,
+                                    type=tipo
+                                )
+                                stock_obj, _ = TauserStock.objects.get_or_create(
+                                    tauser=tauser,
+                                    denominacion=denom_obj
+                                )
+                                stock_obj.quantity = stock_obj.quantity + cantidad
+                                stock_obj.save()
+
+                            # 3. Completar la transacción
                             tx.estado = EstadoTransaccionEnum.COMPLETADA
                             tx.save()
                             from django.http import JsonResponse

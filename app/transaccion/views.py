@@ -333,6 +333,11 @@ def transaccion_create(request):
             medio_pago = form.cleaned_data["medio_pago"]
 
             try:
+                tauser_id = request.POST.get("tauser_id")
+                tauser = None
+                if tauser_id:
+                    from tauser.models import Tauser
+                    tauser = Tauser.objects.filter(id=tauser_id).first()
                 calculo = calcular_transaccion(cliente, tipo, moneda_operada, monto_operado, medio_pago)
                 transaccion = crear_transaccion(
                     cliente,
@@ -343,6 +348,7 @@ def transaccion_create(request):
                     calculo["comision"],
                     calculo["monto_pyg"],
                     medio_pago,
+                    tauser
                 )
                 messages.success(request, 
                     f"Transacción {transaccion.id} creada correctamente. "
@@ -420,6 +426,11 @@ def compra_moneda(request):
                 return redirect("transacciones:compra_moneda")
 
             # Calcular y crear transacción
+            tauser_id = request.POST.get("tauser_id")
+            tauser = None
+            if tauser_id:
+                from tauser.models import Tauser
+                tauser = Tauser.objects.filter(id=tauser_id).first()
             calculo = calcular_transaccion(
                 cliente, 
                 TipoTransaccionEnum.COMPRA, 
@@ -428,7 +439,6 @@ def compra_moneda(request):
                 medio_pago_obj,
                 tipo_metodo_override
             )
-
             transaccion = crear_transaccion(
                 cliente,
                 TipoTransaccionEnum.COMPRA,
@@ -438,16 +448,8 @@ def compra_moneda(request):
                 calculo["comision"],
                 calculo["monto_pyg"],
                 medio_pago_obj,
+                tauser
             )
-
-            # Vincular Tauser si viene en el formulario
-            tauser_id = request.POST.get("tauser_id")
-            if tauser_id:
-                from tauser.models import Tauser
-                tauser = Tauser.objects.filter(id=tauser_id).first()
-                if tauser:
-                    transaccion.tauser = tauser
-                    transaccion.save(update_fields=["tauser"])
 
             # Preparar datos para el modal
             context = {
@@ -542,6 +544,11 @@ def venta_moneda(request):
                 return redirect("transacciones:venta_moneda")
             
             # Calcular y crear transacción
+            tauser_id = request.POST.get("tauser_id")
+            tauser = None
+            if tauser_id:
+                from tauser.models import Tauser
+                tauser = Tauser.objects.filter(id=tauser_id).first()
             calculo = calcular_transaccion(
                 cliente, 
                 TipoTransaccionEnum.VENTA, 
@@ -550,7 +557,6 @@ def venta_moneda(request):
                 medio_pago=None,  # Para VENTA no hay medio_pago (el cliente cobra)
                 tipo_metodo_override=tipo_metodo_override
             )
-
             transaccion = crear_transaccion(
                 cliente,
                 TipoTransaccionEnum.VENTA,
@@ -560,21 +566,9 @@ def venta_moneda(request):
                 calculo["comision"],
                 calculo["monto_pyg"],
                 None,  # medio_pago=None para VENTA
+                tauser,
+                medio_cobro_obj
             )
-
-            # Vincular Tauser si viene en el formulario
-            tauser_id = request.POST.get("tauser_id")
-            if tauser_id:
-                from tauser.models import Tauser
-                tauser = Tauser.objects.filter(id=tauser_id).first()
-                if tauser:
-                    transaccion.tauser = tauser
-                    transaccion.save(update_fields=["tauser"])
-
-            # Guardar el medio de cobro (siempre es MedioAcreditacion)
-            if medio_cobro_obj:
-                transaccion.medio_cobro = medio_cobro_obj
-                transaccion.save(update_fields=['medio_cobro'])
 
             # Preparar datos para el modal
             context = {

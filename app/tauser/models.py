@@ -57,3 +57,20 @@ class Tauser(models.Model):
 
 	def __str__(self):
 		return self.nombre
+
+
+# Modelo para reservar denominaciones por transacción
+class ReservaDenominacionTauser(models.Model):
+	tauser = models.ForeignKey('Tauser', on_delete=models.CASCADE, related_name='reservas_denominaciones')
+	transaccion = models.ForeignKey('transaccion.Transaccion', on_delete=models.CASCADE, related_name='reservas_denominaciones')
+	denominacion = models.ForeignKey('Denominacion', on_delete=models.CASCADE, related_name='reservas')
+	cantidad = models.IntegerField('Cantidad reservada')
+	fecha_reserva = models.DateTimeField(auto_now_add=True)
+
+	class Meta:
+		unique_together = ('tauser', 'transaccion', 'denominacion')
+		verbose_name = 'Reserva de Denominación de TAUser'
+		verbose_name_plural = 'Reservas de Denominaciones de TAUser'
+
+	def __str__(self):
+		return f"Reserva {self.cantidad} x {self.denominacion} para tx {self.transaccion_id} en {self.tauser}"
