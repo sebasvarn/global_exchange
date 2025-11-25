@@ -207,9 +207,10 @@ def transacciones_list(request):
     if estado_qs not in estados_validos:
         estado_qs = "pendiente"
 
+    # Filtrar por clientes del usuario operador logueado
     transacciones = (
         Transaccion.objects
-        .all()
+        .filter(cliente__usuarios=request.user)
         .select_related("cliente", "moneda", "medio_pago", "medio_cobro")
     )
 
@@ -228,8 +229,8 @@ def transacciones_list(request):
     else:
         transacciones = transacciones.order_by("-fecha")
 
-    # ---- Contadores por estado (respetando cliente si está filtrado) ----
-    base = Transaccion.objects.all()
+    # ---- Contadores por estado (respetando cliente si está filtrado y usuario) ----
+    base = Transaccion.objects.filter(cliente__usuarios=request.user)
     if cliente_id:
         base = base.filter(cliente_id=cliente_id)
 
