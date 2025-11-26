@@ -261,8 +261,11 @@ def tramitar_transacciones(request):
                             # 3. Calcular y guardar la ganancia antes de completar
                             if tx.monto_operado is not None and tx.comision is not None:
                                 tx.ganancia = tx.monto_operado * tx.comision
+                                tx.save(update_fields=['ganancia'])
 
-                            # 4. Completar la transacción
+                            confirmar_transaccion(tx)
+                            
+                            # 5. Completar la transacción
                             tx.estado = EstadoTransaccionEnum.COMPLETADA
                             tx.save()
                             from django.http import JsonResponse

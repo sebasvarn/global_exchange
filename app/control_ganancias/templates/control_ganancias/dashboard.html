@@ -187,8 +187,8 @@
                                 <td>{{ t.moneda.codigo }}</td>
                                 <td>{{ t.monto_operado|floatformat:2 }}</td>
                                 <td>{{ t.comision|floatformat:2 }}</td>
-                                <td>{% if t.medio_pago %}{{ t.medio_pago.get_payment_type_display|default:t.medio_pago }}{% else %}—{% endif %}</td>
-                                <td>{{ t.medio_cobro|default:'—' }}</td>
+                                <td>{% if t.medio_pago %}{{ t.medio_pago.get_payment_type_display|default:t.medio_pago }}{% else %}efectivo{% endif %}</td>
+                                <td>{{ t.medio_cobro|default:'efectivo' }}</td>
                                 <td>{{ t.ganancia|floatformat:2 }}</td>
                             </tr>
                             {% empty %}

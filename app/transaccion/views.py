@@ -32,7 +32,6 @@ from .services import (
 )
 from tauser.services import validar_stock_tauser_para_transaccion
 
-# Endpoint super simple para marcar como pagada (usado por el botón SIPAP)
 @require_POST
 def marcar_pagada_simple(request, pk):
     # MFA Check
@@ -68,7 +67,12 @@ def vincular_tauser(request):
     if not transaccion_id or not tauser_id:
         return JsonResponse({"ok": False, "mensaje": "Faltan parámetros."}, status=400)
     try:
-        tx = Transaccion.objects.get(id=transaccion_id)
+        # Filtrar por clientes del usuario autenticado
+        if request.user.is_authenticated:
+            tx = Transaccion.objects.filter(cliente__usuarios=request.user).get(id=transaccion_id)
+        else:
+            tx = Transaccion.objects.get(id=transaccion_id)
+        
         tx.tauser_id = tauser_id
         tx.save(update_fields=["tauser_id"])
         return JsonResponse({"ok": True, "mensaje": "Tauser vinculado correctamente a la transacción."})
@@ -109,6 +113,16 @@ def medios_pago_por_cliente(request):
     cliente_id = request.GET.get("cliente_id")
     if not cliente_id:
         return JsonResponse({"error": "Falta cliente_id"}, status=400)
+    
+    # Validar que el cliente pertenezca al usuario autenticado
+    if request.user.is_authenticated:
+        try:
+            cliente = Cliente.objects.filter(usuarios=request.user).get(pk=cliente_id)
+        except Cliente.DoesNotExist:
+            return JsonResponse({"error": "Cliente no encontrado o no autorizado"}, status=404)
+    else:
+        return JsonResponse({"error": "Usuario no autenticado"}, status=401)
+    
     medios = PaymentMethod.objects.filter(cliente_id=cliente_id)
     medios_list = [
         {
@@ -132,6 +146,15 @@ def medios_acreditacion_por_cliente(request):
     cliente_id = request.GET.get("cliente_id")
     if not cliente_id:
         return JsonResponse({"error": "Falta cliente_id"}, status=400)
+    
+    # Validar que el cliente pertenezca al usuario autenticado
+    if request.user.is_authenticated:
+        try:
+            cliente = Cliente.objects.filter(usuarios=request.user).get(pk=cliente_id)
+        except Cliente.DoesNotExist:
+            return JsonResponse({"error": "Cliente no encontrado o no autorizado"}, status=404)
+    else:
+        return JsonResponse({"error": "Usuario no autenticado"}, status=401)
     
     medios = MedioAcreditacion.objects.filter(cliente_id=cliente_id)
     medios_list = [
@@ -272,7 +295,12 @@ def transacciones_list(request):
         "todas": base.count(),
     }
 
-    clientes = Cliente.objects.all()
+    # Solo mostrar clientes asociados al usuario autenticado
+    if request.user.is_authenticated:
+        clientes = Cliente.objects.filter(usuarios=request.user).order_by("nombre")
+    else:
+        clientes = Cliente.objects.none()
+    
     from tauser.models import Tauser
     tausers = Tauser.objects.filter(estado="activo")
     ctx = {
@@ -293,7 +321,14 @@ def confirmar_view(request, pk):
     - Si tiene medio_pago guardado (transferencia/billetera) → procesa por SIPAP
     - Si es efectivo → confirmación manual
     """
-    transaccion = get_object_or_404(Transaccion, pk=pk)
+    # Filtrar por clientes del usuario autenticado
+    if request.user.is_authenticated:
+        transaccion = get_object_or_404(
+            Transaccion.objects.filter(cliente__usuarios=request.user), 
+            pk=pk
+        )
+    else:
+        transaccion = get_object_or_404(Transaccion, pk=pk)
     
     try:
         # Si NO tiene medio_pago, asumimos que es tarjeta (Stripe)
@@ -342,7 +377,15 @@ def confirmar_view(request, pk):
 
 
 def cancelar_view(request, pk):
-    transaccion = get_object_or_404(Transaccion, pk=pk)
+    # Filtrar por clientes del usuario autenticado
+    if request.user.is_authenticated:
+        transaccion = get_object_or_404(
+            Transaccion.objects.filter(cliente__usuarios=request.user), 
+            pk=pk
+        )
+    else:
+        transaccion = get_object_or_404(Transaccion, pk=pk)
+    
     try:
         cancelar_transaccion(transaccion)
         messages.success(request, f"Transacción {transaccion.id} cancelada.")
@@ -910,4 +953,56 @@ def stripe_webhook(request):
 
     return HttpResponse(status=200)
 
+
+@require_GET
+def mostrar_comprobante_sipap(request, pk):
+    """
+    Vista para mostrar el modal de comprobante SIPAP desde el historial de transacciones.
+    Permite al usuario revisar los datos y proceder con el pago.
+    Solo funciona para COMPRAS con métodos SIPAP (transferencia/billetera).
+    
+    Para VENTAS, el pago se procesa automáticamente al confirmar en el terminal Tauser.
+    """
+    # Filtrar por clientes del usuario autenticado
+    if request.user.is_authenticated:
+        transaccion = get_object_or_404(
+            Transaccion.objects.filter(cliente__usuarios=request.user), 
+            pk=pk
+        )
+    else:
+        transaccion = get_object_or_404(Transaccion, pk=pk)
+    
+    # Verificar que la transacción esté pendiente
+    if transaccion.estado != EstadoTransaccionEnum.PENDIENTE:
+        messages.warning(request, "Esta transacción ya no está en estado pendiente.")
+        return redirect('transacciones:transacciones_list')
+    
+    # Solo permitir para COMPRAS
+    if transaccion.tipo != TipoTransaccionEnum.COMPRA:
+        messages.warning(request, "Esta vista solo está disponible para transacciones de compra.")
+        return redirect('transacciones:transacciones_list')
+    
+    # Verificar que sea un pago SIPAP (transferencia o billetera)
+    metodo_pago = None
+    if transaccion.medio_pago:
+        if transaccion.medio_pago.payment_type in ['cuenta_bancaria', 'billetera']:
+            metodo_pago = 'transferencia' if transaccion.medio_pago.payment_type == 'cuenta_bancaria' else 'billetera'
+    
+    if not metodo_pago:
+        messages.warning(request, "Esta transacción no utiliza un método de pago SIPAP.")
+        return redirect('transacciones:transacciones_list')
+    
+    # Preparar contexto para el template
+    context = {
+        'transaccion': transaccion,
+        'metodo_pago': metodo_pago,
+        'cliente': transaccion.cliente,
+        'moneda': transaccion.moneda,
+        'tipo': 'COMPRA',
+        'mostrar_solo_sipap': True,  # Flag para indicar que solo mostramos el modal SIPAP
+    }
+    
+    return render(request, "transacciones/transaccion_confirmada.html", context)
+
+    
     
