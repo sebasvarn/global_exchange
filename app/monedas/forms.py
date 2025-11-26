@@ -36,8 +36,11 @@ class PrecioBaseComisionForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Solo monedas activas, no base y que no tengan ya un precio base/comisión asignado
-        usadas = PrecioBaseComision.objects.values_list('moneda_id', flat=True)
+        # Solo monedas activas, no base y que no tengan ya un precio base/comisión asignado, excepto la actual en edición
+        usadas = list(PrecioBaseComision.objects.values_list('moneda_id', flat=True))
+        moneda_actual_id = self.instance.moneda_id if self.instance and self.instance.pk else None
+        if moneda_actual_id in usadas:
+            usadas.remove(moneda_actual_id)
         self.fields['moneda'].queryset = Moneda.objects.filter(activa=True, es_base=False).exclude(id__in=usadas)
 
 

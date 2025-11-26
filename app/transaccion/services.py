@@ -434,17 +434,17 @@ def procesar_pago_via_sipap(transaccion: Transaccion):
             'numero_comprobante': comprobante,
         }
     
-    # Calcular monto total (monto_pyg + comisión)
-    monto_total = transaccion.monto_pyg + transaccion.comision
-    
+    # Usar solo monto_pyg para SIPAP
+    monto_total = transaccion.monto_pyg
+
     logger.info(
         f"Procesando {'pago' if transaccion.tipo == TipoTransaccionEnum.COMPRA else 'cobro'} via SIPAP | "
         f"Transacción: {transaccion.uuid} | Método: {metodo_sipap} | Monto: {monto_total} PYG"
     )
-    
+
     # Procesar pago a través del orquestador
     orchestrator = PaymentOrchestrator()
-    
+
     try:
         resultado = orchestrator.procesar_pago(
             transaccion=transaccion,
@@ -536,7 +536,7 @@ def confirmar_transaccion(transaccion: Transaccion):
     # Confirmación manual o después de SIPAP exitoso
     with dj_tx.atomic():
         transaccion.estado = EstadoTransaccionEnum.PAGADA
-        transaccion.save(update_fields=["estado"])
+        transaccion.save()  # Ejecuta lógica de ganancia
 
         # Mapear a DEBITO/CREDITO en PYG según tipo de operación
         mov_tipo = (
@@ -596,9 +596,8 @@ def crear_checkout_para_transaccion(tx: Transaccion) -> str:
     if not requiere_pago_tarjeta(tx):
         raise ValueError("Esta transacción no requiere pago por tarjeta.")
 
-    # Política de cobro: monto en PYG + comisión (ajustá si no querés cobrar comisión en Stripe)
-    monto_pyg_total = (tx.monto_pyg or 0) + (tx.comision or 0)
-    monto = Decimal(monto_pyg_total)
+    # Cobrar solo monto_pyg (sin comisión) en Stripe
+    monto = Decimal(tx.monto_pyg or 0)
     if monto <= 0:
         raise ValueError("El monto a cobrar debe ser mayor a 0.")
 
