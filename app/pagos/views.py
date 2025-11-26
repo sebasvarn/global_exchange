@@ -52,13 +52,16 @@ def webhook_pago(request):
                 pago.fecha_procesamiento = timezone.now()
             
             pago.save()
-            
             logger.info(f"Pago {id_pago} actualizado a estado: {nuevo_estado}")
             
-            # Aquí puedes agregar lógica adicional:
-            # - Actualizar estado de transacción
-            # - Enviar notificación al cliente
-            # - Etc.
+            # Actualizar estado de la transacción relacionada si el pago fue exitoso
+            if nuevo_estado == 'exito' and pago.transaccion:
+                from commons.enums import EstadoTransaccionEnum
+                transaccion = pago.transaccion
+                if transaccion.estado != EstadoTransaccionEnum.PAGADA:
+                    transaccion.estado = EstadoTransaccionEnum.PAGADA
+                    transaccion.save()
+                    logger.info(f"Transacción {transaccion.id} marcada como PAGADA y ganancia recalculada.")
         
         return JsonResponse({
             'success': True,
