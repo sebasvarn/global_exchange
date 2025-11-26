@@ -15,6 +15,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions","django.contrib.messages","django.contrib.staticfiles",
     "widget_tweaks",
     "usuarios","clientes","commons","payments","monedas","medios_acreditacion", "transaccion",
+    "control_ganancias",
     # MFA app
     "mfa",
     "tauser",  # Added tauser app

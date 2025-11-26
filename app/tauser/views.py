@@ -89,7 +89,7 @@ def tramitar_transacciones(request):
 
     if request.method == "POST":
         accion = request.POST.get("accion", "buscar")
-
+    
         # --- Verificación de MFA solo para la acción de búsqueda ---
         if accion == "buscar":
             mfa_purpose = 'tauser_search_transaction'
@@ -117,29 +117,33 @@ def tramitar_transacciones(request):
                 error = f"No se encontró ninguna transacción con el código '{codigo_verificacion}'."
 
             if tx:
-                # Validación 1: Tauser asignado
-                if not tx.tauser:
-                    error = "Por favor, seleccione un Tauser válido para esta transacción antes de continuar."
-                # Validación de acceso:
+                # Si es venta y pendiente, permitir siempre
+                if tx.tipo == 'venta' and tx.estado == EstadoTransaccionEnum.PENDIENTE:
+                    pass  # permitido
                 else:
-                    # Solo permitir acceso a pagadas, excepto efectivo en pendiente
-                    if tx.tipo == 'compra':
-                        es_efectivo = tx.medio_pago and tx.medio_pago.payment_type == 'efectivo'
+                    # Validación 1: Tauser asignado
+                    if not tx.tauser:
+                        error = "Por favor, seleccione un Tauser válido para esta transacción antes de continuar."
+                    # Validación de acceso:
                     else:
-                        es_efectivo = tx.medio_cobro and getattr(tx.medio_cobro, 'payment_type', None) == 'efectivo'
-                    estado = tx.estado
-                    if es_efectivo:
-                        if estado == EstadoTransaccionEnum.PENDIENTE:
-                            pass  # permitido
-                        elif estado == EstadoTransaccionEnum.PAGADA:
-                            pass  # permitido
+                        # Solo permitir acceso a pagadas, excepto efectivo en pendiente
+                        if tx.tipo == 'compra':
+                            es_efectivo = tx.medio_pago and tx.medio_pago.payment_type == 'efectivo'
                         else:
-                            error = "Solo se pueden tramitar transacciones en efectivo si están pendientes o pagadas."
-                    else:
-                        if estado == EstadoTransaccionEnum.PAGADA:
-                            pass  # permitido
+                            es_efectivo = tx.medio_cobro and getattr(tx.medio_cobro, 'payment_type', None) == 'efectivo'
+                        estado = tx.estado
+                        if es_efectivo:
+                            if estado == EstadoTransaccionEnum.PENDIENTE:
+                                pass  # permitido
+                            elif estado == EstadoTransaccionEnum.PAGADA:
+                                pass  # permitido
+                            else:
+                                error = "Solo se pueden tramitar transacciones en efectivo si están pendientes o pagadas."
                         else:
-                            error = "Solo se pueden tramitar transacciones pagadas, excepto efectivo pendiente."
+                            if estado == EstadoTransaccionEnum.PAGADA:
+                                pass  # permitido
+                            else:
+                                error = "Solo se pueden tramitar transacciones pagadas, excepto efectivo pendiente."
                 if not error:
                     # Buscar tasa actual según tipo de transacción
                     tasa_obj = TasaCambio.objects.filter(moneda=tx.moneda, activa=True).latest("fecha_creacion")
@@ -258,7 +262,11 @@ def tramitar_transacciones(request):
                                 stock_obj.quantity = stock_obj.quantity + cantidad
                                 stock_obj.save()
 
-                            # 3. Completar la transacción
+                            # 3. Calcular y guardar la ganancia antes de completar
+                            if tx.monto_operado is not None and tx.comision is not None:
+                                tx.ganancia = tx.monto_operado * tx.comision
+
+                            # 4. Completar la transacción
                             tx.estado = EstadoTransaccionEnum.COMPLETADA
                             tx.save()
                             from django.http import JsonResponse

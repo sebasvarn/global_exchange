@@ -1,0 +1,358 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+<div class="container mt-4">
+    <div class="container py-4" style="max-width: 1100px;">
+        <div class="mb-2">
+            <div class="d-flex align-items-center justify-content-center gap-3" style="padding-top: 0.5rem;">
+                <i class="bi bi-bar-chart-fill" style="font-size:2.5rem;color:#2176c1;"></i>
+                <h2 class="fw-bold mb-0" style="color:#2176c1; letter-spacing: 0.5px;">Tablero de Control de Ganancias</h2>
+            </div>
+        </div>
+        <form method="get" class="row g-2 align-items-center justify-content-center mb-4" style="gap: 1.5rem 2rem;">
+            <div class="col-auto d-flex flex-column align-items-center">
+                <label for="start_date" class="form-label mb-1">Desde</label>
+                <input type="date" id="start_date" name="start_date" class="form-control border-primary text-center" value="{{ start_date }}" style="min-width: 160px; border-width:2px;">
+            </div>
+            <div class="col-auto d-flex flex-column align-items-center">
+                <label for="end_date" class="form-label mb-1">Hasta</label>
+                <input type="date" id="end_date" name="end_date" class="form-control border-primary text-center" value="{{ end_date }}" style="min-width: 160px; border-width:2px;">
+            </div>
+            <div class="col-auto d-flex align-items-end">
+                <button type="submit" class="btn px-4" style="height: 40px; background:#2176c1; color:white; border:none;">Filtrar</button>
+            </div>
+        </form>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-4 col-12">
+                <div class="card border-0 shadow-sm text-center" style="background:#e7f0fb;border-radius:1rem;">
+                    <div class="card-body py-4">
+                        <div class="fs-6 fw-semibold" style="color:#2176c1;">Ganancia Total</div>
+                        <div class="fs-2 fw-bold" style="color:#2176c1;">{{ ganancia_total|floatformat:0 }} <span class="text-secondary">PYG</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 col-12">
+                <div class="card border-0 shadow-sm text-center" style="background:#e7f0fb;border-radius:1rem;">
+                    <div class="card-body py-4">
+                        <div class="fs-6 fw-semibold" style="color:#2176c1;">Transacciones Completadas</div>
+                        <div class="fs-2 fw-bold" style="color:#2176c1;">{{ transacciones_completadas }} <span class="text-secondary">({{ monto_completadas_total|floatformat:0 }} PYG)</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 col-12">
+                <div class="card border-0 shadow-sm text-center" style="background:#e7f0fb;border-radius:1rem;">
+                    <div class="card-body py-4">
+                        <div class="fs-6 fw-semibold" style="color:#2176c1;">Transacciones Pagadas</div>
+                        <div class="fs-2 fw-bold" style="color:#2176c1;">{{ transacciones_pagadas }} <span class="text-secondary">({{ monto_pagado_total|floatformat:0 }} PYG)</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-lg-6 col-12">
+                <div class="card shadow-sm border-0 p-3 h-100">
+                    <div class="fw-semibold mb-2">Ganancias por Día</div>
+                    <canvas id="lineChart"></canvas>
+                </div>
+            </div>
+            <div class="col-lg-6 col-12">
+                <div class="card shadow-sm border-0 p-3 h-100">
+                    <div class="fw-semibold mb-2 d-flex align-items-center justify-content-between">
+                        <span>Ganancia por Moneda</span>
+                        <select id="monedaSelect" class="form-select form-select-sm w-auto ms-2">
+                        </select>
+                    </div>
+                    <canvas id="barChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="row g-3 mb-3">
+            <div class="col-lg-6 col-12">
+                <div class="card shadow-sm border-0 p-3 h-100">
+                    <div class="fw-semibold mb-2">Transacciones por Tipo</div>
+                    <canvas id="pieChart"></canvas>
+                </div>
+            </div>
+            <div class="col-lg-6 col-12">
+                <div class="card shadow-sm border-0 p-3 h-100">
+                    <div class="fw-semibold mb-2">Transacciones por Tipo de Cliente</div>
+                    <canvas id="pieChartCliente"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-body">
+                <div class="fw-semibold mb-2">Tabla de detalle</div>
+                <div class="table-responsive">
+                    <div class="row g-2 align-items-end mb-2" style="padding: 0 1rem;" id="filtrosTablaDetalle">
+                        <div class="col-md-2 col-6 mb-2">
+                            <label class="form-label mb-1">Desde</label>
+                            <input type="date" class="form-control form-control-sm" id="filtroDesde">
+                        </div>
+                        <div class="col-md-2 col-6 mb-2">
+                            <label class="form-label mb-1">Hasta</label>
+                            <input type="date" class="form-control form-control-sm" id="filtroHasta">
+                        </div>
+                        <div class="col-md-2 col-6 mb-2">
+                            <label class="form-label mb-1">Tipo</label>
+                            <select class="form-select form-select-sm" id="filtroTipo">
+                                <option value="">Todos</option>
+                                <option>Compra</option>
+                                <option>Venta</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 col-6 mb-2">
+                            <label class="form-label mb-1">Cliente</label>
+                            <select class="form-select form-select-sm" id="filtroCliente">
+                                <option value="">Todos</option>
+                                {% for t in detalle_transacciones %}
+                                    <option>{{ t.cliente }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2 col-6 mb-2">
+                            <label class="form-label mb-1">Moneda</label>
+                            <select class="form-select form-select-sm" id="filtroMoneda">
+                                <option value="">Todas</option>
+                                {% for t in detalle_transacciones %}
+                                    <option>{{ t.moneda.codigo }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2 col-6 mb-2 d-flex gap-2 align-items-end">
+                            <button class="btn btn-success btn-sm w-100" type="button" id="btnFiltrarTabla">Filtrar</button>
+                            <button class="btn btn-secondary btn-sm w-100" type="button" id="btnLimpiarTabla">Limpiar</button>
+                        </div>
+                    </div>
+                        <script>
+                        // Eliminar duplicados de selects
+                        function removeDuplicateOptions(selectId) {
+                            const select = document.getElementById(selectId);
+                            const seen = new Set();
+                            Array.from(select.options).forEach(opt => {
+                                if (seen.has(opt.text) && opt.value !== "") {
+                                    opt.remove();
+                                } else {
+                                    seen.add(opt.text);
+                                }
+                            });
+                        }
+                        removeDuplicateOptions('filtroCliente');
+                        removeDuplicateOptions('filtroMoneda');
+
+                        // Filtrado dinámico de la tabla
+                        function filtrarTablaDetalle() {
+                            const desde = document.getElementById('filtroDesde').value;
+                            const hasta = document.getElementById('filtroHasta').value;
+                            const tipo = document.getElementById('filtroTipo').value;
+                            const cliente = document.getElementById('filtroCliente').value;
+                            const moneda = document.getElementById('filtroMoneda').value;
+                            const filas = document.querySelectorAll('table.table tbody tr');
+                            filas.forEach(fila => {
+                                let mostrar = true;
+                                const celdas = fila.querySelectorAll('td');
+                                // Fecha (col 0)
+                                if (desde) {
+                                    const fecha = celdas[0].innerText.split(' ')[0].split('/').reverse().join('-');
+                                    if (fecha < desde) mostrar = false;
+                                }
+                                if (hasta) {
+                                    const fecha = celdas[0].innerText.split(' ')[0].split('/').reverse().join('-');
+                                    if (fecha > hasta) mostrar = false;
+                                }
+                                // Tipo (col 1)
+                                if (tipo && celdas[1].innerText.trim() !== tipo) mostrar = false;
+                                // Cliente (col 2)
+                                if (cliente && celdas[2].innerText.trim() !== cliente) mostrar = false;
+                                // Moneda (col 3)
+                                if (moneda && celdas[3].innerText.trim() !== moneda) mostrar = false;
+                                fila.style.display = mostrar ? '' : 'none';
+                            });
+                        }
+                        document.getElementById('btnFiltrarTabla').onclick = filtrarTablaDetalle;
+                        document.getElementById('btnLimpiarTabla').onclick = function() {
+                            document.getElementById('filtroDesde').value = '';
+                            document.getElementById('filtroHasta').value = '';
+                            document.getElementById('filtroTipo').value = '';
+                            document.getElementById('filtroCliente').value = '';
+                            document.getElementById('filtroMoneda').value = '';
+                            filtrarTablaDetalle();
+                        };
+                        // Filtrar al cambiar select/fecha
+                        ['filtroDesde','filtroHasta','filtroTipo','filtroCliente','filtroMoneda'].forEach(id => {
+                            document.getElementById(id).addEventListener('change', filtrarTablaDetalle);
+                        });
+                        </script>
+                    <table class="table table-striped table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th><strong>Fecha</strong></th>
+                                <th><strong>Tipo de transacción</strong></th>
+                                <th><strong>Cliente</strong></th>
+                                <th><strong>Moneda</strong></th>
+                                <th><strong>Monto Operado</strong></th>
+                                <th><strong>Comisión Aplicada</strong></th>
+                                <th><strong>Método de Pago</strong></th>
+                                <th><strong>Método de Cobro</strong></th>
+                                <th><strong>Ganancia</strong></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for t in detalle_transacciones %}
+                            <tr>
+                                <td>{{ t.fecha|date:'d/m/Y H:i' }}</td>
+                                <td>{{ t.get_tipo_display }}</td>
+                                <td>{{ t.cliente }}</td>
+                                <td>{{ t.moneda.codigo }}</td>
+                                <td>{{ t.monto_operado|floatformat:2 }}</td>
+                                <td>{{ t.comision|floatformat:2 }}</td>
+                                <td>{% if t.medio_pago %}{{ t.medio_pago.get_payment_type_display|default:t.medio_pago }}{% else %}—{% endif %}</td>
+                                <td>{{ t.medio_cobro|default:'—' }}</td>
+                                <td>{{ t.ganancia|floatformat:2 }}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="9">No hay transacciones en el rango seleccionado.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Serializar datos como JSON para evitar errores de sintaxis
+        const chartFechas = JSON.parse('{{ fechas|safe|escapejs }}');
+        const chartGanancias = JSON.parse('{{ ganancias|safe|escapejs }}');
+        const ctxLine = document.getElementById('lineChart').getContext('2d');
+        new Chart(ctxLine, {
+            type: 'line',
+            data: {
+                labels: chartFechas,
+                datasets: [{
+                    label: 'Ganancia',
+                    data: chartGanancias,
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        // Gráfico de barras: Ganancia por moneda con select dinámico
+        const chartMonedas = JSON.parse('{{ monedas|safe|escapejs }}');
+        const chartGananciasMonedas = JSON.parse('{{ ganancias_monedas|safe|escapejs }}');
+        const ctxBar = document.getElementById('barChart').getContext('2d');
+        let barChartInstance = new Chart(ctxBar, {
+            type: 'bar',
+            data: {
+                labels: chartMonedas,
+                datasets: [{
+                    label: 'Ganancia',
+                    data: chartGananciasMonedas,
+                    backgroundColor: [
+                        'rgba(54, 162, 235, 0.7)',
+                        'rgba(255, 206, 86, 0.7)',
+                        'rgba(75, 192, 192, 0.7)',
+                        'rgba(255, 99, 132, 0.7)'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        // Select para filtrar moneda
+        const monedaSelect = document.getElementById('monedaSelect');
+        // Llenar el select con las monedas
+        chartMonedas.forEach((moneda, idx) => {
+            const opt = document.createElement('option');
+            opt.value = moneda;
+            opt.textContent = moneda;
+            monedaSelect.appendChild(opt);
+        });
+        // Opción para ver todas
+        const optAll = document.createElement('option');
+        optAll.value = '';
+        optAll.textContent = 'Todas';
+        monedaSelect.insertBefore(optAll, monedaSelect.firstChild);
+        monedaSelect.value = '';
+
+        monedaSelect.addEventListener('change', function() {
+            const selected = this.value;
+            if (selected) {
+                const idx = chartMonedas.indexOf(selected);
+                if (idx !== -1) {
+                    barChartInstance.data.labels = [chartMonedas[idx]];
+                    barChartInstance.data.datasets[0].data = [chartGananciasMonedas[idx]];
+                }
+            } else {
+                barChartInstance.data.labels = chartMonedas;
+                barChartInstance.data.datasets[0].data = chartGananciasMonedas;
+            }
+            barChartInstance.update();
+        });
+
+        // Gráfico de torta: Transacciones por tipo
+        const chartTipos = JSON.parse('{{ tipos|safe|escapejs }}');
+        const chartTransaccionesPorTipo = JSON.parse('{{ transacciones_por_tipo|safe|escapejs }}');
+        const ctxPie = document.getElementById('pieChart').getContext('2d');
+        new Chart(ctxPie, {
+            type: 'doughnut',
+            data: {
+                labels: chartTipos,
+                datasets: [{
+                    label: 'Transacciones',
+                    data: chartTransaccionesPorTipo,
+                    backgroundColor: [
+                        'rgba(54, 162, 235, 0.7)',
+                        'rgba(255, 206, 86, 0.7)',
+                        'rgba(75, 192, 192, 0.7)',
+                        'rgba(255, 99, 132, 0.7)'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: true, position: 'bottom' } }
+            }
+        });
+
+        // Gráfico de torta: Transacciones por tipo de cliente (completadas + pagadas)
+        const chartTiposClientes = JSON.parse('{{ tipos_clientes|safe|escapejs }}');
+        const chartTransaccionesPorTipoCliente = JSON.parse('{{ transacciones_por_tipo_cliente|safe|escapejs }}');
+        const ctxPieCliente = document.getElementById('pieChartCliente').getContext('2d');
+        new Chart(ctxPieCliente, {
+            type: 'doughnut',
+            data: {
+                labels: chartTiposClientes,
+                datasets: [{
+                    label: 'Transacciones',
+                    data: chartTransaccionesPorTipoCliente,
+                    backgroundColor: [
+                        'rgba(54, 162, 235, 0.7)',
+                        'rgba(255, 206, 86, 0.7)',
+                        'rgba(75, 192, 192, 0.7)'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: true, position: 'bottom' } }
+            }
+        });
+    </script>
+    {% endblock %}

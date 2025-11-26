@@ -14,7 +14,7 @@ from django.http import (
 )
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_GET, require_http_methods
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 from commons.enums import EstadoTransaccionEnum, TipoMovimientoEnum, TipoTransaccionEnum, PaymentTypeEnum
 from clientes.models import Cliente
 from monedas.models import Moneda, TasaCambio
@@ -31,6 +31,15 @@ from .services import (
     verificar_pago_stripe,
 )
 from tauser.services import validar_stock_tauser_para_transaccion
+
+# Endpoint super simple para marcar como pagada (usado por el botón SIPAP)
+@require_POST
+def marcar_pagada_simple(request, pk):
+    tx = get_object_or_404(Transaccion, pk=pk)
+    if tx.estado != EstadoTransaccionEnum.PAGADA:
+        tx.estado = EstadoTransaccionEnum.PAGADA
+        tx.save()
+    return redirect(request.META.get('HTTP_REFERER', '/'))
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -207,16 +216,25 @@ def transacciones_list(request):
     if estado_qs not in estados_validos:
         estado_qs = "pendiente"
 
-    # Filtrar por clientes del usuario operador logueado
-    transacciones = (
-        Transaccion.objects
-        .filter(cliente__usuarios=request.user)
-        .select_related("cliente", "moneda", "medio_pago", "medio_cobro")
-    )
+    # Si el usuario no está autenticado, no filtrar por usuario (evita error de SimpleLazyObject)
+    if request.user.is_authenticated:
+        transacciones = (
+            Transaccion.objects
+            .filter(cliente__usuarios=request.user)
+            .select_related("cliente", "moneda", "medio_pago", "medio_cobro")
+        )
+        base = Transaccion.objects.filter(cliente__usuarios=request.user)
+    else:
+        transacciones = (
+            Transaccion.objects
+            .select_related("cliente", "moneda", "medio_pago", "medio_cobro")
+        )
+        base = Transaccion.objects.all()
 
     # filtro por cliente (si aplica)
     if cliente_id:
         transacciones = transacciones.filter(cliente_id=cliente_id)
+        base = base.filter(cliente_id=cliente_id)
 
     # filtro por estado (si NO es 'todas')
     estado_enum = estados_validos[estado_qs]
@@ -228,11 +246,6 @@ def transacciones_list(request):
         transacciones = transacciones.order_by("fecha" if dir_ == "asc" else "-fecha")
     else:
         transacciones = transacciones.order_by("-fecha")
-
-    # ---- Contadores por estado (respetando cliente si está filtrado y usuario) ----
-    base = Transaccion.objects.filter(cliente__usuarios=request.user)
-    if cliente_id:
-        base = base.filter(cliente_id=cliente_id)
 
     counts = {
         "pendiente": base.filter(estado=EstadoTransaccionEnum.PENDIENTE).count(),
@@ -696,6 +709,7 @@ def pago_success(request):
     info = None
 
     # Si el usuario no está autenticado pero hay un stripe_user_id en sesión, re-autenticar
+    # Pero NO limpiar la sesión, así persiste mientras no se cierre el navegador
     if not request.user.is_authenticated:
         user_id = request.session.get('stripe_user_id')
         if user_id:
@@ -705,8 +719,6 @@ def pago_success(request):
                 login(request, user)
             except User.DoesNotExist:
                 pass
-        # Limpiar el stripe_user_id de la sesión para evitar reusos
-        request.session.pop('stripe_user_id', None)
 
     if session_id:
         try:
@@ -715,25 +727,21 @@ def pago_success(request):
             info = None
 
     # --- PLAN B: confirmar acá si Stripe ya cobró (idempotente) ---
+
     if tx_id and info and info.get("payment_status") == "paid":
         try:
             with transaction.atomic():
                 tx = Transaccion.objects.select_for_update().get(pk=int(tx_id))
 
                 if str(tx.estado) != str(EstadoTransaccionEnum.PAGADA):
-                    # marcar pagada
+                    # marcar pagada y recalcular ganancia
                     tx.estado = EstadoTransaccionEnum.PAGADA
-                    # opcional: guardar payment_intent / status si tenés esos campos
                     if hasattr(tx, "stripe_payment_intent_id") and info.get("payment_intent"):
                         tx.stripe_payment_intent_id = info["payment_intent"]
                     if hasattr(tx, "stripe_status"):
                         tx.stripe_status = "completed"
-                    campos = ["estado"]
-                    if hasattr(tx, "stripe_payment_intent_id") and info.get("payment_intent"):
-                        campos.append("stripe_payment_intent_id")
-                    if hasattr(tx, "stripe_status"):
-                        campos.append("stripe_status")
-                    tx.save(update_fields=campos)
+                    # Guardar todo junto para que se ejecute la lógica de ganancia
+                    tx.save()  # No usar update_fields para que se ejecute el cálculo de ganancia
 
                     # crear movimiento coherente con el tipo
                     if str(tx.tipo) == str(TipoTransaccionEnum.COMPRA):
@@ -834,19 +842,14 @@ def stripe_webhook(request):
                     return HttpResponse(status=200)
 
                 # Guardar info útil
-                updates = {}
-                if hasattr(tx, "stripe_payment_intent_id"):
-                    updates["stripe_payment_intent_id"] = session.get("payment_intent")
-                if hasattr(tx, "stripe_status"):
-                    updates["stripe_status"] = "completed"
-                if updates:
-                    for k, v in updates.items():
-                        setattr(tx, k, v)
-                    tx.save(update_fields=list(updates.keys()))
 
-                # Confirmar negocio
+                # Guardar info útil y marcar pagada, recalculando ganancia
+                if hasattr(tx, "stripe_payment_intent_id"):
+                    tx.stripe_payment_intent_id = session.get("payment_intent")
+                if hasattr(tx, "stripe_status"):
+                    tx.stripe_status = "completed"
                 tx.estado = EstadoTransaccionEnum.PAGADA
-                tx.save(update_fields=["estado"])
+                tx.save()  # No usar update_fields para que se ejecute el cálculo de ganancia
 
                 # Movimiento en caja PYG coherente con el tipo
                 if str(tx.tipo) == str(TipoTransaccionEnum.COMPRA):

@@ -27,6 +27,8 @@ import os
 
 #: Lista principal de URLs del proyecto.
 urlpatterns = [
+    # --- Control de Ganancias ---
+    path('control_ganancias/', include('control_ganancias.urls')),
     # --- Administración ---
     path('admin/', admin.site.urls, name="admin"),
 
