@@ -19,6 +19,7 @@ INSTALLED_APPS = [
     "mfa",
     "tauser",  # Added tauser app
     "pagos",  # Procesamiento de pagos a través de pasarela
+    'facturacion',
 ]
 
 AUTH_USER_MODEL = "usuarios.User"
