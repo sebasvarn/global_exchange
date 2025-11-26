@@ -89,14 +89,6 @@
                 <div class="table-responsive">
                     <div class="row g-2 align-items-end mb-2" style="padding: 0 1rem;" id="filtrosTablaDetalle">
                         <div class="col-md-2 col-6 mb-2">
-                            <label class="form-label mb-1">Desde</label>
-                            <input type="date" class="form-control form-control-sm" id="filtroDesde">
-                        </div>
-                        <div class="col-md-2 col-6 mb-2">
-                            <label class="form-label mb-1">Hasta</label>
-                            <input type="date" class="form-control form-control-sm" id="filtroHasta">
-                        </div>
-                        <div class="col-md-2 col-6 mb-2">
                             <label class="form-label mb-1">Tipo</label>
                             <select class="form-select form-select-sm" id="filtroTipo">
                                 <option value="">Todos</option>
@@ -123,7 +115,6 @@
                             </select>
                         </div>
                         <div class="col-md-2 col-6 mb-2 d-flex gap-2 align-items-end">
-                            <button class="btn btn-success btn-sm w-100" type="button" id="btnFiltrarTabla">Filtrar</button>
                             <button class="btn btn-secondary btn-sm w-100" type="button" id="btnLimpiarTabla">Limpiar</button>
                         </div>
                     </div>
@@ -145,8 +136,6 @@
 
                         // Filtrado dinámico de la tabla
                         function filtrarTablaDetalle() {
-                            const desde = document.getElementById('filtroDesde').value;
-                            const hasta = document.getElementById('filtroHasta').value;
                             const tipo = document.getElementById('filtroTipo').value;
                             const cliente = document.getElementById('filtroCliente').value;
                             const moneda = document.getElementById('filtroMoneda').value;
@@ -154,15 +143,6 @@
                             filas.forEach(fila => {
                                 let mostrar = true;
                                 const celdas = fila.querySelectorAll('td');
-                                // Fecha (col 0)
-                                if (desde) {
-                                    const fecha = celdas[0].innerText.split(' ')[0].split('/').reverse().join('-');
-                                    if (fecha < desde) mostrar = false;
-                                }
-                                if (hasta) {
-                                    const fecha = celdas[0].innerText.split(' ')[0].split('/').reverse().join('-');
-                                    if (fecha > hasta) mostrar = false;
-                                }
                                 // Tipo (col 1)
                                 if (tipo && celdas[1].innerText.trim() !== tipo) mostrar = false;
                                 // Cliente (col 2)
@@ -172,17 +152,15 @@
                                 fila.style.display = mostrar ? '' : 'none';
                             });
                         }
-                        document.getElementById('btnFiltrarTabla').onclick = filtrarTablaDetalle;
+                        // Botón Filtrar eliminado, filtrado es automático
                         document.getElementById('btnLimpiarTabla').onclick = function() {
-                            document.getElementById('filtroDesde').value = '';
-                            document.getElementById('filtroHasta').value = '';
                             document.getElementById('filtroTipo').value = '';
                             document.getElementById('filtroCliente').value = '';
                             document.getElementById('filtroMoneda').value = '';
                             filtrarTablaDetalle();
                         };
-                        // Filtrar al cambiar select/fecha
-                        ['filtroDesde','filtroHasta','filtroTipo','filtroCliente','filtroMoneda'].forEach(id => {
+                        // Filtrar al cambiar select
+                        ['filtroTipo','filtroCliente','filtroMoneda'].forEach(id => {
                             document.getElementById(id).addEventListener('change', filtrarTablaDetalle);
                         });
                         </script>
