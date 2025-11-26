@@ -23,6 +23,27 @@
     }
 </style>
 {% endblock %}
+{% block extra_css_fact %}
+<style>
+    .form-check-input:checked {
+        background-color: #198754;
+        border-color: #198754;
+    }
+    .form-check-label {
+        font-weight: 500;
+        color: #495057;
+    }
+    .btn-success {
+        background: linear-gradient(135deg, #198754 0%, #157347 100%);
+        border: none;
+        font-weight: 500;
+    }
+    .btn-success:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(25, 135, 84, 0.3);
+    }
+</style>
+{% endblock %}
 
 {% block content %}
 <h1>Terminal de Tauser</h1>
@@ -277,6 +298,42 @@
           </span>
         </div>
         <p>El Tauser está procesando la transacción...</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== MODAL CONFIRMACIÓN MEJORADO ========== -->
+<div class="modal fade" id="modalConfirmar" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title">Confirmar Transacción</h5>
+      </div>
+      <div class="modal-body text-center">
+        <p class="mb-3">¿Confirmar la transacción <strong>{{ datos_transaccion.codigo_verificacion }}</strong>?</p>
+        
+        <!-- Opción para generar factura -->
+        <div class="form-check form-switch mb-3">
+          <input class="form-check-input" type="checkbox" id="generarFacturaCheck" checked>
+          <label class="form-check-label" for="generarFacturaCheck">
+            <i class="bi bi-receipt"></i> Generar Factura Electrónica
+          </label>
+        </div>
+        
+        <small class="text-muted d-block mb-3">
+          La factura se enviará automáticamente al SIFEN y estará disponible para descargar.
+        </small>
+        
+        <div class="d-flex gap-2 justify-content-center">
+          <button class="btn btn-success" id="btnConfirmarConFactura">
+            <i class="bi bi-check-lg"></i> Sí, Confirmar
+          </button>
+          <button class="btn btn-secondary" id="btnConfirmarSinFactura">
+            Confirmar sin Factura
+          </button>
+          <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        </div>
       </div>
     </div>
   </div>
@@ -604,6 +661,115 @@ document.addEventListener('DOMContentLoaded', function () {
             mfaError.classList.remove('d-none');
         });
     });
+});
+</script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+  // Lógica para compras (flujo anterior)
+  const btnRealizar = document.getElementById("btnRealizarTransaccion");
+  if (!btnRealizar) return;
+  
+  const modalConfirmar = new bootstrap.Modal(document.getElementById("modalConfirmar"));
+  const modalProcesando = new bootstrap.Modal(document.getElementById("modalProcesando"));
+  const modalExito = new bootstrap.Modal(document.getElementById("modalExito"));
+
+  btnRealizar.onclick = () => {
+    modalConfirmar.show();
+  };
+
+  // Botón: Confirmar CON factura
+  document.getElementById("btnConfirmarConFactura").onclick = async () => {
+    await confirmarTransaccion(true);
+  };
+
+  // Botón: Confirmar SIN factura
+  document.getElementById("btnConfirmarSinFactura").onclick = async () => {
+    await confirmarTransaccion(false);
+  };
+
+  async function confirmarTransaccion(generarFactura) {
+    modalConfirmar.hide();
+    modalProcesando.show();
+    
+    const codigo = document.getElementById("codigo_verificacion").value.trim().toUpperCase();
+    
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+
+    const csrftoken = getCookie('csrftoken');
+    
+    try {
+      const formData = new URLSearchParams({
+        'codigo_verificacion': codigo,
+        'accion': 'confirmar',
+        'generar_factura': generarFactura ? 'si' : 'no'
+      });
+
+      const response = await fetch(window.location.href, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'X-CSRFToken': csrftoken,
+        },
+        body: formData
+      });
+
+      // Verificar si la respuesta es HTML (redirección) o éxito
+      const responseText = await response.text();
+      
+      setTimeout(() => {
+        modalProcesando.hide();
+        
+        if (response.ok) {
+          // Mostrar mensaje de éxito
+          const modalExitoBody = document.querySelector('#modalExito .modal-body');
+          if (generarFactura) {
+            modalExitoBody.innerHTML = `
+              <div class="text-center">
+                <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i>
+                <h5 class="mt-3">¡Transacción Completada!</h5>
+                <p>La transacción ha sido confirmada y la factura electrónica está en proceso de generación.</p>
+                <p class="text-muted small">Podrás descargar la factura cuando esté aprobada por el SIFEN.</p>
+              </div>
+            `;
+          } else {
+            modalExitoBody.innerHTML = `
+              <div class="text-center">
+                <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i>
+                <h5 class="mt-3">¡Transacción Completada!</h5>
+                <p>La transacción ha sido confirmada exitosamente.</p>
+              </div>
+            `;
+          }
+          
+          modalExito.show();
+        } else {
+          // Mostrar error
+          alert('Error al confirmar la transacción. Por favor, intente nuevamente.');
+        }
+      }, 1500);
+      
+    } catch (e) {
+      modalProcesando.hide();
+      alert('Error de red al confirmar la transacción.');
+    }
+  }
+
+  document.getElementById("btnCerrarExito").onclick = () => {
+    window.location.reload();
+  };
 });
 </script>
 {% endblock %}

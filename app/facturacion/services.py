@@ -1,18 +1,22 @@
 import requests
 import json
+import logging
 from django.conf import settings
 from django.core.files.base import ContentFile
 from transaccion.models import Transaccion
 from clientes.models import Cliente
 from .models import FacturaElectronica, ConfiguracionFacturacion
 from datetime import datetime
-import base64
+
+logger = logging.getLogger(__name__)
 
 class ServicioFacturacion:
     def __init__(self):
         self.config = ConfiguracionFacturacion.objects.filter(activo=True).first()
         if not self.config:
+            logger.error("No hay configuración de facturación activa")
             raise Exception("No hay configuración de facturación activa")
+        logger.info(f"Configuración cargada: {self.config.nombre_emisor}")
     
     def _mapear_datos_cliente(self, cliente: Cliente):
         """Mapea los datos del cliente al formato requerido por el DE"""
@@ -39,23 +43,21 @@ class ServicioFacturacion:
         """Mapea los items de la transacción para el DE"""
         items = []
         
-        # Descripción según tipo de transacción
         if transaccion.tipo == 'COMPRA':
             descripcion = f'Compra de {transaccion.moneda.codigo}'
-        else:  # VENTA
+        else:
             descripcion = f'Venta de {transaccion.moneda.codigo}'
         
-        # Item principal: Conversión de divisas
         items.append({
             'dCodInt': 'CONVERSION',
             'dDesProSer': descripcion,
             'dCantProSer': '1',
             'dPUniProSer': str(transaccion.monto_pyg),
             'dDescItem': '0',
-            'iAfecIVA': '1',  # 1=Gravado IVA
+            'iAfecIVA': '1',
             'dPropIVA': '100',
-            'dTasaIVA': '10',  # 10% IVA
-            'cUniMed': '77',  # Servicio
+            'dTasaIVA': '10',
+            'cUniMed': '77',
             'dParAranc': '',
             'dNCM': '',
             'dDncpG': '',
@@ -64,7 +66,6 @@ class ServicioFacturacion:
             'dGtinPq': ''
         })
         
-        # Item para comisión si aplica
         if transaccion.comision and transaccion.comision > 0:
             items.append({
                 'dCodInt': 'COMISION',
@@ -89,27 +90,25 @@ class ServicioFacturacion:
     def generar_factura(self, transaccion: Transaccion):
         """Genera una factura electrónica para una transacción"""
         try:
-            # Verificar si ya existe factura
+            logger.info(f"Iniciando generación de factura para transacción {transaccion.id}")
+            
             if hasattr(transaccion, 'factura_electronica'):
                 return {
                     'success': False, 
                     'error': 'Ya existe una factura para esta transacción'
                 }
             
-            # Datos básicos del DE
-            numero_factura = str(transaccion.id).zfill(7)
-            
+            # CABECERA DEL DE — **SIN dNumDoc** (lo genera SQL-PROXY)
             de_data = {
-                'iTiDE': '1',  # 1=Factura electrónica
+                'iTiDE': '1',
                 'dFeEmiDE': datetime.now().strftime("%Y-%m-%d"),
-                'dEst': '001',  # Establecimiento
-                'dPunExp': '001',  # Punto de expedición
-                'dNumDoc': numero_factura,
+                'dEst': '001',
+                'dPunExp': '003',
                 'iTipEmi': '1',
                 'dNumTim': self.config.numero_timbrado,
                 'dFeIniT': self.config.fecha_inicio_timbrado.strftime("%Y-%m-%d"),
-                'iTipTra': '2',  # 2=Venta
-                'iTImp': '1',  # 1=Total
+                'iTipTra': '2',
+                'iTImp': '1',
                 'cMoneOpe': 'PYG',
                 'dTiCam': '1',
                 'dRucEm': self.config.ruc_emisor,
@@ -124,31 +123,25 @@ class ServicioFacturacion:
                 'dDesCiuEmi': self.config.descripcion_ciudad,
                 'dTelEmi': self.config.telefono_emisor,
                 'dEmailE': self.config.email_emisor,
-                'dInfAdic': f'Transacción #{transaccion.codigo_verificacion} - {transaccion.get_tipo_display()} - {transaccion.moneda.codigo}',
-                'estado': 'Confirmado'  # Para procesamiento inmediato
+                'dInfAdic': f'Transacción #{transaccion.codigo_verificacion} - '
+                            f'{transaccion.get_tipo_display()} - {transaccion.moneda.codigo}',
+                'estado': 'Confirmado'
             }
             
-            # Agregar datos del cliente
             de_data.update(self._mapear_datos_cliente(transaccion.cliente))
             
-            # Datos para las tablas relacionadas
             g_act_eco = [
-                {
-                    'cActEco': '64910',  # Actividades de servicios de cambio de moneda
-                    'dDesActEco': 'Actividades de servicios de cambio de moneda'
-                }
+                {'cActEco': '64910', 'dDesActEco': 'Actividades de servicios de cambio de moneda'}
             ]
             
             g_cam_item = self._mapear_items_transaccion(transaccion)
             
-            g_pa_con_e_ini = [
-                {
-                    'iTiPago': '1',  # 1=Contado
-                    'dMonTiPag': str(transaccion.monto_pyg),
-                    'cMoneTiPag': 'PYG',
-                    'dTiCamTiPag': '1'
-                }
-            ]
+            g_pa_con_e_ini = [{
+                'iTiPago': '1',
+                'dMonTiPag': str(transaccion.monto_pyg),
+                'cMoneTiPag': 'PYG',
+                'dTiCamTiPag': '1'
+            }]
             
             payload = {
                 'de_data': de_data,
@@ -157,42 +150,39 @@ class ServicioFacturacion:
                 'g_pa_con_e_ini': g_pa_con_e_ini
             }
             
-            # Llamar al sql-proxy01
-            response = requests.post(
-                f"{self.config.sql_proxy_url}/api/facturar",
-                headers={'Content-Type': 'application/json'},
-                json=payload,
-                timeout=30
-            )
+            url = f"{self.config.sql_proxy_url}/api/facturar"
+            logger.info(f"Enviando solicitud a: {url}")
             
-            if response.status_code == 200:
-                result = response.json()
-                
-                # Crear registro de factura
-                factura = FacturaElectronica.objects.create(
-                    transaccion=transaccion,
-                    cdc=result.get('cdc', ''),
-                    id_de=result.get('id_de'),
-                    numero_factura=numero_factura,
-                    estado_sifen='PROCESANDO'
-                )
-                
-                return {
-                    'success': True,
-                    'factura_id': factura.id,
-                    'cdc': result.get('cdc'),
-                    'id_de': result.get('id_de'),
-                    'message': 'Factura generada exitosamente'
-                }
-            else:
-                error_msg = f"Error del servicio: {response.status_code} - {response.text}"
+            response = requests.post(url, json=payload, timeout=30)
+            
+            if response.status_code != 200:
                 return {
                     'success': False,
-                    'error': error_msg,
+                    'error': response.text,
                     'status_code': response.status_code
                 }
-                
+            
+            result = response.json()
+            
+            factura = FacturaElectronica.objects.create(
+                transaccion=transaccion,
+                cdc=result.get('cdc', ''),
+                id_de=result.get('id_de'),
+                numero_factura=result.get('numero_factura', ''),
+                estado_sifen='PROCESANDO'
+            )
+            
+            return {
+                'success': True,
+                'factura_id': factura.id,
+                'cdc': factura.cdc,
+                'id_de': factura.id_de,
+                'numero_factura': factura.numero_factura,
+                'message': 'Factura generada exitosamente'
+            }
+            
         except Exception as e:
+            logger.error(f"Error al generar factura: {str(e)}", exc_info=True)
             return {
                 'success': False,
                 'error': f"Error al generar factura: {str(e)}"
@@ -204,6 +194,8 @@ class ServicioFacturacion:
             if not factura.cdc:
                 return {'error': 'La factura no tiene CDC'}
             
+            logger.info(f"Consultando estado para factura CDC: {factura.cdc}")
+            
             response = requests.get(
                 f"{self.config.sql_proxy_url}/api/factura/estado/{factura.cdc}",
                 timeout=30
@@ -214,31 +206,29 @@ class ServicioFacturacion:
             
             if response.status_code == 200:
                 data = response.json()
+                logger.info(f"Estado consultado: {data}")
                 
-                # Actualizar estado
                 estado_sifen = data.get('estado_sifen', '')
                 if estado_sifen == 'Aprobado':
                     factura.estado_sifen = 'APROBADO'
                     factura.fecha_aprobacion = datetime.now()
-                elif estado_sifen == 'Aprobado con observación':
-                    factura.estado_sifen = 'APROBADO_OBS'
-                    factura.fecha_aprobacion = datetime.now()
-                elif estado_sifen == 'Rechazado':
-                    factura.estado_sifen = 'RECHAZADO'
                 
                 factura.descripcion_estado = data.get('desc_sifen', '')
                 factura.save()
                 
                 return {'success': True, 'estado': factura.estado_sifen}
             else:
-                factura.error_message = f"Error en consulta: {response.text}"
+                error_msg = f"Error en consulta: {response.text}"
+                factura.error_message = error_msg
                 factura.save()
-                return {'error': f"Error al consultar estado: {response.text}"}
+                logger.error(error_msg)
+                return {'error': error_msg}
                 
         except Exception as e:
             error_msg = f"Error en consulta: {str(e)}"
             factura.error_message = error_msg
             factura.save()
+            logger.error(error_msg)
             return {'error': error_msg}
     
     def descargar_factura(self, factura: FacturaElectronica, formato: str = 'pdf'):
@@ -246,6 +236,8 @@ class ServicioFacturacion:
         try:
             if not factura.esta_aprobada:
                 return {'error': 'La factura no está aprobada'}
+            
+            logger.info(f"Descargando factura {factura.cdc} en formato {formato}")
             
             response = requests.get(
                 f"{self.config.sql_proxy_url}/api/factura/descargar/{factura.cdc}?formato={formato}",
@@ -267,9 +259,14 @@ class ServicioFacturacion:
                     )
                 
                 factura.save()
+                logger.info(f"Factura descargada: {nombre_archivo}")
                 return {'success': True, 'archivo': nombre_archivo}
             else:
-                return {'error': f"Error al descargar: {response.status_code}"}
+                error_msg = f"Error al descargar: {response.status_code}"
+                logger.error(error_msg)
+                return {'error': error_msg}
                 
         except Exception as e:
-            return {'error': f"Error al descargar factura: {str(e)}"}
+            error_msg = f"Error al descargar factura: {str(e)}"
+            logger.error(error_msg)
+            return {'error': error_msg}
