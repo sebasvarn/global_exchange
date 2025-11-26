@@ -106,43 +106,52 @@
               
           {% endif %}
               <!-- Tauser -->
-              <li class="nav-group {% if 'tauser' in request.resolver_match.app_name %}show{% endif %}">
-                <a class="nav-link nav-group-toggle" href="#">
-                  <i class="nav-icon bi bi-person-badge"></i>
-                  Tauser
-                </a>
-                <ul class="nav-group-items compact">
-                  
-                  <li class="nav-item">
-                    <a class="nav-link {% if request.resolver_match.url_name == 'tramitar_transacciones' %}active{% endif %}"
-                        href="{% url 'tauser:tramitar_transacciones' %}">
-                      <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
-                      Tramitar Transacciones
-                    </a>
-                  </li>
-                  <li class="nav-item">
-                    <a class="nav-link {% if request.resolver_match.url_name == 'nuevo_tauser' %}active{% endif %}"
-                        href="{% url 'tauser:nuevo_tauser' %}">
-                      <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
-                      Nuevo Tauser
-                    </a>
-                  </li>
-                  <li class="nav-item">
-                    <a class="nav-link {% if request.resolver_match.url_name == 'lista_tausers' %}active{% endif %}"
-                        href="{% url 'tauser:lista_tausers' %}">
-                      <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
-                      Lista de Tausers
-                    </a>
-                  </li>
-                  <li class="nav-item">
-                    <a class="nav-link {% if request.resolver_match.url_name == 'asignar_stock_tauser' %}active{% endif %}"
-                        href="{% url 'tauser:asignar_stock_tauser' %}">
-                      <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
-                      Asignar Stock a Tauser
-                    </a>
-                  </li>
-                </ul>
-              </li>
+              {% if request.user|has_any_permission:'tauser.view,tauser.tramitar,tauser.add,tauser.stock.view,tauser.stock.edit' %}
+                <li class="nav-group {% if 'tauser' in request.resolver_match.app_name %}show{% endif %}">
+                  <a class="nav-link nav-group-toggle" href="#">
+                    <i class="nav-icon bi bi-person-badge"></i>
+                    Tauser
+                  </a>
+                  <ul class="nav-group-items compact">
+                    {% if request.user|has_permission:'tauser.tramitar' %}
+                    <li class="nav-item">
+                      <a class="nav-link {% if request.resolver_match.url_name == 'tramitar_transacciones' %}active{% endif %}"
+                          href="{% url 'tauser:tramitar_transacciones' %}">
+                        <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+                        Tramitar Transacciones
+                      </a>
+                    </li>
+                    {% endif %}
+                    {% if request.user|has_permission:'tauser.add' %}
+                    <li class="nav-item">
+                      <a class="nav-link {% if request.resolver_match.url_name == 'nuevo_tauser' %}active{% endif %}"
+                          href="{% url 'tauser:nuevo_tauser' %}">
+                        <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+                        Nuevo Tauser
+                      </a>
+                    </li>
+                    {% endif %}
+                    {% if request.user|has_permission:'tauser.view' %}
+                    <li class="nav-item">
+                      <a class="nav-link {% if request.resolver_match.url_name == 'lista_tausers' %}active{% endif %}"
+                          href="{% url 'tauser:lista_tausers' %}">
+                        <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+                        Lista de Tausers
+                      </a>
+                    </li>
+                    {% endif %}
+                    {% if request.user|has_permission:'tauser.stock.view' %}
+                    <li class="nav-item">
+                      <a class="nav-link {% if request.resolver_match.url_name == 'asignar_stock_tauser' %}active{% endif %}"
+                          href="{% url 'tauser:asignar_stock_tauser' %}">
+                        <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+                        Asignar Stock a Tauser
+                      </a>
+                    </li>
+                    {% endif %}
+                  </ul>
+                </li>
+              {% endif %}
 
         {% if request.user|has_any_permission:'usuarios.list, usuarios.create' %}
         <li class="nav-group {% if 'usuarios' in request.resolver_match.url_name or 'usuario' in request.resolver_match.url_name %}show{% endif %}">
@@ -230,12 +239,14 @@
               </a>
             </li>
             {% endif %}
+            {% if request.user|has_permission:'clientes.limites.edit' %}
             <li class="nav-item">
               <a class="nav-link {% if request.resolver_match.url_name == 'limites_tipo_list' %}active{% endif %}" href="{% url 'clientes:limites_tipo_list' %}">
                 <span class="nav-icon"><i class="bi bi-sliders"></i></span>
                 Límites
               </a>
             </li>
+            {% endif %}
           </ul>
         </li>
       {% endif %}
@@ -315,12 +326,6 @@
         </a>
         <ul class="nav-group-items compact">
           <li class="nav-item">
-            <a class="nav-link" href="#">
-              <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
-              General
-            </a>
-          </li>
-          <li class="nav-item">
             <a class="nav-link" href="{% url 'usuarios:security_settings' %}">
               <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
               Seguridad
@@ -342,31 +347,27 @@
             </a>
           </li>
           {% endif %}
+          {% if request.user|has_permission:'pagos.comision.view' %}
           <li class="nav-item">
             <a class="nav-link {% if request.resolver_match.url_name == 'comisiones_metodos_pago_list' %}active{% endif %}" href="{% url 'payments:comisiones_metodos_pago_list' %}">
               <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
               Comisiones por Método de Pago
             </a>
           </li>
+          {% endif %}
         </ul>
       </li>
 
-      <!-- Reportes -->
+      <!-- Tablero de control de ganancias (nuevo dashboard real) -->
+      {% if request.user|has_permission:'control_ganancias.dashboard.view' %}
       <li class="nav-item">
-        <a class="nav-link" href="#">
-          <i class="nav-icon bi bi-bar-chart"></i>
+        <a class="nav-link {% if request.resolver_match.url_name == 'dashboard_ganancias' %}active{% endif %}" href="{% url 'dashboard_ganancias' %}">
+          <i class="nav-icon bi bi-graph-up"></i>
           Reportes
         </a>
       </li>
+      {% endif %}
 
-      <!-- Ayuda -->
-      <li class="nav-divider"></li>
-      <li class="nav-item">
-        <a class="nav-link" href="#">
-          <i class="nav-icon bi bi-question-circle"></i>
-          Ayuda
-        </a>
-      </li>
     </ul>
 
   </div>
@@ -381,25 +382,7 @@
         </button>
 
         <!-- Navigation Links -->
-        <ul class="header-nav d-none d-lg-flex">
-          <li class="nav-item">
-            <a class="nav-link" href="{% url 'usuarios:dashboard' %}">Dashboard</a>
-          </li>
-          {% if request.user.is_authenticated %}
-            <li class="nav-item">
-              <a class="nav-link" href="{% url 'usuarios:usuarios_list' %}">Usuarios</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="{% url 'usuarios:roles_list' %}">Roles</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="{% url 'monedas:monedas_list' %}">Monedas</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="{% url 'monedas:tasas_list' %}">Cotizaciones</a>
-            </li>
-          {% endif %}
-        </ul>
+        <!-- Botones de navegación eliminados por requerimiento -->
 
         <!-- Right side navigation -->
         <ul class="header-nav ms-auto">

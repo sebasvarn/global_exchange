@@ -2,15 +2,16 @@
 Simulador de Pasarela de Pagos - FastAPI con PostgreSQL
 Servicio interno para simular pagos con tarjeta, billetera y transferencia
 """
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from enum import Enum
 from uuid import uuid4
 from typing import Optional
 from datetime import datetime
 from contextlib import contextmanager
-import httpx
 import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -24,6 +25,9 @@ app = FastAPI(
     description="API para simular una pasarela de pago con métodos múltiples",
     version="1.0.0"
 )
+
+# Montar carpeta estática
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # CORS para permitir llamadas desde Django
 app.add_middleware(
@@ -75,9 +79,7 @@ def init_database():
                 metodo VARCHAR(50) NOT NULL,
                 moneda VARCHAR(10) NOT NULL DEFAULT 'PYG',
                 estado VARCHAR(50) NOT NULL,
-                webhook_url VARCHAR(500),
                 fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                numero_tarjeta VARCHAR(20),
                 numero_billetera VARCHAR(20),
                 numero_comprobante VARCHAR(50),
                 motivo_rechazo VARCHAR(500)
@@ -126,10 +128,8 @@ class PagoRequest(BaseModel):
     metodo: MetodoPago = Field(..., description="Método de pago")
     moneda: str = Field(default="PYG", description="Código de moneda")
     escenario: EstadoPago = Field(default=EstadoPago.exito, description="Escenario de simulación (solo para testing)")
-    webhook_url: Optional[str] = Field(None, description="URL para notificaciones")
     
     # Campos específicos por método
-    numero_tarjeta: Optional[str] = Field(None, description="Número de tarjeta (para tarjeta/tarjeta_credito_local)")
     numero_billetera: Optional[str] = Field(None, description="Número de billetera o teléfono")
     numero_comprobante: Optional[str] = Field(None, description="Código de comprobante de transferencia")
 
@@ -160,8 +160,8 @@ def validar_pago(pago: PagoRequest) -> tuple[EstadoPago, Optional[str]]:
     Valida el pago según las reglas de negocio específicas por método.
     
     Reglas de validación por método:
-    - tarjeta: Rechaza si últimos 2 dígitos son primos (fondos insuficientes)
-    - tarjeta_credito_local: Rechaza si últimos 2 dígitos son primos (límite excedido)
+    - tarjeta: Siempre aprueba (simulación simplificada)
+    - tarjeta_credito_local: Siempre aprueba (simulación simplificada)
     - billetera: Rechaza si últimos 2 dígitos son primos (cuenta suspendida)
     - transferencia: Rechaza si contiene "000" o tiene < 6 caracteres
     
@@ -173,35 +173,13 @@ def validar_pago(pago: PagoRequest) -> tuple[EstadoPago, Optional[str]]:
     if pago.escenario == EstadoPago.fallo:
         return EstadoPago.fallo, "Error simulado por configuración"
     
-    # Validación para TARJETA DE DÉBITO
+    # Validación para TARJETA DE DÉBITO - Siempre aprueba
     if pago.metodo == MetodoPago.tarjeta:
-        if not pago.numero_tarjeta:
-            return EstadoPago.fallo, "Número de tarjeta requerido"
-        
-        try:
-            ultimos_digitos = int(pago.numero_tarjeta[-2:])
-            if es_primo(ultimos_digitos):
-                return (
-                    EstadoPago.fallo,
-                    "Transacción declinada: fondos insuficientes en la cuenta asociada"
-                )
-        except (ValueError, IndexError):
-            return EstadoPago.fallo, "Número de tarjeta inválido"
+        return EstadoPago.exito, None
     
-    # Validación para TARJETA DE CRÉDITO LOCAL
+    # Validación para TARJETA DE CRÉDITO LOCAL - Siempre aprueba
     elif pago.metodo == MetodoPago.tarjeta_credito_local:
-        if not pago.numero_tarjeta:
-            return EstadoPago.fallo, "Número de tarjeta requerido"
-        
-        try:
-            ultimos_digitos = int(pago.numero_tarjeta[-2:])
-            if es_primo(ultimos_digitos):
-                return (
-                    EstadoPago.fallo,
-                    "Tarjeta bloqueada: límite de crédito excedido, contacte a su banco"
-                )
-        except (ValueError, IndexError):
-            return EstadoPago.fallo, "Número de tarjeta inválido"
+        return EstadoPago.exito, None
     
     # Validación para BILLETERA ELECTRÓNICA
     elif pago.metodo == MetodoPago.billetera:
@@ -209,7 +187,18 @@ def validar_pago(pago: PagoRequest) -> tuple[EstadoPago, Optional[str]]:
             return EstadoPago.fallo, "Número de billetera requerido"
         
         try:
-            ultimos_digitos = int(pago.numero_billetera[-2:])
+            # Intentar extraer solo dígitos del número de billetera
+            # Esto permite tanto números de teléfono como emails
+            digitos = ''.join(filter(str.isdigit, pago.numero_billetera))
+            
+            if not digitos or len(digitos) < 2:
+                # Si no hay suficientes dígitos, usar hash del string
+                hash_value = sum(ord(c) for c in pago.numero_billetera)
+                ultimos_digitos = hash_value % 100
+            else:
+                # Usar los últimos 2 dígitos encontrados
+                ultimos_digitos = int(digitos[-2:])
+            
             if es_primo(ultimos_digitos):
                 return (
                     EstadoPago.fallo,
@@ -241,15 +230,6 @@ def validar_pago(pago: PagoRequest) -> tuple[EstadoPago, Optional[str]]:
     return pago.escenario, None
 
 
-def notificar_webhook(url: str, data: dict):
-    """Envía notificación a webhook (en background)"""
-    try:
-        timeout = int(os.getenv("WEBHOOK_TIMEOUT", "5"))
-        httpx.post(url, json=data, timeout=timeout)
-    except Exception:
-        pass  # Ignorar errores de webhook
-
-
 # ============================================================================
 # ENDPOINTS
 # ============================================================================
@@ -263,6 +243,7 @@ def home():
         "base_datos": "PostgreSQL",
         "metodos_pago": ["tarjeta", "tarjeta_credito_local", "billetera", "transferencia"],
         "endpoints": {
+            "admin_panel": "GET /admin",
             "crear_pago": "POST /pago",
             "consultar_pago": "GET /pago/{id_pago}",
             "listar_pagos": "GET /admin/pagos",
@@ -273,24 +254,38 @@ def home():
     }
 
 
+@app.get("/admin", response_class=HTMLResponse, summary="Panel de Administración", tags=["Admin"])
+def admin_panel():
+    """
+    Panel de administración web para visualizar y gestionar los pagos procesados.
+    Interfaz HTML con Bootstrap que muestra estadísticas y listado de transacciones.
+    """
+    try:
+        with open("templates/admin_panel.html", "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    except FileNotFoundError:
+        return HTMLResponse(
+            content="<h1>Error: Template no encontrado</h1><p>El archivo admin_panel.html no existe.</p>",
+            status_code=500
+        )
+
+
 @app.post("/pago", response_model=PagoResponse, summary="Crear pago", tags=["Pagos"])
-def crear_pago(pago: PagoRequest, background_tasks: BackgroundTasks):
+def crear_pago(pago: PagoRequest):
     """
     Procesa un nuevo pago según el método seleccionado.
     
     ### Reglas de validación por método:
     
-    - **tarjeta (débito)**: Rechaza si últimos 2 dígitos son primos
-      - ❌ `4111111111111113` (13 es primo) → "Fondos insuficientes"
-      - ✅ `4111111111111112` (12 no es primo) → Éxito
+    - **tarjeta (débito)**: Siempre aprueba (simulación simplificada)
     
-    - **tarjeta_credito_local**: Rechaza si últimos 2 dígitos son primos
-      - ❌ `5500000000000007` (07 es primo) → "Límite excedido"
-      - ✅ `5500000000000004` (04 no es primo) → Éxito
+    - **tarjeta_credito_local**: Siempre aprueba (simulación simplificada)
     
     - **billetera**: Rechaza si últimos 2 dígitos son primos
       - ❌ `0981123457` (57 termina en 7, primo) → "Cuenta suspendida"
+      - ❌ `test13@email.com` (13 es primo) → "Cuenta suspendida"
       - ✅ `0981123450` (50 no es primo) → Éxito
+      - ✅ `user@domain.com` (hash mod 100 no es primo) → Éxito
     
     - **transferencia**: Rechaza si contiene "000" o < 6 caracteres
       - ❌ `ABC000XYZ` → "Operación no autorizada"
@@ -311,10 +306,10 @@ def crear_pago(pago: PagoRequest, background_tasks: BackgroundTasks):
         
         insert_query = """
         INSERT INTO pagos (
-            id_pago, monto, metodo, moneda, estado, webhook_url,
-            numero_tarjeta, numero_billetera, numero_comprobante,
+            id_pago, monto, metodo, moneda, estado,
+            numero_billetera, numero_comprobante,
             motivo_rechazo, fecha
-        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         
         cursor.execute(insert_query, (
@@ -323,8 +318,6 @@ def crear_pago(pago: PagoRequest, background_tasks: BackgroundTasks):
             pago.metodo.value,
             pago.moneda,
             estado_final.value,
-            pago.webhook_url,
-            pago.numero_tarjeta,
             pago.numero_billetera,
             pago.numero_comprobante,
             motivo_rechazo,
@@ -340,14 +333,6 @@ def crear_pago(pago: PagoRequest, background_tasks: BackgroundTasks):
         fecha=fecha_actual,
         motivo_rechazo=motivo_rechazo
     )
-    
-    # Notificar webhook si existe
-    if pago.webhook_url:
-        background_tasks.add_task(
-            notificar_webhook,
-            pago.webhook_url,
-            response.dict()
-        )
     
     return response
 

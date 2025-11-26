@@ -5,9 +5,7 @@ CREATE TABLE IF NOT EXISTS pagos (
     metodo VARCHAR(50) NOT NULL,
     moneda VARCHAR(10) NOT NULL DEFAULT 'PYG',
     estado VARCHAR(50) NOT NULL,
-    webhook_url VARCHAR(500),
     fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    numero_tarjeta VARCHAR(20),
     numero_billetera VARCHAR(20),
     numero_comprobante VARCHAR(50),
     motivo_rechazo VARCHAR(500)
@@ -33,11 +31,11 @@ FROM pagos
 GROUP BY estado, metodo;
 
 -- Datos de prueba iniciales (opcional)
-INSERT INTO pagos (id_pago, monto, metodo, moneda, estado, fecha, numero_tarjeta) 
+INSERT INTO pagos (id_pago, monto, metodo, moneda, estado, fecha) 
 VALUES 
-    ('TEST-001', 100000.00, 'tarjeta', 'PYG', 'exito', NOW(), '4111111111111112'),
-    ('TEST-002', 50000.00, 'billetera', 'PYG', 'exito', NOW(), NULL),
-    ('TEST-003', 75000.00, 'tarjeta', 'PYG', 'fallo', NOW(), '4111111111111113')
+    ('TEST-001', 100000.00, 'tarjeta', 'PYG', 'exito', NOW()),
+    ('TEST-002', 50000.00, 'billetera', 'PYG', 'exito', NOW()),
+    ('TEST-003', 75000.00, 'tarjeta', 'PYG', 'fallo', NOW())
 ON CONFLICT (id_pago) DO NOTHING;
 
 CREATE OR REPLACE FUNCTION limpiar_pagos_antiguos(dias INTEGER DEFAULT 30)

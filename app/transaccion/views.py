@@ -14,7 +14,7 @@ from django.http import (
 )
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_GET, require_http_methods
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
 from commons.enums import EstadoTransaccionEnum, TipoMovimientoEnum, TipoTransaccionEnum, PaymentTypeEnum
 from clientes.models import Cliente
 from monedas.models import Moneda, TasaCambio
@@ -32,6 +32,22 @@ from .services import (
 )
 from tauser.services import validar_stock_tauser_para_transaccion
 
+@require_POST
+def marcar_pagada_simple(request, pk):
+    # Filtrar por clientes del usuario autenticado
+    if request.user.is_authenticated:
+        tx = get_object_or_404(
+            Transaccion.objects.filter(cliente__usuarios=request.user), 
+            pk=pk
+        )
+    else:
+        tx = get_object_or_404(Transaccion, pk=pk)
+    
+    if tx.estado != EstadoTransaccionEnum.PAGADA:
+        tx.estado = EstadoTransaccionEnum.PAGADA
+        tx.save()
+    return redirect(request.META.get('HTTP_REFERER', '/'))
+
 @csrf_exempt
 @require_http_methods(["POST"])
 def vincular_tauser(request):
@@ -43,7 +59,12 @@ def vincular_tauser(request):
     if not transaccion_id or not tauser_id:
         return JsonResponse({"ok": False, "mensaje": "Faltan parámetros."}, status=400)
     try:
-        tx = Transaccion.objects.get(id=transaccion_id)
+        # Filtrar por clientes del usuario autenticado
+        if request.user.is_authenticated:
+            tx = Transaccion.objects.filter(cliente__usuarios=request.user).get(id=transaccion_id)
+        else:
+            tx = Transaccion.objects.get(id=transaccion_id)
+        
         tx.tauser_id = tauser_id
         tx.save(update_fields=["tauser_id"])
         return JsonResponse({"ok": True, "mensaje": "Tauser vinculado correctamente a la transacción."})
@@ -84,6 +105,16 @@ def medios_pago_por_cliente(request):
     cliente_id = request.GET.get("cliente_id")
     if not cliente_id:
         return JsonResponse({"error": "Falta cliente_id"}, status=400)
+    
+    # Validar que el cliente pertenezca al usuario autenticado
+    if request.user.is_authenticated:
+        try:
+            cliente = Cliente.objects.filter(usuarios=request.user).get(pk=cliente_id)
+        except Cliente.DoesNotExist:
+            return JsonResponse({"error": "Cliente no encontrado o no autorizado"}, status=404)
+    else:
+        return JsonResponse({"error": "Usuario no autenticado"}, status=401)
+    
     medios = PaymentMethod.objects.filter(cliente_id=cliente_id)
     medios_list = [
         {
@@ -107,6 +138,15 @@ def medios_acreditacion_por_cliente(request):
     cliente_id = request.GET.get("cliente_id")
     if not cliente_id:
         return JsonResponse({"error": "Falta cliente_id"}, status=400)
+    
+    # Validar que el cliente pertenezca al usuario autenticado
+    if request.user.is_authenticated:
+        try:
+            cliente = Cliente.objects.filter(usuarios=request.user).get(pk=cliente_id)
+        except Cliente.DoesNotExist:
+            return JsonResponse({"error": "Cliente no encontrado o no autorizado"}, status=404)
+    else:
+        return JsonResponse({"error": "Usuario no autenticado"}, status=401)
     
     medios = MedioAcreditacion.objects.filter(cliente_id=cliente_id)
     medios_list = [
@@ -207,16 +247,25 @@ def transacciones_list(request):
     if estado_qs not in estados_validos:
         estado_qs = "pendiente"
 
-    # Filtrar por clientes del usuario operador logueado
-    transacciones = (
-        Transaccion.objects
-        .filter(cliente__usuarios=request.user)
-        .select_related("cliente", "moneda", "medio_pago", "medio_cobro")
-    )
+    # Si el usuario no está autenticado, no filtrar por usuario (evita error de SimpleLazyObject)
+    if request.user.is_authenticated:
+        transacciones = (
+            Transaccion.objects
+            .filter(cliente__usuarios=request.user)
+            .select_related("cliente", "moneda", "medio_pago", "medio_cobro")
+        )
+        base = Transaccion.objects.filter(cliente__usuarios=request.user)
+    else:
+        transacciones = (
+            Transaccion.objects
+            .select_related("cliente", "moneda", "medio_pago", "medio_cobro")
+        )
+        base = Transaccion.objects.all()
 
     # filtro por cliente (si aplica)
     if cliente_id:
         transacciones = transacciones.filter(cliente_id=cliente_id)
+        base = base.filter(cliente_id=cliente_id)
 
     # filtro por estado (si NO es 'todas')
     estado_enum = estados_validos[estado_qs]
@@ -229,11 +278,6 @@ def transacciones_list(request):
     else:
         transacciones = transacciones.order_by("-fecha")
 
-    # ---- Contadores por estado (respetando cliente si está filtrado y usuario) ----
-    base = Transaccion.objects.filter(cliente__usuarios=request.user)
-    if cliente_id:
-        base = base.filter(cliente_id=cliente_id)
-
     counts = {
         "pendiente": base.filter(estado=EstadoTransaccionEnum.PENDIENTE).count(),
         "pagada": base.filter(estado=EstadoTransaccionEnum.PAGADA).count(),
@@ -243,7 +287,12 @@ def transacciones_list(request):
         "todas": base.count(),
     }
 
-    clientes = Cliente.objects.all()
+    # Solo mostrar clientes asociados al usuario autenticado
+    if request.user.is_authenticated:
+        clientes = Cliente.objects.filter(usuarios=request.user).order_by("nombre")
+    else:
+        clientes = Cliente.objects.none()
+    
     from tauser.models import Tauser
     tausers = Tauser.objects.filter(estado="activo")
     ctx = {
@@ -264,7 +313,14 @@ def confirmar_view(request, pk):
     - Si tiene medio_pago guardado (transferencia/billetera) → procesa por SIPAP
     - Si es efectivo → confirmación manual
     """
-    transaccion = get_object_or_404(Transaccion, pk=pk)
+    # Filtrar por clientes del usuario autenticado
+    if request.user.is_authenticated:
+        transaccion = get_object_or_404(
+            Transaccion.objects.filter(cliente__usuarios=request.user), 
+            pk=pk
+        )
+    else:
+        transaccion = get_object_or_404(Transaccion, pk=pk)
     
     try:
         # Si NO tiene medio_pago, asumimos que es tarjeta (Stripe)
@@ -313,7 +369,15 @@ def confirmar_view(request, pk):
 
 
 def cancelar_view(request, pk):
-    transaccion = get_object_or_404(Transaccion, pk=pk)
+    # Filtrar por clientes del usuario autenticado
+    if request.user.is_authenticated:
+        transaccion = get_object_or_404(
+            Transaccion.objects.filter(cliente__usuarios=request.user), 
+            pk=pk
+        )
+    else:
+        transaccion = get_object_or_404(Transaccion, pk=pk)
+    
     try:
         cancelar_transaccion(transaccion)
         messages.success(request, f"Transacción {transaccion.id} cancelada.")
@@ -664,7 +728,14 @@ def calcular_api(request):
 
 
 def iniciar_pago_tarjeta(request, pk):
-    tx = get_object_or_404(Transaccion, pk=pk)
+    # Filtrar por clientes del usuario autenticado
+    if request.user.is_authenticated:
+        tx = get_object_or_404(
+            Transaccion.objects.filter(cliente__usuarios=request.user), 
+            pk=pk
+        )
+    else:
+        tx = get_object_or_404(Transaccion, pk=pk)
 
     # Debe estar pendiente
     if str(tx.estado) != str(EstadoTransaccionEnum.PENDIENTE):
@@ -696,6 +767,7 @@ def pago_success(request):
     info = None
 
     # Si el usuario no está autenticado pero hay un stripe_user_id en sesión, re-autenticar
+    # Pero NO limpiar la sesión, así persiste mientras no se cierre el navegador
     if not request.user.is_authenticated:
         user_id = request.session.get('stripe_user_id')
         if user_id:
@@ -705,8 +777,6 @@ def pago_success(request):
                 login(request, user)
             except User.DoesNotExist:
                 pass
-        # Limpiar el stripe_user_id de la sesión para evitar reusos
-        request.session.pop('stripe_user_id', None)
 
     if session_id:
         try:
@@ -715,25 +785,21 @@ def pago_success(request):
             info = None
 
     # --- PLAN B: confirmar acá si Stripe ya cobró (idempotente) ---
+
     if tx_id and info and info.get("payment_status") == "paid":
         try:
             with transaction.atomic():
                 tx = Transaccion.objects.select_for_update().get(pk=int(tx_id))
 
                 if str(tx.estado) != str(EstadoTransaccionEnum.PAGADA):
-                    # marcar pagada
+                    # marcar pagada y recalcular ganancia
                     tx.estado = EstadoTransaccionEnum.PAGADA
-                    # opcional: guardar payment_intent / status si tenés esos campos
                     if hasattr(tx, "stripe_payment_intent_id") and info.get("payment_intent"):
                         tx.stripe_payment_intent_id = info["payment_intent"]
                     if hasattr(tx, "stripe_status"):
                         tx.stripe_status = "completed"
-                    campos = ["estado"]
-                    if hasattr(tx, "stripe_payment_intent_id") and info.get("payment_intent"):
-                        campos.append("stripe_payment_intent_id")
-                    if hasattr(tx, "stripe_status"):
-                        campos.append("stripe_status")
-                    tx.save(update_fields=campos)
+                    # Guardar todo junto para que se ejecute la lógica de ganancia
+                    tx.save()  # No usar update_fields para que se ejecute el cálculo de ganancia
 
                     # crear movimiento coherente con el tipo
                     if str(tx.tipo) == str(TipoTransaccionEnum.COMPRA):
@@ -834,19 +900,14 @@ def stripe_webhook(request):
                     return HttpResponse(status=200)
 
                 # Guardar info útil
-                updates = {}
-                if hasattr(tx, "stripe_payment_intent_id"):
-                    updates["stripe_payment_intent_id"] = session.get("payment_intent")
-                if hasattr(tx, "stripe_status"):
-                    updates["stripe_status"] = "completed"
-                if updates:
-                    for k, v in updates.items():
-                        setattr(tx, k, v)
-                    tx.save(update_fields=list(updates.keys()))
 
-                # Confirmar negocio
+                # Guardar info útil y marcar pagada, recalculando ganancia
+                if hasattr(tx, "stripe_payment_intent_id"):
+                    tx.stripe_payment_intent_id = session.get("payment_intent")
+                if hasattr(tx, "stripe_status"):
+                    tx.stripe_status = "completed"
                 tx.estado = EstadoTransaccionEnum.PAGADA
-                tx.save(update_fields=["estado"])
+                tx.save()  # No usar update_fields para que se ejecute el cálculo de ganancia
 
                 # Movimiento en caja PYG coherente con el tipo
                 if str(tx.tipo) == str(TipoTransaccionEnum.COMPRA):
@@ -876,4 +937,56 @@ def stripe_webhook(request):
 
     return HttpResponse(status=200)
 
+
+@require_GET
+def mostrar_comprobante_sipap(request, pk):
+    """
+    Vista para mostrar el modal de comprobante SIPAP desde el historial de transacciones.
+    Permite al usuario revisar los datos y proceder con el pago.
+    Solo funciona para COMPRAS con métodos SIPAP (transferencia/billetera).
+    
+    Para VENTAS, el pago se procesa automáticamente al confirmar en el terminal Tauser.
+    """
+    # Filtrar por clientes del usuario autenticado
+    if request.user.is_authenticated:
+        transaccion = get_object_or_404(
+            Transaccion.objects.filter(cliente__usuarios=request.user), 
+            pk=pk
+        )
+    else:
+        transaccion = get_object_or_404(Transaccion, pk=pk)
+    
+    # Verificar que la transacción esté pendiente
+    if transaccion.estado != EstadoTransaccionEnum.PENDIENTE:
+        messages.warning(request, "Esta transacción ya no está en estado pendiente.")
+        return redirect('transacciones:transacciones_list')
+    
+    # Solo permitir para COMPRAS
+    if transaccion.tipo != TipoTransaccionEnum.COMPRA:
+        messages.warning(request, "Esta vista solo está disponible para transacciones de compra.")
+        return redirect('transacciones:transacciones_list')
+    
+    # Verificar que sea un pago SIPAP (transferencia o billetera)
+    metodo_pago = None
+    if transaccion.medio_pago:
+        if transaccion.medio_pago.payment_type in ['cuenta_bancaria', 'billetera']:
+            metodo_pago = 'transferencia' if transaccion.medio_pago.payment_type == 'cuenta_bancaria' else 'billetera'
+    
+    if not metodo_pago:
+        messages.warning(request, "Esta transacción no utiliza un método de pago SIPAP.")
+        return redirect('transacciones:transacciones_list')
+    
+    # Preparar contexto para el template
+    context = {
+        'transaccion': transaccion,
+        'metodo_pago': metodo_pago,
+        'cliente': transaccion.cliente,
+        'moneda': transaccion.moneda,
+        'tipo': 'COMPRA',
+        'mostrar_solo_sipap': True,  # Flag para indicar que solo mostramos el modal SIPAP
+    }
+    
+    return render(request, "transacciones/transaccion_confirmada.html", context)
+
+    
     
