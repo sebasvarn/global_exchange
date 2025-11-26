@@ -8,6 +8,8 @@ Definición de enumeraciones utilizadas en la aplicación.
 class TipoMedioAcreditacionEnum(Enum):
 	CUENTA_BANCARIA = "cuenta_bancaria"
 	BILLETERA = "billetera"
+	EFECTIVO = "efectivo"
+	TARJETA = "tarjeta"
 
 
 
@@ -16,8 +18,10 @@ class EstadoRegistroEnum(Enum):
 	ELIMINADO = "eliminado"
 	SUSPENDIDO = "suspendido"
 
-# Enum para tipos de pago guardados (no incluye tarjeta ni cheque)
+# Enum para tipos de pago (incluye todos los métodos de pago)
 class PaymentTypeEnum(Enum):
+	EFECTIVO = "efectivo"
+	TARJETA = "tarjeta"
 	CUENTA_BANCARIA = "cuenta_bancaria"
 	BILLETERA = "billetera"
 
@@ -31,7 +35,8 @@ class TipoTransaccionEnum(models.TextChoices):
     VENTA = "venta", "Venta"
 
 class EstadoTransaccionEnum(models.TextChoices):
-    PENDIENTE = "pendiente", "Pendiente"
-    PAGADA = "pagada", "Pagada"
-    ANULADA = "anulada", "Anulada"
-    CANCELADA = "cancelada", "Cancelada"
+	PENDIENTE = "pendiente", "Pendiente"
+	PAGADA = "pagada", "Pagada"
+	ANULADA = "anulada", "Anulada"
+	CANCELADA = "cancelada", "Cancelada"
+	COMPLETADA = "completada", "Completada"

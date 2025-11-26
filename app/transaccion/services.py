@@ -17,6 +17,7 @@ from commons.redondeo import redondear_a_denom_py
 from clientes.models import LimitePYG, LimiteMoneda, TasaComision
 from monedas.models import TasaCambio, PrecioBaseComision
 from .models import Transaccion, Movimiento
+from tauser.models import ReservaDenominacionTauser, TauserStock, Denominacion, Tauser
 from commons.enums import EstadoTransaccionEnum, TipoTransaccionEnum, TipoMovimientoEnum
 from pagos.services import PaymentOrchestrator
 from pagos.models import PagoPasarela
@@ -28,30 +29,46 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 # =========================
 # Cálculo de transacción
 # =========================
-def calcular_transaccion(cliente, tipo, moneda, monto_operado, medio_pago):
+def calcular_transaccion(cliente, tipo, moneda, monto_operado, medio_pago=None, tipo_metodo_override=None):
     """
-    Calcula tasa, comisión y monto_pyg, sumando comisión por método de pago (obligatorio).
+    Calcula tasa, comisión y monto_pyg, sumando comisión por método de pago.
+    
+    Args:
+        cliente: Cliente que realiza la transacción
+        tipo: TipoTransaccionEnum (COMPRA/VENTA)
+        moneda: Moneda operada
+        monto_operado: Monto en la moneda extranjera
+        medio_pago: PaymentMethod o ID (opcional si tipo_metodo_override está definido)
+        tipo_metodo_override: str - Tipo de método para casos especiales como 'efectivo' o 'tarjeta'
+                               que no requieren PaymentMethod guardado
     """
 
     from payments.models import ComisionMetodoPago, PaymentMethod
 
-    if medio_pago is None:
-        raise ValidationError("Debe especificar el método de pago.")
+    # Determinar el tipo de método de pago
+    tipo_metodo = None
+    
+    if tipo_metodo_override:
+        # Caso especial: efectivo o tarjeta (no requieren PaymentMethod guardado)
+        tipo_metodo = tipo_metodo_override
+    elif medio_pago is not None:
+        # Si medio_pago es un ID (int o str), obtener el objeto PaymentMethod
+        payment_method_obj = None
+        if isinstance(medio_pago, (int, str)):
+            try:
+                payment_method_obj = PaymentMethod.objects.get(pk=medio_pago)
+            except PaymentMethod.DoesNotExist:
+                raise ValidationError("El método de pago seleccionado no existe.")
+        else:
+            payment_method_obj = medio_pago  # ya es objeto
 
-    # Si medio_pago es un ID (int o str), obtener el objeto PaymentMethod
-    payment_method_obj = None
-    if isinstance(medio_pago, (int, str)):
-        try:
-            payment_method_obj = PaymentMethod.objects.get(pk=medio_pago)
-        except PaymentMethod.DoesNotExist:
-            raise ValidationError("El método de pago seleccionado no existe.")
+        tipo_metodo = payment_method_obj.payment_type
+        # Mapear 'transferencia' a 'cuenta_bancaria' para la tabla de comisiones (si fuera necesario)
+        if tipo_metodo == "transferencia":
+            tipo_metodo = "cuenta_bancaria"
     else:
-        payment_method_obj = medio_pago  # ya es objeto
-
-    tipo_metodo = payment_method_obj.payment_type
-    # Mapear 'cuenta_bancaria' a 'transferencia' para la tabla de comisiones
-    if tipo_metodo == "cuenta_bancaria":
-        tipo_metodo = "transferencia"
+        # Si no hay medio_pago ni tipo_metodo_override, usar 'efectivo' como default
+        tipo_metodo = "efectivo"
 
     # 1) Segmento del cliente (fallback 'MIN')
     segmento = getattr(cliente, "tipo", "MIN").upper()
@@ -271,10 +288,11 @@ def validate_limits(cliente, moneda_operada, monto_operado, monto_pyg):
 
 
 def crear_transaccion(
-    cliente, tipo, moneda, monto_operado, tasa_aplicada, comision, monto_pyg, medio_pago=None
+    cliente, tipo, moneda, monto_operado, tasa_aplicada, comision, monto_pyg, medio_pago=None, tauser=None, medio_cobro=None
 ):
     """
     Crea la transacción en estado PENDIENTE (sin movimientos aún).
+    Si es en efectivo y tiene tauser, descuenta stock y crea reservas.
     """
     validate_limits(cliente, moneda, monto_operado, monto_pyg)
     with dj_tx.atomic():
@@ -287,9 +305,62 @@ def crear_transaccion(
             tasa_aplicada=tasa_aplicada,
             comision=comision,
             medio_pago=medio_pago,
+            tauser=tauser,
+            medio_cobro=medio_cobro,
             estado=EstadoTransaccionEnum.PENDIENTE,
         )
+        # En compra: siempre reservar moneda internacional
+        # En venta: solo reservar PYG si el medio de cobro es efectivo
+        from monedas.models import Moneda
+        if tauser:
+            if tipo == TipoTransaccionEnum.COMPRA or (hasattr(tipo, 'lower') and tipo.lower() == 'compra'):
+                reservar_stock_tauser_para_transaccion(tauser, t, monto_operado, moneda)
+            elif tipo == TipoTransaccionEnum.VENTA or (hasattr(tipo, 'lower') and tipo.lower() == 'venta'):
+                # Buscar si el medio de cobro es efectivo (usar tipo_medio)
+                es_efectivo_cobro = False
+                if hasattr(t, 'medio_cobro') and t.medio_cobro and hasattr(t.medio_cobro, 'tipo_medio'):
+                    es_efectivo_cobro = t.medio_cobro.tipo_medio == 'efectivo'
+                if es_efectivo_cobro:
+                    moneda_pyg = Moneda.objects.filter(codigo='PYG').first()
+                    if moneda_pyg:
+                        reservar_stock_tauser_para_transaccion(tauser, t, monto_pyg, moneda_pyg)
     return t
+
+
+# --- Lógica de reserva de stock ---
+from decimal import Decimal
+def reservar_stock_tauser_para_transaccion(tauser, transaccion, monto, moneda):
+    """
+    Descuenta del stock del tauser las denominaciones necesarias y crea reservas para la transacción.
+    """
+    # Obtener denominaciones ordenadas de mayor a menor
+    denominaciones = Denominacion.objects.filter(moneda=moneda).order_by('-value')
+    monto_restante = Decimal(monto)
+    for denom in denominaciones:
+        try:
+            stock = TauserStock.objects.get(tauser=tauser, denominacion=denom)
+        except TauserStock.DoesNotExist:
+            continue
+        if stock.quantity <= 0:
+            continue
+        max_billetes = int(monto_restante // denom.value)
+        usar = min(max_billetes, stock.quantity)
+        if usar > 0:
+            # Descontar del stock
+            stock.quantity -= usar
+            stock.save(update_fields=['quantity'])
+            # Crear reserva
+            ReservaDenominacionTauser.objects.create(
+                tauser=tauser,
+                transaccion=transaccion,
+                denominacion=denom,
+                cantidad=usar
+            )
+            monto_restante -= denom.value * usar
+        if monto_restante <= 0:
+            break
+    if monto_restante > 0:
+        raise ValidationError(f"Stock insuficiente para reservar denominaciones para el monto {monto} {moneda}.")
 
 
 # =========================
@@ -426,9 +497,21 @@ def confirmar_transaccion(transaccion: Transaccion):
 
 
 def cancelar_transaccion(transaccion: Transaccion):
-    """Cancela una transacción pendiente."""
+    """Cancela una transacción pendiente. Libera stock reservado si corresponde."""
     if transaccion.estado != EstadoTransaccionEnum.PENDIENTE:
         raise ValidationError("Solo transacciones pendientes pueden cancelarse.")
+
+    # Liberar stock reservado si corresponde
+    if hasattr(transaccion, 'tauser') and transaccion.tauser:
+        from tauser.models import ReservaDenominacionTauser, TauserStock
+        reservas = ReservaDenominacionTauser.objects.filter(transaccion=transaccion)
+        for reserva in reservas:
+            # Sumar la cantidad reservada al stock
+            stock, _ = TauserStock.objects.get_or_create(tauser=reserva.tauser, denominacion=reserva.denominacion)
+            stock.quantity += reserva.cantidad
+            stock.save(update_fields=['quantity'])
+        # Eliminar las reservas
+        reservas.delete()
 
     transaccion.estado = EstadoTransaccionEnum.CANCELADA
     transaccion.save(update_fields=["estado"])

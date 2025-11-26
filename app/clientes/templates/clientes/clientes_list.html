@@ -48,6 +48,7 @@
                 </thead>
                 <tbody>
                   {% for c in clientes %}
+                    {% if c.nombre != 'Sistema' %}
                     <tr {% if c.estado == 'eliminado' %}class="table-danger"{% endif %}>
                       <td><strong>{{ c.id }}</strong></td>
                       <td>{{ c.nombre }}</td>
@@ -99,6 +100,7 @@
                         </div>
                       </td>
                     </tr>
+                    {% endif %}
                   {% endfor %}
                 </tbody>
               </table>

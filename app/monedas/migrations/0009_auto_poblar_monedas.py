@@ -34,53 +34,77 @@ def crear_monedas(apps, schema_editor):
                 }
             )
 
-            # Poblar 10 cotizaciones históricas, la última es la activa y coincide con precio base y comisiones
+            # Extraer valores base y comisiones
             base = p["precio_base"]
             com_compra = p["comision_compra"]
             com_venta = p["comision_venta"]
-            hoy = datetime.now()
-            fechas = [
-                timezone.make_aware(hoy.replace(year=hoy.year-3, month=5, day=15)),
-                timezone.make_aware(hoy.replace(year=hoy.year-2, month=8, day=10)),
-                timezone.make_aware(hoy.replace(year=hoy.year-2, month=12, day=20)),
-                timezone.make_aware(hoy.replace(year=hoy.year-1, month=1, day=5)),
-                timezone.make_aware(hoy.replace(year=hoy.year-1, month=4, day=25)),
-                timezone.make_aware(hoy.replace(year=hoy.year-1, month=9, day=13)),
-                timezone.make_aware(hoy.replace(year=hoy.year, month=2, day=7)),
-                timezone.make_aware(hoy.replace(year=hoy.year, month=5, day=19)),
-                timezone.make_aware(hoy.replace(year=hoy.year, month=8, day=2)),
-            ]
-            for i in range(9):
-                variacion = (i-5)*0.01 * base
-                compra = round((base + variacion) - com_compra, 2)
-                venta = round((base + variacion) + com_venta, 2)
+            
+            # Poblar 10 cotizaciones históricas solo si no existen ya
+            # Verificar si ya hay cotizaciones para esta moneda
+            if TasaCambio.objects.filter(moneda=obj).exists():
+                # Si ya hay cotizaciones, solo actualizar la activa con los valores del precio base
+                compra = round(base - com_compra, 2)
+                venta = round(base + com_venta, 2)
+                # Desactivar todas las tasas activas existentes
+                TasaCambio.objects.filter(moneda=obj, activa=True).update(activa=False)
+                # Crear o actualizar la tasa activa
+                tc, created = TasaCambio.objects.update_or_create(
+                    moneda=obj,
+                    activa=True,
+                    defaults={
+                        'compra': compra,
+                        'venta': venta,
+                        'es_automatica': True,
+                        'fuente': 'BCP',
+                        'base_codigo': 'PYG',
+                        'ts_fuente': timezone.make_aware(datetime.now())
+                    }
+                )
+            else:
+                # Si no hay cotizaciones, crear el histórico completo
+                hoy = datetime.now()
+                fechas = [
+                    timezone.make_aware(hoy.replace(year=hoy.year-3, month=5, day=15)),
+                    timezone.make_aware(hoy.replace(year=hoy.year-2, month=8, day=10)),
+                    timezone.make_aware(hoy.replace(year=hoy.year-2, month=12, day=20)),
+                    timezone.make_aware(hoy.replace(year=hoy.year-1, month=1, day=5)),
+                    timezone.make_aware(hoy.replace(year=hoy.year-1, month=4, day=25)),
+                    timezone.make_aware(hoy.replace(year=hoy.year-1, month=9, day=13)),
+                    timezone.make_aware(hoy.replace(year=hoy.year, month=2, day=7)),
+                    timezone.make_aware(hoy.replace(year=hoy.year, month=5, day=19)),
+                    timezone.make_aware(hoy.replace(year=hoy.year, month=8, day=2)),
+                ]
+                for i in range(9):
+                    variacion = (i-5)*0.01 * base
+                    compra = round((base + variacion) - com_compra, 2)
+                    venta = round((base + variacion) + com_venta, 2)
+                    tc = TasaCambio.objects.create(
+                        moneda=obj,
+                        compra=compra,
+                        venta=venta,
+                        activa=False,
+                        es_automatica=True,
+                        fuente="BCP",
+                        base_codigo="PYG",
+                        ts_fuente=fechas[i]
+                    )
+                    tc.fecha_creacion = fechas[i]
+                    tc.save(update_fields=["fecha_creacion"])
+                # Última cotización: la activa, igual a precio base y comisiones, fecha actual
+                compra = round(base - com_compra, 2)
+                venta = round(base + com_venta, 2)
                 tc = TasaCambio.objects.create(
                     moneda=obj,
                     compra=compra,
                     venta=venta,
-                    activa=False,
+                    activa=True,
                     es_automatica=True,
                     fuente="BCP",
                     base_codigo="PYG",
-                    ts_fuente=fechas[i]
+                    ts_fuente=timezone.make_aware(hoy)
                 )
-                tc.fecha_creacion = fechas[i]
+                tc.fecha_creacion = timezone.make_aware(hoy)
                 tc.save(update_fields=["fecha_creacion"])
-            # Última cotización: la activa, igual a precio base y comisiones, fecha actual
-            compra = round(base - com_compra, 2)
-            venta = round(base + com_venta, 2)
-            tc = TasaCambio.objects.create(
-                moneda=obj,
-                compra=compra,
-                venta=venta,
-                activa=True,
-                es_automatica=True,
-                fuente="BCP",
-                base_codigo="PYG",
-                ts_fuente=timezone.make_aware(hoy)
-            )
-            tc.fecha_creacion = timezone.make_aware(hoy)
-            tc.save(update_fields=["fecha_creacion"])
 
 class Migration(migrations.Migration):
     dependencies = [

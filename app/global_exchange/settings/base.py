@@ -6,7 +6,7 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / '.env.dev')
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-not-secure")
-DEBUG = False
+DEBUG = os.getenv("DJANGO_DEBUG", "True") == "True"
 
 ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "").split(",") if os.getenv("DJANGO_ALLOWED_HOSTS") else []
 

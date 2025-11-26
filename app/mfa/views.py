@@ -52,33 +52,88 @@ def generate_otp_view(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from transaccion.models import Transaccion
+from transaccion.services import confirmar_transaccion
+from .forms import OTPForm
+from .services import verify_otp as verify_otp_service
+
+@login_required
+def verify_otp(request):
+    purpose = request.session.get('mfa_purpose')
+    context = request.session.get('mfa_context', {})
+
+    if not purpose:
+        messages.error(request, "No se encontró un propósito de MFA en la sesión.")
+        return redirect('usuarios:dashboard')
+
+    if request.method == 'POST':
+        form = OTPForm(request.POST)
+        if form.is_valid():
+            code = form.cleaned_data['code']
+            try:
+                is_valid, _ = verify_otp_service(request.user, purpose, code)
+                if is_valid:
+                    # Limpiar la sesión de MFA
+                    del request.session['mfa_purpose']
+                    if 'mfa_context' in request.session:
+                        del request.session['mfa_context']
+
+                    # Lógica específica según el propósito
+                    if purpose == 'tauser_confirm_transaction':
+                        tx_code = context.get('transaction_code')
+                        if tx_code:
+                            try:
+                                tx = Transaccion.objects.get(codigo_verificacion=tx_code)
+                                confirmar_transaccion(tx)
+                                messages.success(request, f"Transacción #{tx.id} confirmada correctamente.")
+                                return redirect('tauser:tramitar_transacciones')
+                            except Transaccion.DoesNotExist:
+                                messages.error(request, "La transacción a confirmar no fue encontrada.")
+                            except Exception as e:
+                                messages.error(request, f"Error al confirmar la transacción: {e}")
+                        else:
+                            messages.error(request, "No se encontró el código de la transacción en el contexto de MFA.")
+                        return redirect('tauser:tramitar_transacciones')
+
+                    # Redirección por defecto si no hay un manejo específico
+                    messages.success(request, "Verificación completada con éxito.")
+                    return redirect('usuarios:dashboard')
+
+            except Exception as e:
+                form.add_error(None, str(e))
+    else:
+        form = OTPForm()
+
+    return render(request, 'verify_otp.html', {'form': form})
+
 @csrf_exempt
+@login_required
 @require_POST
-def verify_otp_view(request):
-    """
-    POST: {"email": "user@example.com", "purpose": "transaction_debit", "code": "123456"}
-    Verifica el OTP y devuelve estado.
-    """
+def verify_tauser_transaction_otp(request):
     try:
-        data = json.loads(request.body.decode('utf-8'))
-    except Exception:
-        return JsonResponse({"error": "invalid_json"}, status=400)
+        data = json.loads(request.body)
+        code = data.get('code')
+        purpose = data.get('purpose')
 
-    email = data.get('email')
-    purpose = data.get('purpose')
-    code = data.get('code')
-    if not email or not purpose or not code:
-        return JsonResponse({"error": "missing_parameters"}, status=400)
+        if not code or not purpose:
+            return JsonResponse({'ok': False, 'error': 'Faltan parámetros.'}, status=400)
 
-    try:
-        user = User.objects.get(email__iexact=email)
-    except User.DoesNotExist:
-        return JsonResponse({"error": "user_not_found"}, status=404)
+        is_valid, _ = verify_otp_service(request.user, purpose, code)
+        
+        if is_valid:
+            # Marcar el propósito de MFA como verificado en la sesión
+            request.session[f'mfa_verified_{purpose}'] = True
+            return JsonResponse({'ok': True, 'message': "Verificación exitosa."})
+        else:
+            # This case is handled by verify_otp_service raising an exception, but as a fallback:
+            return JsonResponse({'ok': False, 'error': 'Código de verificación inválido.'}, status=400)
 
-    try:
-        ok, otp = verify_otp(user, purpose, code)
-        return JsonResponse({"ok": True, "otp_id": str(otp.id)})
     except ValidationError as e:
-        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+        return JsonResponse({'ok': False, 'error': str(e)}, status=400)
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        logger.error(f"Error en verify_tauser_transaction_otp: {e}")
+        return JsonResponse({'ok': False, 'error': 'Ocurrió un error inesperado.'}, status=500)
+

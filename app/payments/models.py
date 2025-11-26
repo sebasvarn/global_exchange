@@ -8,8 +8,10 @@ class ComisionMetodoPago(models.Model):
     Tabla de comisiones por tipo de método de pago.
     """
     TIPO_METODO_CHOICES = [
+        ("efectivo", "Efectivo"),
         ("tarjeta", "Tarjeta de crédito"),
         ("transferencia", "Transferencia"),
+        ("cuenta_bancaria", "Cuenta Bancaria"),
         ("billetera", "Billetera")
     ]
     tipo_metodo = models.CharField(max_length=20, choices=TIPO_METODO_CHOICES, unique=True)
@@ -24,11 +26,15 @@ class ComisionMetodoPago(models.Model):
 
 class PaymentMethod(models.Model):
     """
-    Modelo que representa un método de pago GUARDADO en el sistema.
-    Solo incluye métodos que se almacenan: CUENTA_BANCARIA y BILLETERA.
+    Modelo que representa un método de pago en el sistema.
     
-    TARJETA: Se procesa directamente con Stripe (no se guarda en DB por seguridad).
-    CHEQUE: No se utiliza en el sistema.
+    Incluye tanto métodos específicos del cliente (CUENTA_BANCARIA, BILLETERA)
+    como métodos del sistema (EFECTIVO, TARJETA) que no requieren datos del cliente.
+    
+    EFECTIVO: Pago en terminal física (Tauser)
+    TARJETA: Procesado por Stripe (no se guardan datos sensibles)
+    CUENTA_BANCARIA: Transferencia bancaria (datos específicos del cliente)
+    BILLETERA: Billetera digital (datos específicos del cliente)
     """
     cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE, related_name="metodos_pago", verbose_name="Cliente")
     PAYMENT_TYPE_CHOICES = [(e.value, e.name.replace('_', ' ').title()) for e in PaymentTypeEnum]
@@ -120,3 +126,51 @@ class PaymentMethod(models.Model):
             }
         
         return {}
+    
+    @classmethod
+    def get_metodo_sistema(cls, tipo_metodo):
+        """
+        Obtiene o crea un método de pago del sistema (efectivo o tarjeta).
+        
+        Args:
+            tipo_metodo: 'efectivo' o 'tarjeta'
+        
+        Returns:
+            PaymentMethod: Método de pago del sistema
+        """
+        from clientes.models import Cliente
+        
+        # Obtener o crear cliente sistema
+        cliente_sistema, created = Cliente.objects.get_or_create(
+            nombre='Sistema',
+            defaults={
+                'tipo': 'CORP',  # Tipo corporativo para cliente sistema
+                'estado': 'activo',
+            }
+        )
+        
+        # Obtener o crear el método de pago
+        if tipo_metodo == 'efectivo':
+            metodo, created = cls.objects.get_or_create(
+                payment_type=PaymentTypeEnum.EFECTIVO.value,
+                cliente=cliente_sistema,
+                defaults={
+                    'titular_cuenta': 'Sistema - Efectivo',
+                    'banco': 'Caja',
+                    'numero_cuenta': 'EFECTIVO',
+                }
+            )
+        elif tipo_metodo == 'tarjeta':
+            metodo, created = cls.objects.get_or_create(
+                payment_type=PaymentTypeEnum.TARJETA.value,
+                cliente=cliente_sistema,
+                defaults={
+                    'titular_cuenta': 'Sistema - Tarjeta',
+                    'banco': 'Stripe',
+                    'numero_cuenta': 'STRIPE',
+                }
+            )
+        else:
+            raise ValueError(f"Tipo de método no válido para sistema: {tipo_metodo}")
+        
+        return metodo
