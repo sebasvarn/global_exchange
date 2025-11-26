@@ -246,6 +246,7 @@
                       <td class="text-center">
                         <div class="btn-group" role="group">
                           {% if estado == 'pendiente' or estado == 'pagada' %}
+                            {# COMPRA: Botones de pago #}
                             {% if estado == 'pendiente' and t.tipo == 'compra' %}
                               {% if t.medio_pago.payment_type == 'tarjeta' %}
                                 {% if request.user|has_permission:'transacciones.confirmar' %}
@@ -257,12 +258,11 @@
                                 {% endif %}
                               {% elif t.medio_pago.payment_type == 'billetera' or t.medio_pago.payment_type == 'cuenta_bancaria' %}
                                 {% if request.user|has_permission:'transacciones.confirmar' %}
-                                  <form method="post" action="{% url 'transacciones:pago_simplesipap' t.id %}" style="display:inline;">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn btn-sm btn-info" data-bs-toggle="tooltip" title="Pagar con SIPAP (simple)">
-                                      <i class="bi bi-bank"></i> SIPAP
-                                    </button>
-                                  </form>
+                                  <a href="{% url 'transacciones:mostrar_comprobante_sipap' t.id %}"
+                                     class="btn btn-sm btn-info" data-bs-toggle="tooltip" 
+                                     title="Ver comprobante y pagar con SIPAP">
+                                    <i class="bi bi-receipt"></i> Pagar
+                                  </a>
                                 {% endif %}
                               {% endif %}
                             {% endif %}

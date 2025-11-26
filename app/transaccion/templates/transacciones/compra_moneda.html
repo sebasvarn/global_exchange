@@ -62,22 +62,6 @@
         <input type="hidden" name="metodo_pago" id="metodo_pago">
         <input type="hidden" name="metodo_pago_id" id="metodo_pago_id">
 
-        <!-- Selección de Tauser activo y verificación -->
-        <div class="mt-3">
-            <label for="tauser_id" class="form-label">Seleccionar Tauser Activo</label>
-            <select name="tauser_id" id="tauser_id" class="form-select" required>
-                <option value="">-- Seleccione un Tauser --</option>
-                {% for tauser in tausers %}
-                    <option value="{{ tauser.id }}">{{ tauser.nombre }} - {{ tauser.ubicacion }}</option>
-                {% endfor %}
-            </select>
-            <div class="d-grid gap-2 mt-2">
-                <button type="button" id="btn-verificar-tauser" class="btn btn-outline-info">
-                    <i class="bi bi-person-badge"></i> Verificar Tauser
-                </button>
-            </div>
-            <div id="mensaje-verificacion-tauser" class="mt-2"></div>
-        </div>
         <div class="row">
             <!-- Columna Izquierda: Datos de la Transacción -->
             <div class="col-md-6">
@@ -272,13 +256,38 @@
                             </div>
                         </div>
 
+                    </div>
+                </div>
+
+                <!-- Selección de Tauser -->
+                <div class="card mb-4">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0"><i class="bi bi-shop"></i> Seleccionar Caja (Tauser)</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-3">Seleccione la caja donde se realizará la operación</p>
+                        
+                        <div class="mb-3">
+                            <label for="tauser_select" class="form-label">Tauser *</label>
+                            <select name="tauser_id" id="tauser_select" class="form-select" disabled required>
+                                <option value="">Complete los datos de la transacción primero</option>
+                                {% for tauser in tausers %}
+                                    <option value="{{ tauser.id }}">{{ tauser.nombre }} - {{ tauser.ubicacion }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted">
+                                <i class="bi bi-info-circle"></i> El stock se verificará automáticamente al seleccionar
+                            </small>
+                        </div>
+
+                        <div id="tauser-status-message" class="mt-2"></div>
+
                         <!-- Botón Confirmar -->
                         <div class="d-grid gap-2 mt-4">
                             <button type="submit" class="btn btn-success btn-lg" id="btn-confirmar" disabled>
                                 <i class="bi bi-check-circle"></i> Confirmar Compra
                             </button>
                         </div>
-
                     </div>
                 </div>
             </div>
@@ -288,48 +297,8 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-            let tauserValido = false;
-        // --- Verificar Stock Tauser ---
-        const btnVerificarTauser = document.getElementById('btn-verificar-tauser');
-        btnVerificarTauser.addEventListener('click', function() {
-            const mensajeDiv = document.getElementById('mensaje-verificacion-tauser');
-            mensajeDiv.innerHTML = '';
-            // Obtener datos necesarios
-            const monedaId = monedaSelect.value;
-            const monto = montoInput.value;
-            const tauserId = document.getElementById('tauser_id').value;
-            // Validar datos mínimos
-            if (!monedaId || !monto || !tauserId) {
-                mensajeDiv.innerHTML = '<div class="alert alert-warning">Complete todos los campos antes de verificar el stock del Tauser.</div>';
-                tauserValido = false;
-                validarFormulario();
-                return;
-            }
-            fetch('{% url "transacciones:validar_stock_tauser" %}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-CSRFToken': '{{ csrf_token }}'
-                },
-                body: `tauser_id=${tauserId}&monto=${monto}&moneda_id=${monedaId}`
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.ok) {
-                    mensajeDiv.innerHTML = `<div class='alert alert-success'>${data.mensaje}</div>`;
-                    tauserValido = true;
-                } else {
-                    mensajeDiv.innerHTML = `<div class='alert alert-danger'>${data.mensaje}</div>`;
-                    tauserValido = false;
-                }
-                validarFormulario();
-            })
-            .catch(err => {
-                mensajeDiv.innerHTML = `<div class='alert alert-danger'>Error al verificar stock: ${err}</div>`;
-                tauserValido = false;
-                validarFormulario();
-            });
-        });
+    let tauserValido = false;
+
     const form = document.getElementById('compra-form');
     const clienteSelect = document.getElementById('cliente');
     const monedaSelect = document.getElementById('moneda');
@@ -340,9 +309,86 @@ document.addEventListener('DOMContentLoaded', function() {
     const metodosClienteContainer = document.getElementById('metodos-cliente-container');
     const metodoClienteSelect = document.getElementById('metodo-cliente-select');
     const metodoPagoIdInput = document.getElementById('metodo_pago_id');
+    const tauserSelect = document.getElementById('tauser_select');
+    const tauserStatusMessage = document.getElementById('tauser-status-message');
 
     let metodoSeleccionado = null;
     let calculoActual = null;
+
+    // Verificar si los datos de transacción están completos
+    function datosTransaccionCompletos() {
+        return clienteSelect.value && monedaSelect.value && montoInput.value > 0;
+    }
+
+    // Habilitar/deshabilitar select de Tauser
+    function actualizarEstadoTauserSelect() {
+        if (datosTransaccionCompletos()) {
+            tauserSelect.disabled = false;
+            if (tauserSelect.options.length === 1 && tauserSelect.options[0].value === '') {
+                // Ya tiene las opciones correctas, solo cambiar el texto del placeholder
+                tauserSelect.options[0].text = '-- Seleccione un Tauser --';
+            }
+        } else {
+            tauserSelect.disabled = true;
+            tauserSelect.value = '';
+            if (tauserSelect.options.length > 0) {
+                tauserSelect.options[0].text = 'Complete los datos de la transacción primero';
+            }
+            tauserValido = false;
+            tauserStatusMessage.innerHTML = '';
+        }
+        validarFormulario();
+    }
+
+    // Verificar Stock Tauser automáticamente
+    function verificarStockTauser(tauserId) {
+        if (!datosTransaccionCompletos()) {
+            return;
+        }
+
+        const monedaId = monedaSelect.value;
+        const monto = montoInput.value;
+
+        tauserStatusMessage.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Verificando disponibilidad...</div>';
+        tauserValido = false;
+        validarFormulario();
+
+        fetch('{% url "transacciones:validar_stock_tauser" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: `tauser_id=${tauserId}&monto=${monto}&moneda_id=${monedaId}`
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.ok) {
+                tauserStatusMessage.innerHTML = `<div class='alert alert-success'><i class="bi bi-check-circle-fill"></i> ${data.mensaje}</div>`;
+                tauserValido = true;
+            } else {
+                tauserStatusMessage.innerHTML = `<div class='alert alert-danger'><i class="bi bi-x-circle-fill"></i> ${data.mensaje}</div>`;
+                tauserValido = false;
+            }
+            validarFormulario();
+        })
+        .catch(err => {
+            tauserStatusMessage.innerHTML = `<div class='alert alert-danger'><i class="bi bi-x-circle-fill"></i> Error al verificar stock</div>`;
+            tauserValido = false;
+            validarFormulario();
+        });
+    }
+
+    // Event listener para selección de Tauser
+    tauserSelect.addEventListener('change', function() {
+        if (this.value) {
+            verificarStockTauser(this.value);
+        } else {
+            tauserStatusMessage.innerHTML = '';
+            tauserValido = false;
+            validarFormulario();
+        }
+    });
 
     // Calcular automáticamente cuando cambian los datos
     function calcularTransaccion() {
@@ -578,7 +624,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         calcularTransaccion();
         cargarMetodosCliente();
-        validarFormulario();
+        actualizarEstadoTauserSelect();
     });
 
     monedaSelect.addEventListener('change', function() {
@@ -586,11 +632,21 @@ document.addEventListener('DOMContentLoaded', function() {
         const codigo = option.textContent.match(/\(([^)]+)\)/)[1];
         document.getElementById('moneda-simbolo').textContent = codigo;
         calcularTransaccion();
+        actualizarEstadoTauserSelect();
+        // Reset tauser validation when currency changes
+        tauserSelect.value = '';
+        tauserStatusMessage.innerHTML = '';
+        tauserValido = false;
         validarFormulario();
     });
 
     montoInput.addEventListener('input', function() {
         calcularTransaccion();
+        actualizarEstadoTauserSelect();
+        // Reset tauser validation when amount changes
+        tauserSelect.value = '';
+        tauserStatusMessage.innerHTML = '';
+        tauserValido = false;
         validarFormulario();
     });
 
@@ -603,7 +659,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         if (!tauserValido) {
             e.preventDefault();
-            alert('Debe verificar y seleccionar un Tauser válido antes de confirmar la transacción.');
+            alert('Debe seleccionar un Tauser válido antes de confirmar la transacción.');
             return false;
         }
         if ((metodoSeleccionado === 'transferencia' || metodoSeleccionado === 'billetera') && !metodoPagoIdInput.value) {
@@ -615,6 +671,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Ejecutar cálculo inicial si los campos ya tienen valores válidos
     calcularTransaccion();
+    actualizarEstadoTauserSelect();
 });
 </script>
 {% endblock %}
