@@ -47,12 +47,54 @@
         font-size: 4rem;
         color: #198754;
     }
+    
+    .comprobante-box {
+        border: 2px solid #dee2e6;
+        border-radius: 10px;
+        padding: 20px;
+        background: white;
+    }
+    
+    .comprobante-header {
+        border-bottom: 2px solid #0d6efd;
+        padding-bottom: 15px;
+        margin-bottom: 20px;
+    }
+    
+    .comprobante-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px 0;
+        border-bottom: 1px solid #e9ecef;
+    }
+    
+    .comprobante-row:last-child {
+        border-bottom: none;
+    }
+    
+    .comprobante-label {
+        font-weight: 600;
+        color: #6c757d;
+    }
+    
+    .comprobante-value {
+        text-align: right;
+        color: #212529;
+    }
+    
+    .cuenta-info {
+        background: #f8f9fa;
+        border-left: 4px solid #0d6efd;
+        padding: 15px;
+        margin: 10px 0;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container mt-4">
-    <!-- Modal automático -->
+    {% if not mostrar_solo_sipap %}
+    <!-- Modal de Confirmación Inicial -->
     <div class="modal fade" id="modalConfirmacion" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
@@ -173,14 +215,25 @@
                            class="btn btn-primary btn-action">
                             <i class="bi bi-credit-card"></i> Procesar Pago con Tarjeta
                         </a>
-                    {% elif metodo_pago == 'efectivo' or metodo_cobro == 'efectivo' %}
-                        <!-- Efectivo: Ir a Terminal Tauser -->
-                        <a href="{% url 'transacciones:transacciones_list' %}" 
+                    {% elif metodo_pago == 'efectivo' or metodo_cobro == 'efectivo' or metodo_cobro == 'transferencia' %}
+                        <!-- Efectivo o Venta: Ir a Terminal Tauser -->
+                        <a href="{% url 'tauser:tramitar_transacciones' %}" 
                            class="btn btn-success btn-action">
                             <i class="bi bi-cash-stack"></i> Ir a Terminal Tauser
                         </a>
+                        {% if metodo_cobro == 'transferencia' %}
+                        <div class="alert alert-info mt-3">
+                            <i class="bi bi-info-circle-fill me-2"></i>
+                            <small><strong>Nota:</strong> Una vez confirmado en el terminal, se procesará automáticamente la transferencia SIPAP a la cuenta del cliente.</small>
+                        </div>
+                        {% endif %}
+                    {% elif metodo_pago == 'transferencia' or metodo_pago == 'billetera' %}
+                        <!-- SIPAP: Mostrar modal de comprobante (solo para COMPRAS) -->
+                        <button type="button" class="btn btn-primary btn-action" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#modalComprobanteSIPAP">
+                            <i class="bi bi-check-circle"></i> Continuar con el Pago
+                        </button>
                     {% else %}
-                        <!-- SIPAP o ir al listado -->
+                        <!-- Otros casos -->
                         <a href="{% url 'transacciones:confirmar' transaccion.id %}" 
                            class="btn btn-primary btn-action">
                             <i class="bi bi-check-circle"></i> Confirmar Transacción
@@ -195,31 +248,212 @@
             </div>
         </div>
     </div>
+    {% endif %}
+
+    <!-- Modal de Comprobante SIPAP (solo para COMPRAS) -->
+    {% if metodo_pago == 'transferencia' or metodo_pago == 'billetera' %}
+    <div class="modal fade" id="modalComprobanteSIPAP" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h4 class="modal-title w-100 text-center">
+                        <i class="bi bi-receipt me-2"></i>
+                        Comprobante de Pago SIPAP
+                    </h4>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle-fill me-2"></i>
+                        <strong>Revise los datos antes de confirmar el pago</strong>
+                    </div>
+
+                    <div class="comprobante-box">
+                        <div class="comprobante-header">
+                            <h5 class="text-center mb-0">
+                                <i class="bi bi-building"></i> Global Exchange
+                            </h5>
+                            <p class="text-center text-muted mb-0 small">Casa de Cambio</p>
+                        </div>
+
+                        <!-- Datos de la Transacción -->
+                        <div class="mb-4">
+                            <h6 class="text-primary mb-3">
+                                <i class="bi bi-receipt-cutoff"></i> Datos de la Operación
+                            </h6>
+                            <div class="comprobante-row">
+                                <span class="comprobante-label">Transacción ID:</span>
+                                <span class="comprobante-value">#{{ transaccion.id }}</span>
+                            </div>
+                            <div class="comprobante-row">
+                                <span class="comprobante-label">Tipo:</span>
+                                <span class="comprobante-value">
+                                    <span class="badge bg-success">{{ transaccion.get_tipo_display }}</span>
+                                </span>
+                            </div>
+                            <div class="comprobante-row">
+                                <span class="comprobante-label">Código Verificación:</span>
+                                <span class="comprobante-value text-primary fw-bold">{{ transaccion.codigo_verificacion }}</span>
+                            </div>
+                            <div class="comprobante-row">
+                                <span class="comprobante-label">Fecha:</span>
+                                <span class="comprobante-value">{{ transaccion.fecha|date:"d/m/Y H:i" }}</span>
+                            </div>
+                            <div class="comprobante-row">
+                                <span class="comprobante-label">Moneda:</span>
+                                <span class="comprobante-value">{{ transaccion.monto_operado }} {{ moneda.codigo }}</span>
+                            </div>
+                            <div class="comprobante-row">
+                                <span class="comprobante-label">Tasa:</span>
+                                <span class="comprobante-value">₲ {{ transaccion.tasa_aplicada|floatformat:0 }}</span>
+                            </div>
+                            <div class="comprobante-row">
+                                <span class="comprobante-label">Comisión:</span>
+                                <span class="comprobante-value">₲ {{ transaccion.comision|floatformat:0 }}</span>
+                            </div>
+                            <div class="comprobante-row bg-light">
+                                <span class="comprobante-label"><strong>Total a Pagar:</strong></span>
+                                <span class="comprobante-value"><strong class="text-success fs-5">₲ {{ transaccion.monto_pyg|floatformat:0 }}</strong></span>
+                            </div>
+                        </div>
+
+                        <!-- Cuenta del Sistema (Destino para COMPRAS) -->
+                        <div class="cuenta-info mb-3">
+                            <h6 class="text-primary mb-3">
+                                <i class="bi bi-bank2"></i> Cuenta Destino (Global Exchange)
+                            </h6>
+                            {% if metodo_pago == 'transferencia' %}
+                                <div class="comprobante-row">
+                                    <span class="comprobante-label">Banco:</span>
+                                    <span class="comprobante-value">Banco Sistema</span>
+                                </div>
+                                <div class="comprobante-row">
+                                    <span class="comprobante-label">Titular:</span>
+                                    <span class="comprobante-value">Global Exchange S.A.</span>
+                                </div>
+                                <div class="comprobante-row">
+                                    <span class="comprobante-label">Número de Cuenta:</span>
+                                    <span class="comprobante-value fw-bold">1234-5678-9012-3456</span>
+                                </div>
+                                <div class="comprobante-row">
+                                    <span class="comprobante-label">Tipo de Cuenta:</span>
+                                    <span class="comprobante-value">Cuenta Corriente</span>
+                                </div>
+                            {% elif metodo_pago == 'billetera' %}
+                                <div class="comprobante-row">
+                                    <span class="comprobante-label">Proveedor:</span>
+                                    <span class="comprobante-value">Billetera Sistema</span>
+                                </div>
+                                <div class="comprobante-row">
+                                    <span class="comprobante-label">Titular:</span>
+                                    <span class="comprobante-value">Global Exchange S.A.</span>
+                                </div>
+                                <div class="comprobante-row">
+                                    <span class="comprobante-label">ID Billetera:</span>
+                                    <span class="comprobante-value fw-bold">+595-981-123456</span>
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Cuenta del Cliente (Origen para COMPRAS) -->
+                        {% if transaccion.medio_pago %}
+                        <div class="cuenta-info">
+                            <h6 class="text-success mb-3">
+                                <i class="bi bi-person-check"></i> Cuenta Origen (Cliente)
+                            </h6>
+                            {% if transaccion.medio_pago.payment_type == 'cuenta_bancaria' %}
+                                <div class="comprobante-row">
+                                    <span class="comprobante-label">Banco:</span>
+                                    <span class="comprobante-value">{{ transaccion.medio_pago.banco|default:"N/A" }}</span>
+                                </div>
+                                <div class="comprobante-row">
+                                    <span class="comprobante-label">Titular:</span>
+                                    <span class="comprobante-value">{{ transaccion.medio_pago.titular_cuenta|default:"N/A" }}</span>
+                                </div>
+                                <div class="comprobante-row">
+                                    <span class="comprobante-label">Número de Cuenta:</span>
+                                    <span class="comprobante-value fw-bold">{{ transaccion.medio_pago.numero_cuenta|default:"N/A" }}</span>
+                                </div>
+                                <div class="comprobante-row">
+                                    <span class="comprobante-label">Tipo:</span>
+                                    <span class="comprobante-value">{{ transaccion.medio_pago.tipo_cuenta|default:"N/A" }}</span>
+                                </div>
+                            {% elif transaccion.medio_pago.payment_type == 'billetera' %}
+                                <div class="comprobante-row">
+                                    <span class="comprobante-label">Proveedor:</span>
+                                    <span class="comprobante-value">{{ transaccion.medio_pago.proveedor_billetera|default:"N/A" }}</span>
+                                </div>
+                                <div class="comprobante-row">
+                                    <span class="comprobante-label">Titular:</span>
+                                    <span class="comprobante-value">{{ transaccion.medio_pago.billetera_titular|default:"N/A" }}</span>
+                                </div>
+                                <div class="comprobante-row">
+                                    <span class="comprobante-label">Email/Teléfono:</span>
+                                    <span class="comprobante-value fw-bold">{{ transaccion.medio_pago.billetera_email_telefono|default:"N/A" }}</span>
+                                </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="alert alert-warning mt-3">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        <strong>Importante:</strong> Al confirmar, se procesará el pago a través de SIPAP. 
+                        Asegúrese de que los datos sean correctos.
+                    </div>
+                </div>
+                
+                <div class="modal-footer justify-content-center">
+                    {% if not mostrar_solo_sipap %}
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-bs-toggle="modal" data-bs-target="#modalConfirmacion">
+                        <i class="bi bi-arrow-left"></i> Volver
+                    </button>
+                    {% endif %}
+                    <a href="{% url 'transacciones:confirmar' transaccion.id %}" 
+                       class="btn btn-success btn-action">
+                        <i class="bi bi-check-circle-fill"></i> Confirmar y Procesar Pago
+                    </a>
+                    <a class="btn btn-outline-danger" href="{% url 'transacciones:transacciones_list' %}">
+                        <i class="bi bi-x-circle"></i> Cancelar
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Mostrar el modal automáticamente
+    {% if mostrar_solo_sipap %}
+    // Si venimos del historial, mostrar solo el modal SIPAP
+    const modalSIPAP = new bootstrap.Modal(document.getElementById('modalComprobanteSIPAP'));
+    modalSIPAP.show();
+    {% else %}
+    // Si es flujo normal, mostrar el modal inicial
     const modal = new bootstrap.Modal(document.getElementById('modalConfirmacion'));
     modal.show();
+    {% endif %}
     
     // Copiar código al portapapeles
-    document.querySelector('.codigo-verificacion').addEventListener('click', function() {
-        const codigo = this.textContent.trim();
-        navigator.clipboard.writeText(codigo).then(function() {
-            // Mostrar feedback visual
-            const el = document.querySelector('.codigo-verificacion');
-            const originalBg = el.style.background;
-            el.style.background = '#198754';
-            el.style.color = 'white';
-            setTimeout(function() {
-                el.style.background = originalBg;
-                el.style.color = '#198754';
-            }, 500);
+    const codigoEl = document.querySelector('.codigo-verificacion');
+    if (codigoEl) {
+        codigoEl.addEventListener('click', function() {
+            const codigo = this.textContent.trim();
+            navigator.clipboard.writeText(codigo).then(function() {
+                // Mostrar feedback visual
+                const el = document.querySelector('.codigo-verificacion');
+                const originalBg = el.style.background;
+                el.style.background = '#198754';
+                el.style.color = 'white';
+                setTimeout(function() {
+                    el.style.background = originalBg;
+                    el.style.color = '#198754';
+                }, 500);
+            });
         });
-    });
+    }
 });
 </script>
 {% endblock %}

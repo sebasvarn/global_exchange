@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIPAP Admin Panel - Gestión de Pagos</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #0d6efd;
+            --success-color: #198754;
+            --danger-color: #dc3545;
+            --warning-color: #ffc107;
+            --dark-color: #212529;
+            --light-bg: #f8f9fa;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--light-bg);
+        }
+
+        .navbar {
+            box-shadow: 0 2px 4px rgba(0,0,0,.1);
+        }
+
+        .stat-card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,.08);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,.15);
+        }
+
+        .stat-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+        }
+
+        .table-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,.08);
+            padding: 1.5rem;
+        }
+
+        .badge-exito {
+            background-color: var(--success-color);
+        }
+
+        .badge-fallo {
+            background-color: var(--danger-color);
+        }
+
+        .badge-pendiente {
+            background-color: var(--warning-color);
+            color: var(--dark-color);
+        }
+
+        .filter-section {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,.08);
+        }
+
+        .btn-refresh {
+            animation: none;
+        }
+
+        .btn-refresh.spinning {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .detail-modal .modal-content {
+            border-radius: 12px;
+        }
+
+        .detail-row {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+
+        .loading-spinner {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 9999;
+        }
+
+        .method-badge {
+            font-size: 0.85rem;
+            padding: 0.35rem 0.65rem;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: #6c757d;
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.3;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-wallet2"></i> SIPAP Admin Panel
+            </a>
+            <div class="d-flex align-items-center text-white">
+                <span class="me-3">
+                    <i class="bi bi-database"></i> PostgreSQL
+                </span>
+                <span id="currentTime" class="me-3"></span>
+                <a href="/docs" target="_blank" class="btn btn-light btn-sm">
+                    <i class="bi bi-file-earmark-text"></i> API Docs
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid py-4">
+        <!-- Estadísticas -->
+        <div class="row mb-4">
+            <div class="col-md-3 mb-3">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="text-muted mb-1">Total Pagos</h6>
+                                <h3 class="mb-0" id="totalPagos">0</h3>
+                            </div>
+                            <div class="stat-icon bg-primary bg-opacity-10 text-primary">
+                                <i class="bi bi-receipt"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="text-muted mb-1">Exitosos</h6>
+                                <h3 class="mb-0 text-success" id="pagosExito">0</h3>
+                            </div>
+                            <div class="stat-icon bg-success bg-opacity-10 text-success">
+                                <i class="bi bi-check-circle"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="text-muted mb-1">Fallidos</h6>
+                                <h3 class="mb-0 text-danger" id="pagosFallo">0</h3>
+                            </div>
+                            <div class="stat-icon bg-danger bg-opacity-10 text-danger">
+                                <i class="bi bi-x-circle"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="text-muted mb-1">Monto Total</h6>
+                                <h3 class="mb-0" id="montoTotal">₲0</h3>
+                            </div>
+                            <div class="stat-icon bg-warning bg-opacity-10 text-warning">
+                                <i class="bi bi-currency-exchange"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filtros -->
+        <div class="filter-section">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Estado</label>
+                    <select id="filterEstado" class="form-select">
+                        <option value="">Todos</option>
+                        <option value="exito">Exitoso</option>
+                        <option value="fallo">Fallido</option>
+                        <option value="pendiente">Pendiente</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Método</label>
+                    <select id="filterMetodo" class="form-select">
+                        <option value="">Todos</option>
+                        <option value="tarjeta">Tarjeta</option>
+                        <option value="tarjeta_credito_local">Tarjeta Crédito</option>
+                        <option value="billetera">Billetera</option>
+                        <option value="transferencia">Transferencia</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Límite</label>
+                    <select id="filterLimite" class="form-select">
+                        <option value="20">20</option>
+                        <option value="50" selected>50</option>
+                        <option value="100">100</option>
+                        <option value="200">200</option>
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-end gap-2">
+                    <button class="btn btn-primary flex-fill" onclick="aplicarFiltros()">
+                        <i class="bi bi-funnel"></i> Aplicar Filtros
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="limpiarFiltros()">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                    <button class="btn btn-outline-primary btn-refresh" onclick="refrescarDatos()">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="limpiarBaseDatos()" title="Limpiar todos los pagos">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabla de Pagos -->
+        <div class="table-container">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">
+                    <i class="bi bi-list-ul"></i> Registro de Pagos
+                    <span class="badge bg-secondary" id="contadorRegistros">0 registros</span>
+                </h5>
+                <button class="btn btn-sm btn-outline-success" onclick="exportarCSV()">
+                    <i class="bi bi-download"></i> Exportar CSV
+                </button>
+            </div>
+            
+            <div id="emptyState" class="empty-state" style="display: none;">
+                <i class="bi bi-inbox"></i>
+                <h5>No hay pagos registrados</h5>
+                <p>Los pagos procesados aparecerán aquí</p>
+            </div>
+
+            <div class="table-responsive" id="tableContainer">
+                <table class="table table-hover align-middle" id="pagosTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 250px;">ID Pago</th>
+                            <th>Fecha</th>
+                            <th>Método</th>
+                            <th class="text-end">Monto</th>
+                            <th>Moneda</th>
+                            <th>Estado</th>
+                            <th class="text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pagosTableBody">
+                        <!-- Datos cargados dinámicamente -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Detalle -->
+    <div class="modal fade detail-modal" id="detalleModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-info-circle"></i> Detalle del Pago
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="detalleModalBody">
+                    <!-- Contenido dinámico -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div class="loading-spinner">
+        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+            <span class="visually-hidden">Cargando...</span>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Actualizar reloj
+        function actualizarReloj() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent = now.toLocaleString('es-PY', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        }
+        setInterval(actualizarReloj, 1000);
+        actualizarReloj();
+
+        // Cargar datos iniciales
+        window.addEventListener('DOMContentLoaded', function() {
+            cargarEstadisticas();
+            cargarPagos();
+        });
+
+        // Cargar estadísticas
+        async function cargarEstadisticas() {
+            try {
+                const response = await fetch('/admin/estadisticas');
+                const data = await response.json();
+                
+                document.getElementById('totalPagos').textContent = data.totales.total_pagos || 0;
+                
+                // Procesar estadísticas por estado
+                const estadoPorEstado = {};
+                data.por_estado.forEach(item => {
+                    estadoPorEstado[item.estado] = item.cantidad;
+                });
+                
+                document.getElementById('pagosExito').textContent = estadoPorEstado.exito || 0;
+                document.getElementById('pagosFallo').textContent = estadoPorEstado.fallo || 0;
+                
+                // Formatear monto total
+                const montoTotal = parseFloat(data.totales.monto_total || 0);
+                document.getElementById('montoTotal').textContent = '₲' + montoTotal.toLocaleString('es-PY', {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0
+                });
+            } catch (error) {
+                console.error('Error al cargar estadísticas:', error);
+            }
+        }
+
+        // Cargar pagos
+        async function cargarPagos() {
+            const estado = document.getElementById('filterEstado').value;
+            const metodo = document.getElementById('filterMetodo').value;
+            const limite = document.getElementById('filterLimite').value;
+            
+            let url = `/admin/pagos?limite=${limite}`;
+            if (estado) url += `&estado=${estado}`;
+            if (metodo) url += `&metodo=${metodo}`;
+
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                const tbody = document.getElementById('pagosTableBody');
+                const emptyState = document.getElementById('emptyState');
+                const tableContainer = document.getElementById('tableContainer');
+                
+                if (data.pagos && data.pagos.length > 0) {
+                    emptyState.style.display = 'none';
+                    tableContainer.style.display = 'block';
+                    
+                    tbody.innerHTML = data.pagos.map(pago => `
+                        <tr>
+                            <td>
+                                <small class="font-monospace text-muted">${pago.id_pago}</small>
+                            </td>
+                            <td>
+                                <small>${new Date(pago.fecha).toLocaleString('es-PY', {
+                                    year: 'numeric',
+                                    month: '2-digit',
+                                    day: '2-digit',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                })}</small>
+                            </td>
+                            <td>
+                                <span class="badge method-badge ${getMetodoBadgeClass(pago.metodo)}">
+                                    ${getMetodoIcon(pago.metodo)} ${formatMetodo(pago.metodo)}
+                                </span>
+                            </td>
+                            <td class="text-end fw-bold">
+                                ${parseFloat(pago.monto).toLocaleString('es-PY', {
+                                    minimumFractionDigits: 0,
+                                    maximumFractionDigits: 0
+                                })}
+                            </td>
+                            <td><span class="badge bg-secondary">${pago.moneda}</span></td>
+                            <td>
+                                <span class="badge badge-${pago.estado}">
+                                    ${getEstadoIcon(pago.estado)} ${pago.estado.toUpperCase()}
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                <button class="btn btn-sm btn-outline-primary" onclick='verDetalle(${JSON.stringify(pago)})'>
+                                    <i class="bi bi-eye"></i> Ver
+                                </button>
+                            </td>
+                        </tr>
+                    `).join('');
+                    
+                    document.getElementById('contadorRegistros').textContent = `${data.mostrando} de ${data.total} registros`;
+                } else {
+                    emptyState.style.display = 'block';
+                    tableContainer.style.display = 'none';
+                    document.getElementById('contadorRegistros').textContent = '0 registros';
+                }
+            } catch (error) {
+                console.error('Error al cargar pagos:', error);
+                alert('Error al cargar los pagos');
+            }
+        }
+
+        // Ver detalle
+        function verDetalle(pago) {
+            const modalBody = document.getElementById('detalleModalBody');
+            
+            let detallesAdicionales = '';
+            if (pago.numero_billetera) {
+                detallesAdicionales += `
+                    <div class="detail-row">
+                        <div class="row">
+                            <div class="col-4 fw-bold">Número Billetera:</div>
+                            <div class="col-8">${pago.numero_billetera}</div>
+                        </div>
+                    </div>
+                `;
+            }
+            if (pago.numero_comprobante) {
+                detallesAdicionales += `
+                    <div class="detail-row">
+                        <div class="row">
+                            <div class="col-4 fw-bold">Comprobante:</div>
+                            <div class="col-8"><code>${pago.numero_comprobante}</code></div>
+                        </div>
+                    </div>
+                `;
+            }
+            if (pago.motivo_rechazo) {
+                detallesAdicionales += `
+                    <div class="detail-row">
+                        <div class="row">
+                            <div class="col-4 fw-bold">Motivo Rechazo:</div>
+                            <div class="col-8 text-danger">${pago.motivo_rechazo}</div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            modalBody.innerHTML = `
+                <div class="detail-row">
+                    <div class="row">
+                        <div class="col-4 fw-bold">ID Pago:</div>
+                        <div class="col-8"><code>${pago.id_pago}</code></div>
+                    </div>
+                </div>
+                <div class="detail-row">
+                    <div class="row">
+                        <div class="col-4 fw-bold">Estado:</div>
+                        <div class="col-8">
+                            <span class="badge badge-${pago.estado} fs-6">
+                                ${getEstadoIcon(pago.estado)} ${pago.estado.toUpperCase()}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div class="detail-row">
+                    <div class="row">
+                        <div class="col-4 fw-bold">Método:</div>
+                        <div class="col-8">${getMetodoIcon(pago.metodo)} ${formatMetodo(pago.metodo)}</div>
+                    </div>
+                </div>
+                <div class="detail-row">
+                    <div class="row">
+                        <div class="col-4 fw-bold">Monto:</div>
+                        <div class="col-8 fs-5 fw-bold text-primary">
+                            ${parseFloat(pago.monto).toLocaleString('es-PY', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2
+                            })} ${pago.moneda}
+                        </div>
+                    </div>
+                </div>
+                <div class="detail-row">
+                    <div class="row">
+                        <div class="col-4 fw-bold">Fecha:</div>
+                        <div class="col-8">${new Date(pago.fecha).toLocaleString('es-PY')}</div>
+                    </div>
+                </div>
+                ${detallesAdicionales}
+            `;
+            
+            const modal = new bootstrap.Modal(document.getElementById('detalleModal'));
+            modal.show();
+        }
+
+        // Funciones auxiliares
+        function getEstadoIcon(estado) {
+            const icons = {
+                'exito': '<i class="bi bi-check-circle-fill"></i>',
+                'fallo': '<i class="bi bi-x-circle-fill"></i>',
+                'pendiente': '<i class="bi bi-clock-fill"></i>'
+            };
+            return icons[estado] || '';
+        }
+
+        function getMetodoIcon(metodo) {
+            const icons = {
+                'tarjeta': '<i class="bi bi-credit-card"></i>',
+                'tarjeta_credito_local': '<i class="bi bi-credit-card-2-front"></i>',
+                'billetera': '<i class="bi bi-wallet2"></i>',
+                'transferencia': '<i class="bi bi-bank"></i>'
+            };
+            return icons[metodo] || '<i class="bi bi-cash"></i>';
+        }
+
+        function getMetodoBadgeClass(metodo) {
+            const classes = {
+                'tarjeta': 'bg-info',
+                'tarjeta_credito_local': 'bg-primary',
+                'billetera': 'bg-warning text-dark',
+                'transferencia': 'bg-success'
+            };
+            return classes[metodo] || 'bg-secondary';
+        }
+
+        function formatMetodo(metodo) {
+            const nombres = {
+                'tarjeta': 'Tarjeta Débito',
+                'tarjeta_credito_local': 'Tarjeta Crédito',
+                'billetera': 'Billetera',
+                'transferencia': 'Transferencia'
+            };
+            return nombres[metodo] || metodo;
+        }
+
+        // Aplicar filtros
+        function aplicarFiltros() {
+            cargarPagos();
+            cargarEstadisticas();
+        }
+
+        // Limpiar filtros
+        function limpiarFiltros() {
+            document.getElementById('filterEstado').value = '';
+            document.getElementById('filterMetodo').value = '';
+            document.getElementById('filterLimite').value = '50';
+            aplicarFiltros();
+        }
+
+        // Refrescar datos
+        function refrescarDatos() {
+            const btn = document.querySelector('.btn-refresh');
+            btn.classList.add('spinning');
+            
+            cargarEstadisticas();
+            cargarPagos();
+            
+            setTimeout(() => {
+                btn.classList.remove('spinning');
+            }, 1000);
+        }
+
+        // Limpiar base de datos
+        async function limpiarBaseDatos() {
+            if (!confirm('⚠️ ¿Estás seguro de que deseas eliminar TODOS los pagos de la base de datos?\n\nEsta acción no se puede deshacer.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/admin/pagos', {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                
+                alert(`✅ ${data.mensaje}\nPagos eliminados: ${data.pagos_eliminados}`);
+                
+                refrescarDatos();
+            } catch (error) {
+                console.error('Error al limpiar base de datos:', error);
+                alert('❌ Error al limpiar la base de datos');
+            }
+        }
+
+        // Exportar CSV
+        function exportarCSV() {
+            window.open('/admin/pagos?limite=1000&formato=csv', '_blank');
+        }
+
+        // Auto-refresh cada 30 segundos
+        setInterval(() => {
+            cargarEstadisticas();
+            cargarPagos();
+        }, 30000);
+    </script>
+</body>
+</html>

@@ -231,7 +231,7 @@ class PaymentOrchestrator:
                 metodo_pasarela=metodo,
                 moneda=moneda,
                 estado=estado,
-                mensaje_error=motivo_rechazo,
+                mensaje_error=motivo_rechazo or '',
                 datos_pago=payload,
                 respuesta_pasarela=data,
                 fecha_procesamiento=timezone.now() if estado == 'exito' else None

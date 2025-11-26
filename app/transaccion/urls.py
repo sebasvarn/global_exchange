@@ -24,4 +24,8 @@ urlpatterns = [
     path("validar-stock-tauser/", views.validar_stock_tauser, name="validar_stock_tauser"),
     path("vincular-tauser/", views.vincular_tauser, name="vincular_tauser"),
 
+    path("<int:pk>/pago/simplesipap/", views.marcar_pagada_simple, name="pago_simplesipap"),
+    path("<int:pk>/comprobante-sipap/", views.mostrar_comprobante_sipap, name="mostrar_comprobante_sipap"),
+
+
 ]

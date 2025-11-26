@@ -74,6 +74,15 @@ class Transaccion(models.Model):
     tasa_aplicada = models.DecimalField(max_digits=18, decimal_places=4)
     comision = models.DecimalField(max_digits=18, decimal_places=2)
 
+    ganancia = models.DecimalField(
+        max_digits=18,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="Ganancia",
+        help_text="Ganancia obtenida en la transacción (comisión + spread + otros)."
+    )
+
     estado = models.CharField(
         max_length=15,
         choices=EstadoTransaccionEnum.choices,
@@ -99,16 +108,25 @@ class Transaccion(models.Model):
     def __str__(self):
         return f"#{self.id} | {self.codigo_verificacion} | {self.get_tipo_display()} {self.moneda} - {self.cliente}"
     
+
     def save(self, *args, **kwargs):
         """
-        Sobrescribe el método save para asegurar que siempre tenga un código único.
+        Sobrescribe el método save para asegurar que siempre tenga un código único y calcular ganancia al marcar como pagada.
         """
         if not self.codigo_verificacion:
             self.codigo_verificacion = generar_codigo_verificacion()
             # Asegurar que sea único
             while Transaccion.objects.filter(codigo_verificacion=self.codigo_verificacion).exists():
                 self.codigo_verificacion = generar_codigo_verificacion()
-        
+
+        # Calcular ganancia si el estado es PAGADA o COMPLETADA
+        from commons.enums import EstadoTransaccionEnum
+        if self.estado in [EstadoTransaccionEnum.PAGADA, EstadoTransaccionEnum.COMPLETADA]:
+            # La ganancia es monto_operado * comision (comision como factor, ej: 0.05 para 5%)
+            self.ganancia = float(self.monto_operado) * float(self.comision) if self.comision else 0
+        else:
+            self.ganancia = None
+
         super().save(*args, **kwargs)
     
     def esta_expirada(self):
