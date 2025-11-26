@@ -91,8 +91,8 @@ start_sipap() {
     if ps -p $SIPAP_PID > /dev/null; then
         log_success "SIPAP iniciado correctamente"
         log_success "API:            http://localhost:8080"
-        log_success "Documentación:  http://localhost:8080/docs"
-        log_success "Health Check:   http://localhost:8080/health"
+        log_success "Documentacion:  http://localhost:8080/docs"
+        log_success "Admin panel:   http://localhost:8080/admin"
     else
         log_error "SIPAP no pudo iniciarse. Ver sipap.log para detalles"
         cat sipap.log

@@ -368,7 +368,8 @@ def reservar_stock_tauser_para_transaccion(tauser, transaccion, monto, moneda):
 # =========================
 def procesar_pago_via_sipap(transaccion: Transaccion):
     """
-    Procesa el pago de una transacción a través de SIPAP.
+    Procesa el pago/cobro de una transacción a través de SIPAP.
+    Funciona tanto para COMPRAS (medio_pago) como para VENTAS (medio_cobro).
     
     Args:
         transaccion: Instancia de Transacción en estado PENDIENTE
@@ -383,31 +384,62 @@ def procesar_pago_via_sipap(transaccion: Transaccion):
     if transaccion.estado != EstadoTransaccionEnum.PENDIENTE:
         raise ValidationError("Solo transacciones PENDIENTES pueden procesarse por SIPAP.")
     
-    if not transaccion.medio_pago:
-        raise ValidationError("La transacción debe tener un medio de pago asignado.")
+    # Determinar si es COMPRA o VENTA y obtener los datos correspondientes
+    metodo_sipap = None
+    datos_sipap = None
     
-    if not transaccion.medio_pago.puede_usar_sipap():
-        raise ValidationError(
-            f"El método de pago '{transaccion.medio_pago.get_payment_type_display()}' "
-            f"no puede procesarse por pasarela SIPAP."
-        )
+    # Para COMPRA: usar medio_pago
+    if transaccion.tipo == TipoTransaccionEnum.COMPRA:
+        if not transaccion.medio_pago:
+            raise ValidationError("La transacción de COMPRA debe tener un medio de pago asignado.")
+        
+        if not transaccion.medio_pago.puede_usar_sipap():
+            raise ValidationError(
+                f"El método de pago '{transaccion.medio_pago.get_payment_type_display()}' "
+                f"no puede procesarse por pasarela SIPAP."
+            )
+        
+        metodo_sipap = transaccion.medio_pago.get_metodo_sipap()
+        datos_sipap = transaccion.medio_pago.get_datos_sipap()
+        
+        if not metodo_sipap or not datos_sipap:
+            raise ValidationError(
+                f"No se pudieron extraer los datos necesarios del método de pago "
+                f"'{transaccion.medio_pago}'."
+            )
     
-    # Obtener datos del método de pago
-    metodo_sipap = transaccion.medio_pago.get_metodo_sipap()
-    datos_sipap = transaccion.medio_pago.get_datos_sipap()
-    
-    if not metodo_sipap or not datos_sipap:
-        raise ValidationError(
-            f"No se pudieron extraer los datos necesarios del método de pago "
-            f"'{transaccion.medio_pago}'."
-        )
+    # Para VENTA: usar medio_cobro (solo transferencia)
+    elif transaccion.tipo == TipoTransaccionEnum.VENTA:
+        if not transaccion.medio_cobro:
+            raise ValidationError("La transacción de VENTA debe tener un medio de cobro asignado.")
+        
+        if transaccion.medio_cobro.tipo_medio != 'transferencia':
+            raise ValidationError(
+                f"Solo transferencias bancarias pueden procesarse por SIPAP en ventas."
+            )
+        
+        # Para medio_cobro, generar datos SIPAP manualmente
+        metodo_sipap = 'transferencia'
+        
+        # Generar número de comprobante único
+        import hashlib
+        from datetime import datetime
+        
+        cuenta = transaccion.medio_cobro.numero_cuenta or 'CUENTA'
+        data = f"{cuenta}{datetime.now().timestamp()}"
+        comprobante_hash = hashlib.md5(data.encode()).hexdigest()[:10].upper()
+        comprobante = f"TRF{comprobante_hash}"
+        
+        datos_sipap = {
+            'numero_comprobante': comprobante,
+        }
     
     # Calcular monto total (monto_pyg + comisión)
     monto_total = transaccion.monto_pyg + transaccion.comision
     
     logger.info(
-        f"Procesando pago via SIPAP | Transacción: {transaccion.uuid} | "
-        f"Método: {metodo_sipap} | Monto: {monto_total} PYG"
+        f"Procesando {'pago' if transaccion.tipo == TipoTransaccionEnum.COMPRA else 'cobro'} via SIPAP | "
+        f"Transacción: {transaccion.uuid} | Método: {metodo_sipap} | Monto: {monto_total} PYG"
     )
     
     # Procesar pago a través del orquestador
@@ -426,19 +458,28 @@ def procesar_pago_via_sipap(transaccion: Transaccion):
         if resultado.get('success') and resultado.get('estado') == 'exito':
             pago = resultado.get('pago')
             logger.info(
-                f"Pago EXITOSO via SIPAP | Transacción: {transaccion.uuid} | "
-                f"ID Externo: {resultado.get('payment_id')}"
+                f"{'Pago' if transaccion.tipo == TipoTransaccionEnum.COMPRA else 'Cobro'} EXITOSO via SIPAP | "
+                f"Transacción: {transaccion.uuid} | ID Externo: {resultado.get('payment_id')}"
             )
-            return (True, "Pago procesado exitosamente", pago)
+            return (True, f"{'Pago' if transaccion.tipo == TipoTransaccionEnum.COMPRA else 'Cobro'} procesado exitosamente", pago)
         
         else:
-            # Pago fallido o pendiente
-            estado = resultado.get('estado', 'desconocido')
-            mensaje_error = resultado.get('error', 'Error desconocido')
+            # Pago/cobro fallido o pendiente
             pago = resultado.get('pago')
+            estado = resultado.get('estado', 'desconocido')
+            
+            # Intentar obtener mensaje de error de varias fuentes
+            mensaje_error = None
+            if pago and hasattr(pago, 'mensaje_error') and pago.mensaje_error:
+                mensaje_error = pago.mensaje_error
+            elif 'error' in resultado:
+                mensaje_error = resultado.get('error')
+            else:
+                mensaje_error = f"Error al procesar el {'pago' if transaccion.tipo == TipoTransaccionEnum.COMPRA else 'cobro'}. Por favor, verifique los datos e intente nuevamente."
             
             logger.warning(
-                f"Pago FALLIDO via SIPAP | Transacción: {transaccion.uuid} | "
+                f"{'Pago' if transaccion.tipo == TipoTransaccionEnum.COMPRA else 'Cobro'} FALLIDO via SIPAP | "
+                f"Transacción: {transaccion.uuid} | "
                 f"Estado: {estado} | Mensaje: {mensaje_error}"
             )
             return (False, mensaje_error, pago)
@@ -455,26 +496,42 @@ def procesar_pago_via_sipap(transaccion: Transaccion):
 def confirmar_transaccion(transaccion: Transaccion):
     """
     Confirmar transacción.
-    - Si el medio_pago puede usar SIPAP → procesa automáticamente por pasarela
+    - Si el medio_pago puede usar SIPAP → procesa automáticamente por pasarela (COMPRA)
+    - Si el medio_cobro es transferencia → procesa por SIPAP (VENTA)
     - Si no → confirmación manual (crea movimiento y marca PAGADA)
     """
     if transaccion.estado != EstadoTransaccionEnum.PENDIENTE:
         raise ValidationError("Solo transacciones pendientes pueden confirmarse.")
     
     # Verificar si debe procesarse por SIPAP
+    procesar_sipap = False
+    
+    # Para COMPRA: verificar medio_pago
     if transaccion.medio_pago and transaccion.medio_pago.puede_usar_sipap():
+        procesar_sipap = True
         logger.info(
-            f"Transacción {transaccion.uuid} se procesará por SIPAP "
+            f"Transacción {transaccion.uuid} (COMPRA) se procesará por SIPAP "
             f"(método: {transaccion.medio_pago.get_payment_type_display()})"
         )
-        
+    
+    # Para VENTA: verificar medio_cobro (solo transferencia usa SIPAP)
+    elif (transaccion.tipo == TipoTransaccionEnum.VENTA and 
+          transaccion.medio_cobro and 
+          transaccion.medio_cobro.tipo_medio == 'transferencia'):
+        procesar_sipap = True
+        logger.info(
+            f"Transacción {transaccion.uuid} (VENTA) se procesará por SIPAP "
+            f"(método: transferencia)"
+        )
+    
+    if procesar_sipap:
         success, mensaje, pago_pasarela = procesar_pago_via_sipap(transaccion)
         
         if not success:
-            raise ValidationError(f"Error al procesar pago por SIPAP: {mensaje}")
+            raise ValidationError(f"Error al procesar por SIPAP: {mensaje}")
         
-        # Si el pago fue exitoso, continuar con la confirmación
-        logger.info(f"Pago exitoso por SIPAP, confirmando transacción {transaccion.uuid}")
+        # Si el pago/cobro fue exitoso, continuar con la confirmación
+        logger.info(f"Operación exitosa por SIPAP, confirmando transacción {transaccion.uuid}")
     
     # Confirmación manual o después de SIPAP exitoso
     with dj_tx.atomic():
