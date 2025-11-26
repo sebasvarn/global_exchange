@@ -131,6 +131,19 @@ def generate_otp(user, purpose, method=None, destination=None, length=6, ttl_sec
         print('=' * 60, file=sys.stderr)
         sys.stderr.flush()
 
+    # Imprimir siempre en consola si estamos en modo DEBUG (desarrollo)
+    if settings.DEBUG:
+        print('\n' + '=' * 60, file=sys.stderr)
+        print(f'MFA CODE (DEBUG MODE)', file=sys.stderr)
+        print(f'Usuario: {user.email}', file=sys.stderr)
+        print(f'Propósito: {purpose}', file=sys.stderr)
+        print(f'Método: {method}', file=sys.stderr)
+        print(f'Destino: {destination}', file=sys.stderr)
+        print(f'CÓDIGO: {raw_code}', file=sys.stderr)
+        print(f'Expira: {expires_at.strftime("%H:%M:%S")}', file=sys.stderr)
+        print('=' * 60 + '\n', file=sys.stderr)
+        sys.stderr.flush()
+
     return otp
 
 

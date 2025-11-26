@@ -1,73 +1,165 @@
 {% extends 'base.html' %}
-{% block content %}
-<h1>Terminal - Pago en Efectivo</h1>
 
-<form method="post" class="mb-4">
+{% block extra_css %}
+<style>
+    .otp-input-container {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+    }
+    .otp-input {
+        width: 45px;
+        height: 50px;
+        text-align: center;
+        font-size: 1.5rem;
+        border: 1px solid #ced4da;
+        border-radius: .25rem;
+        transition: border-color .15s ease-in-out,box-shadow .15s ease-in-out;
+    }
+    .otp-input:focus {
+        border-color: #86b7fe;
+        outline: 0;
+        box-shadow: 0 0 0 0.25rem rgb(13 110 253 / 25%);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>Terminal de Tauser</h1>
+
+<form method="post" class="mb-4" id="searchTransactionForm">
   {% csrf_token %}
   <div class="input-group mb-3">
     <input type="text" name="codigo_verificacion" id="codigo_verificacion" class="form-control text-uppercase"
            placeholder="Ingrese el código de verificación (ej: A3B7K9)"
            value="{{ codigo_verificacion }}" maxlength="10" required
            style="font-size: 1.2rem; letter-spacing: 0.2rem; text-align: center;">
-    <button type="submit" name="accion" value="buscar" class="btn btn-primary">
+    <button type="button" id="searchBtn" class="btn btn-primary">
       <i class="bi bi-search"></i> Buscar
     </button>
   </div>
-  <small class="text-muted">
-    <i class="bi bi-info-circle"></i> Ingrese el código de 6 caracteres alfanumérico
-  </small>
 </form>
 
 {% if error %}
   <div class="alert alert-danger">{{ error }}</div>
 {% endif %}
-{% if mensaje %}
-  <div class="alert alert-success">{{ mensaje }}</div>
-{% endif %}
 
 {% if datos_transaccion %}
 <div class="card mt-4 shadow-sm">
   <div class="card-header bg-light">
-    <strong>Transacción #{{ datos_transaccion.id }}</strong><br>
-    <div class="d-flex align-items-center gap-2 mt-2">
-      <span class="badge bg-success fs-6" style="letter-spacing: 0.2rem;">
-        {{ datos_transaccion.codigo_verificacion }}
-      </span>
-      <small class="text-muted">Código de Verificación</small>
-    </div>
+    <strong>Información de la Transacción</strong>
   </div>
   <div class="card-body">
-    <ul class="list-group list-group-flush">
-      <li class="list-group-item"><strong>Cliente:</strong> {{ datos_transaccion.cliente }}</li>
-      <li class="list-group-item"><strong>Tipo:</strong> {{ datos_transaccion.tipo }}</li>
-      <li class="list-group-item"><strong>Moneda:</strong> {{ datos_transaccion.moneda.codigo }}</li>
-      <li class="list-group-item"><strong>Tasa aplicada:</strong> {{ datos_transaccion.tasa }}</li>
-      <li class="list-group-item"><strong>Tasa actual:</strong> {{ datos_transaccion.tasa_recalculada }}</li>
-      <li class="list-group-item"><strong>Monto PYG:</strong> {{ datos_transaccion.monto_pyg }}</li>
-    </ul>
-
-    {% if datos_transaccion.estado == "pendiente" %}
-      {% if datos_transaccion.tasa != datos_transaccion.tasa_recalculada %}
-        <div class="alert alert-warning mt-3">
-          <i class="bi bi-exclamation-triangle me-2"></i>
-          La tasa ha cambiado desde la creación de esta transacción.
-          <div class="mt-2 d-flex gap-2">
-            <form method="post">
-              {% csrf_token %}
-              <input type="hidden" name="codigo_verificacion" value="{{ datos_transaccion.codigo_verificacion }}">
-              <button type="submit" name="accion" value="recalcular" class="btn btn-outline-warning btn-sm">
-                Recalcular con nueva tasa
-              </button>
-            </form>
+    <div class="row">
+      <div class="col-md-6 mb-3">
+        <h6 class="fw-bold mb-3">Información de la Transacción</h6>
+        <ul class="list-group list-group-flush">
+          <li class="list-group-item"><strong>ID:</strong> {{ datos_transaccion.codigo_verificacion }}</li>
+          <li class="list-group-item"><strong>Tipo:</strong> {{ datos_transaccion.tipo }}</li>
+          <li class="list-group-item"><strong>Cliente:</strong> {{ datos_transaccion.cliente }}</li>
+          <li class="list-group-item"><strong>Fecha de Creación:</strong> {{ datos_transaccion.fecha|date:'d/m/Y H:i' }}</li>
+          {% if datos_transaccion.tauser %}
+            <li class="list-group-item"><strong>Tauser asignado:</strong> {{ datos_transaccion.tauser.nombre }} <span class="text-muted">({{ datos_transaccion.tauser.ubicacion }})</span></li>
+          {% endif %}
+        </ul>
+      </div>
+      <div class="col-md-6 mb-3">
+        <h6 class="fw-bold mb-3">Divisas a Entregar</h6>
+        <ul class="list-group list-group-flush">
+          <li class="list-group-item"><strong>Moneda:</strong> {{ datos_transaccion.moneda.nombre }} ({{ datos_transaccion.moneda.codigo }})</li>
+          {% if datos_transaccion.tipo|lower == 'venta' %}
+            <li class="list-group-item"><strong>Cantidad Esperada:</strong> <span class="text-warning fw-bold">${{ datos_transaccion.monto_operado|floatformat:2 }}</span></li>
+            <li class="list-group-item"><strong>Guaraníes a Recibir:</strong> <span class="text-success fw-bold">₲{{ datos_transaccion.monto_pyg|floatformat:0 }}</span></li>
+          {% else %}
+            <li class="list-group-item"><strong>Cantidad Esperada:</strong> <span class="text-warning fw-bold">{{ datos_transaccion.monto_operado|floatformat:2 }} {{ datos_transaccion.moneda.codigo }}</span></li>
+            <li class="list-group-item"><strong>Guaraníes a Entregar:</strong> <span class="text-success fw-bold">₲{{ datos_transaccion.monto_pyg|floatformat:0 }}</span></li>
+          {% endif %}
+        </ul>
+      </div>
+    </div>
+    {% if datos_transaccion.tipo|lower == 'venta' %}
+      <div class="alert alert-info mt-3">
+        <i class="bi bi-info-circle-fill"></i>
+        <strong>Importante:</strong>
+        El monto total de las denominaciones debe ser exactamente <span class="fw-bold">${{ datos_transaccion.monto_operado|floatformat:2 }}</span>.
+      </div>
+{% else %}
+  {% if datos_transaccion.tipo|lower == 'compra' and datos_transaccion.medio_pago == 'Efectivo' %}
+    <div class="alert alert-info mt-3">
+      <i class="bi bi-info-circle-fill"></i>
+      <strong>Importante:</strong>
+      El monto total de las denominaciones debe ser exactamente <span class="fw-bold">₲{{ datos_transaccion.monto_pyg|floatformat:0 }}</span>.
+    </div>
+  {% endif %}
+    {% endif %}
+    <!-- ...el resto del contenido (formularios, botones, etc) permanece igual... -->
+      {% if datos_transaccion.tipo|lower == 'compra' and datos_transaccion.medio_pago == 'Efectivo' or datos_transaccion.tipo|lower == 'venta' %}
+        <form id="formDenominacionesVenta" class="mt-4">
+          <h5>Detalle de entrega por denominaciones</h5>
+          <div class="row">
+            {% for d in denominaciones_venta %}
+              <div class="col-6 col-md-4 mb-2">
+                <label for="den_{{ d.type }}_{{ d.value|floatformat:'0'|slugify }}" class="form-label mb-1">
+                  {% if d.type == 'bill' %}
+                    <span title="Billete">💵</span> Billete:
+                  {% elif d.type == 'coin' %}
+                    <span title="Moneda">🪙</span> Moneda:
+                  {% else %}
+                    {{ d.type|title }}:
+                  {% endif %}
+                  <strong>{{ d.value }}</strong>
+                  {% if datos_transaccion.tipo|lower == 'compra' and datos_transaccion.medio_pago == 'Efectivo' %}
+                    PYG
+                  {% else %}
+                    {{ datos_transaccion.moneda.codigo }}
+                  {% endif %}
+                </label>
+                <input type="number" min="0" step="1" class="form-control form-control-sm text-end" id="den_{{ d.type }}_{{ d.value|floatformat:'0'|slugify }}" name="den_{{ d.type }}_{{ d.value|floatformat:'0'|slugify }}" value="0" data-valor="{{ d.value }}">
+              </div>
+            {% endfor %}
           </div>
-        </div>
+          <div class="mt-3">
+            <strong>Total ingresado:</strong> <span id="totalDenominaciones">0.00</span> {{ datos_transaccion.moneda.codigo }}
+          </div>
+          <div id="denominacionesError" class="alert alert-danger mt-2 d-none"></div>
+          <div class="text-center mt-3">
+            <button type="submit" class="btn btn-success" id="btnConfirmarDenominaciones">Concluir transacción</button>
+          </div>
+        </form>
+      {% else %}
+        {% if datos_transaccion.estado == "pendiente" or datos_transaccion.estado == "pagada" %}
+          <div class="text-center mt-4">
+            <button type="button" id="btnRealizarTransaccion" class="btn btn-success">
+              Realizar transacción
+            </button>
+          </div>
+        {% elif datos_transaccion.estado == "completada" %}
+          <div class="text-center mt-4">
+            <span class="badge bg-primary fs-5">Completada</span>
+          </div>
+        {% endif %}
       {% endif %}
+    {% elif datos_transaccion.estado == "pendiente" or datos_transaccion.estado == "pagada" %}
+      <div class="text-center mt-4">
+        <button type="button" id="btnRealizarTransaccion" class="btn btn-success">
+          Realizar transacción
+        </button>
+      </div>
+
+    {% elif datos_transaccion.estado == "completada" %}
+      <div class="text-center mt-4">
+        <span class="badge bg-primary fs-5">Completada</span>
+      </div>
 
       <div class="d-flex justify-content-center gap-3 mt-4">
-        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#confirmModal">
-          Confirmar Pago
-        </button>
-        <form method="post">
+        <form method="post" class="d-inline">
+          {% csrf_token %}
+          <input type="hidden" name="codigo_verificacion" value="{{ datos_transaccion.codigo_verificacion }}">
+          <button type="submit" name="accion" value="confirmar" class="btn btn-success">
+            Confirmar Pago
+          </button>
+        </form>
+        <form method="post" class="d-inline">
           {% csrf_token %}
           <input type="hidden" name="codigo_verificacion" value="{{ datos_transaccion.codigo_verificacion }}">
           <button type="submit" name="accion" value="cancelar" class="btn btn-danger">
@@ -79,31 +171,440 @@
   </div>
 </div>
 
-<!-- Modal de confirmación -->
-<div class="modal fade" id="confirmModal" tabindex="-1" aria-hidden="true">
+
+
+<!-- ========== MODAL CONFIRMACIÓN ========== -->
+<div class="modal fade" id="modalConfirmar" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
-      <div class="modal-header bg-success text-white">
-        <h5 class="modal-title">Confirmar Pago</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title">Confirmar acción</h5>
       </div>
-      <div class="modal-body">
-        <p>¿Desea confirmar el pago de esta transacción?</p>
-        <ul class="list-group list-group-flush">
-          <li class="list-group-item"><strong>Monto total:</strong> {{ datos_transaccion.monto_pyg }} PYG</li>
-          <li class="list-group-item"><strong>Tasa actual:</strong> {{ datos_transaccion.tasa_recalculada }}</li>
-        </ul>
-      </div>
-      <div class="modal-footer">
-        <form method="post">
-          {% csrf_token %}
-          <input type="hidden" name="codigo_verificacion" value="{{ datos_transaccion.codigo_verificacion }}">
-          <button type="submit" name="accion" value="confirmar" class="btn btn-success">Confirmar</button>
-        </form>
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+      <div class="modal-body text-center">
+        <p>¿Proceder con la transacción?</p>
+        <button class="btn btn-primary" id="btnConfirmarOK">OK</button>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
       </div>
     </div>
   </div>
 </div>
-{% endif %}
+<div class="modal fade" id="mfaModal" tabindex="-1" aria-labelledby="mfaModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="mfaModalLabel">Verificación de Operador</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p>Para continuar, por favor ingrese el código de verificación enviado a su correo.</p>
+        <form id="mfaForm" onsubmit="return false;">
+            <div class="otp-input-container mb-3">
+                <input type="text" class="form-control otp-input" id="otp-1" maxlength="1" autocomplete="off">
+                <input type="text" class="form-control otp-input" id="otp-2" maxlength="1" autocomplete="off">
+                <input type="text" class="form-control otp-input" id="otp-3" maxlength="1" autocomplete="off">
+                <input type="text" class="form-control otp-input" id="otp-4" maxlength="1" autocomplete="off">
+                <input type="text" class="form-control otp-input" id="otp-5" maxlength="1" autocomplete="off">
+                <input type="text" class="form-control otp-input" id="otp-6" maxlength="1" autocomplete="off">
+            </div>
+            <input type="hidden" id="mfaCode" name="mfaCode">
+            <div id="mfaError" class="alert alert-danger d-none"></div>
+        </form>
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <button type="button" id="resendOtpBtn" class="btn btn-sm btn-outline-secondary" disabled>Reenviar código</button>
+            <span id="otpTimer" class="text-muted"></span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" id="verifyOtpBtn" class="btn btn-primary">Verificar y Buscar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== MODAL MFA ========== -->
+<div class="modal fade" id="mfaModal" tabindex="-1" aria-labelledby="mfaModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="mfaModalLabel">Verificación de Operador</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p>Para continuar, por favor ingrese el código de verificación enviado a su correo.</p>
+        <form id="mfaForm" onsubmit="return false;">
+            <div class="otp-input-container mb-3">
+                <input type="text" class="form-control otp-input" id="otp-1" maxlength="1" autocomplete="off">
+                <input type="text" class="form-control otp-input" id="otp-2" maxlength="1" autocomplete="off">
+                <input type="text" class="form-control otp-input" id="otp-3" maxlength="1" autocomplete="off">
+                <input type="text" class="form-control otp-input" id="otp-4" maxlength="1" autocomplete="off">
+                <input type="text" class="form-control otp-input" id="otp-5" maxlength="1" autocomplete="off">
+                <input type="text" class="form-control otp-input" id="otp-6" maxlength="1" autocomplete="off">
+            </div>
+            <input type="hidden" id="mfaCode" name="mfaCode">
+            <div id="mfaError" class="alert alert-danger d-none"></div>
+        </form>
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <button type="button" id="resendOtpBtn" class="btn btn-sm btn-outline-secondary" disabled>Reenviar código</button>
+            <span id="otpTimer" class="text-muted"></span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" id="verifyOtpBtn" class="btn btn-primary">Verificar y Buscar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== MODAL PROCESANDO (ANIMACIÓN) ========== -->
+<div class="modal fade" id="modalProcesando" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content text-center">
+      <div class="modal-header bg-info text-white">
+        <h5 class="modal-title">Procesando transacción</h5>
+      </div>
+      <div class="modal-body">
+        <div style="font-size:3rem;">
+          <span class="paw-loader">
+            <svg width="48" height="48" viewBox="0 0 48 48">
+              <ellipse cx="24" cy="40" rx="8" ry="4" fill="#0dcaf0"/>
+              <ellipse cx="14" cy="28" rx="4" ry="6" fill="#0dcaf0"/>
+              <ellipse cx="34" cy="28" rx="4" ry="6" fill="#0dcaf0"/>
+              <ellipse cx="18" cy="18" rx="3" ry="4" fill="#0dcaf0"/>
+              <ellipse cx="30" cy="18" rx="3" ry="4" fill="#0dcaf0"/>
+            </svg>
+          </span>
+        </div>
+        <p>El Tauser está procesando la transacción...</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+@keyframes paw-spin { 100% { transform: rotate(360deg); } }
+.paw-loader { display:inline-block; animation: paw-spin 1.2s linear infinite; }
+</style>
+
+<!-- ========== MODAL ÉXITO ========== -->
+<div class="modal fade" id="modalExito" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content text-center">
+      <div class="modal-header bg-success text-white">
+        <h5 class="modal-title">¡Éxito!</h5>
+      </div>
+      <div class="modal-body">
+        <p>Transacción completada exitosamente.</p>
+        <button class="btn btn-success" id="btnCerrarExito">Aceptar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  // Lógica para formulario de denominaciones en venta
+  const formDenominaciones = document.getElementById("formDenominacionesVenta");
+  if (formDenominaciones) {
+    // Determinar el monto y la moneda a usar según el tipo de transacción
+    let montoEsperado = 0;
+    let monedaEsperada = "";
+    const tipo = "{{ datos_transaccion.tipo|lower }}";
+    const medioPago = "{{ datos_transaccion.medio_pago|default:'' }}";
+    if (tipo === 'compra' && medioPago === 'Efectivo') {
+      montoEsperado = parseFloat("{{ datos_transaccion.monto_pyg|floatformat:2 }}");
+      monedaEsperada = "PYG";
+    } else {
+      montoEsperado = parseFloat("{{ datos_transaccion.monto_operado|floatformat:2 }}");
+      monedaEsperada = "{{ datos_transaccion.moneda.codigo }}";
+    }
+    const totalSpan = document.getElementById("totalDenominaciones");
+    const errorDiv = document.getElementById("denominacionesError");
+    const inputs = formDenominaciones.querySelectorAll("input[type='number']");
+    function calcularTotal() {
+      let total = 0;
+      inputs.forEach(input => {
+        total += (parseInt(input.value) || 0) * parseFloat(input.dataset.valor);
+      });
+      totalSpan.textContent = total.toFixed(2);
+      return total;
+    }
+    // Cambiar la moneda mostrada en el total ingresado
+    totalSpan.nextSibling.textContent = " " + monedaEsperada;
+    inputs.forEach(input => {
+      input.addEventListener('input', calcularTotal);
+    });
+    formDenominaciones.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const total = calcularTotal();
+      if (Math.abs(total - montoEsperado) > 0.009) {
+        errorDiv.textContent = `El total ingresado (${total.toFixed(2)}) no coincide con el monto de la transacción (${montoEsperado.toFixed(2)}).`;
+        errorDiv.classList.remove('d-none');
+        return;
+      }
+      errorDiv.classList.add('d-none');
+      // Enviar denominaciones al backend para completar la transacción
+      const modalProcesando = new bootstrap.Modal(document.getElementById("modalProcesando"));
+      const modalExito = new bootstrap.Modal(document.getElementById("modalExito"));
+      modalProcesando.show();
+      const codigo = document.getElementById("codigo_verificacion").value.trim().toUpperCase();
+      function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+          const cookies = document.cookie.split(';');
+          for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+              cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+              break;
+            }
+          }
+        }
+        return cookieValue;
+      }
+      const csrftoken = getCookie('csrftoken');
+      // Construir datos de denominaciones
+      const data = new URLSearchParams();
+      data.append('codigo_verificacion', codigo);
+      data.append('accion', 'concluir_venta');
+      inputs.forEach(input => {
+        data.append(input.name, input.value);
+      });
+      try {
+        const response = await fetch(window.location.href, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': csrftoken,
+          },
+          body: data
+        });
+        const result = await response.json();
+        setTimeout(() => {
+          modalProcesando.hide();
+          if (result.success) {
+            setTimeout(() => {
+              modalExito.show();
+              document.getElementById("btnCerrarExito").onclick = () => {
+                window.location.reload();
+              };
+            }, 100); // Pequeño delay para evitar solapamiento
+          } else {
+            errorDiv.textContent = result.error || 'Ocurrió un error al completar la transacción.';
+            errorDiv.classList.remove('d-none');
+          }
+        }, 800);
+      } catch (e) {
+        modalProcesando.hide();
+        errorDiv.textContent = 'Error de red o del servidor.';
+        errorDiv.classList.remove('d-none');
+      }
+    });
+    return;
+  }
+  // Lógica para compras (flujo anterior)
+  const btnRealizar = document.getElementById("btnRealizarTransaccion");
+  if (!btnRealizar) return;
+  const modalConfirmar = new bootstrap.Modal(document.getElementById("modalConfirmar"));
+  const modalProcesando = new bootstrap.Modal(document.getElementById("modalProcesando"));
+  const modalExito = new bootstrap.Modal(document.getElementById("modalExito"));
+  btnRealizar.onclick = () => {
+    modalConfirmar.show();
+  };
+  document.getElementById("btnConfirmarOK").onclick = async () => {
+    modalConfirmar.hide();
+    modalProcesando.show();
+    const codigo = document.getElementById("codigo_verificacion").value.trim().toUpperCase();
+    function getCookie(name) {
+      let cookieValue = null;
+      if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+          const cookie = cookies[i].trim();
+          if (cookie.substring(0, name.length + 1) === (name + '=')) {
+            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            break;
+          }
+        }
+      }
+      return cookieValue;
+    }
+    const csrftoken = getCookie('csrftoken');
+    try {
+      const response = await fetch(window.location.href, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'X-CSRFToken': csrftoken,
+        },
+        body: new URLSearchParams({
+          'codigo_verificacion': codigo,
+          'accion': 'confirmar',
+        })
+      });
+      setTimeout(() => {
+        modalProcesando.hide();
+        modalExito.show();
+      }, 800);
+    } catch (e) {
+      modalProcesando.hide();
+      alert('Error al confirmar la transacción.');
+    }
+  };
+  document.getElementById("btnCerrarExito").onclick = () => {
+    window.location.reload();
+  };
+});
+</script>
+
 {% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const searchBtn = document.getElementById('searchBtn');
+    const searchForm = document.getElementById('searchTransactionForm');
+    const mfaModal = new bootstrap.Modal(document.getElementById('mfaModal'));
+    const otpInputs = document.querySelectorAll('.otp-input');
+
+    otpInputs.forEach((input, index) => {
+        input.addEventListener('input', () => {
+            if (input.value.length === 1 && index < otpInputs.length - 1) {
+                otpInputs[index + 1].focus();
+            }
+            // Collect all inputs to form the full code
+            let otp = '';
+            otpInputs.forEach(i => otp += i.value);
+            document.getElementById('mfaCode').value = otp;
+        });
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Backspace' && input.value.length === 0 && index > 0) {
+                otpInputs[index - 1].focus();
+            }
+        });
+
+        // Handle pasting the code
+        input.addEventListener('paste', (e) => {
+            e.preventDefault();
+            const pasteData = (e.clipboardData || window.clipboardData).getData('text');
+            if (pasteData.length === 6) {
+                otpInputs.forEach((otpInput, i) => {
+                    otpInput.value = pasteData[i] || '';
+                });
+                document.getElementById('mfaCode').value = pasteData;
+                otpInputs[5].focus();
+            }
+        });
+    });
+    
+    if (searchBtn) {
+        searchBtn.addEventListener('click', function (event) {
+            event.preventDefault();
+            const transactionCodeInput = document.getElementById('codigo_verificacion');
+            if (!transactionCodeInput.value.trim()) {
+                alert('Por favor, ingrese un código de verificación.');
+                return;
+            }
+            
+            // Reset OTP fields and errors before showing
+            otpInputs.forEach(i => i.value = '');
+            document.getElementById('mfaError').classList.add('d-none');
+
+            // Solicitar OTP al servidor y mostrar el modal
+            requestOtp('tauser_search_transaction');
+            mfaModal.show();
+        });
+    }
+
+    let timerInterval;
+    const resendBtn = document.getElementById('resendOtpBtn');
+    const otpTimerSpan = document.getElementById('otpTimer');
+
+    function startOtpTimer(duration) {
+        let timer = duration;
+        resendBtn.disabled = true;
+        
+        timerInterval = setInterval(function () {
+            otpTimerSpan.textContent = `Puede reenviar en ${timer}s`;
+            timer--;
+            if (timer < 0) {
+                clearInterval(timerInterval);
+                otpTimerSpan.textContent = '';
+                resendBtn.disabled = false;
+            }
+        }, 1000);
+    }
+
+    function requestOtp(purpose) {
+        clearInterval(timerInterval);
+        document.getElementById('mfaError').classList.add('d-none');
+
+        fetch("{% url 'mfa:generate_otp_api' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                email: '{{ request.user.email }}',
+                purpose: purpose
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.ok) {
+                startOtpTimer(data.ttl_seconds || 60);
+            } else {
+                const mfaError = document.getElementById('mfaError');
+                mfaError.textContent = data.error || 'No se pudo enviar el código.';
+                mfaError.classList.remove('d-none');
+            }
+        })
+        .catch(error => {
+            const mfaError = document.getElementById('mfaError');
+            mfaError.textContent = 'Error de red al solicitar el código.';
+            mfaError.classList.remove('d-none');
+        });
+    }
+
+    resendBtn.addEventListener('click', function() {
+        requestOtp('tauser_search_transaction');
+    });
+
+    document.getElementById('verifyOtpBtn').addEventListener('click', function() {
+        const code = document.getElementById('mfaCode').value;
+        const mfaError = document.getElementById('mfaError');
+        mfaError.classList.add('d-none');
+
+        fetch("{% url 'mfa:api_verify_tauser_otp' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                code: code,
+                purpose: 'tauser_search_transaction'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.ok) {
+                // Si el OTP es correcto, enviar el formulario de búsqueda original
+                searchForm.submit();
+            } else {
+                mfaError.textContent = data.error || 'Error de verificación.';
+                mfaError.classList.remove('d-none');
+            }
+        })
+        .catch(error => {
+            mfaError.textContent = 'Error de red al verificar el código.';
+            mfaError.classList.remove('d-none');
+        });
+    });
+});
+</script>
+{% endblock %}
+

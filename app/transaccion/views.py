@@ -30,6 +30,47 @@ from .services import (
     requiere_pago_tarjeta,
     verificar_pago_stripe,
 )
+from tauser.services import validar_stock_tauser_para_transaccion
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def vincular_tauser(request):
+    """
+    Recibe transaccion_id y tauser_id por POST, vincula el Tauser a la transacción (actualiza campo tauser_id).
+    """
+    transaccion_id = request.POST.get("transaccion_id")
+    tauser_id = request.POST.get("tauser_id")
+    if not transaccion_id or not tauser_id:
+        return JsonResponse({"ok": False, "mensaje": "Faltan parámetros."}, status=400)
+    try:
+        tx = Transaccion.objects.get(id=transaccion_id)
+        tx.tauser_id = tauser_id
+        tx.save(update_fields=["tauser_id"])
+        return JsonResponse({"ok": True, "mensaje": "Tauser vinculado correctamente a la transacción."})
+    except Transaccion.DoesNotExist:
+        return JsonResponse({"ok": False, "mensaje": "Transacción no encontrada."}, status=404)
+    except Exception as e:
+        return JsonResponse({"ok": False, "mensaje": f"Error al vincular Tauser: {str(e)}"}, status=500)
+
+# --- API para validar stock de tauser para una transacción ---
+from django.views.decorators.csrf import csrf_exempt
+@csrf_exempt
+@require_http_methods(["POST"])
+def validar_stock_tauser(request):
+    """
+    Recibe transaccion_id y tauser_id por POST, llama a validar_stock_tauser_para_transaccion y retorna el resultado como JSON.
+    """
+    tauser_id = request.POST.get("tauser_id")
+    monto = request.POST.get("monto")
+    moneda_id = request.POST.get("moneda_id")
+    if not tauser_id or not monto or not moneda_id:
+        return JsonResponse({"ok": False, "mensaje": "Faltan parámetros."}, status=400)
+    # Llama a la función de validación adaptada para estos parámetros
+    resultado = validar_stock_tauser_para_transaccion(tauser_id=tauser_id, monto=monto, moneda_id=moneda_id)
+    # Serializar el objeto moneda si está presente
+    if "moneda" in resultado and resultado["moneda"]:
+        resultado["moneda"] = str(resultado["moneda"])
+    return JsonResponse(resultado)
 
 logger = logging.getLogger(__name__)
 stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -157,6 +198,7 @@ def transacciones_list(request):
     estados_validos = {
         "pendiente": EstadoTransaccionEnum.PENDIENTE,
         "pagada": EstadoTransaccionEnum.PAGADA,
+        "completada": EstadoTransaccionEnum.COMPLETADA,
         "cancelada": EstadoTransaccionEnum.CANCELADA,
         "anulada": EstadoTransaccionEnum.ANULADA,
         "todas": None,
@@ -165,10 +207,11 @@ def transacciones_list(request):
     if estado_qs not in estados_validos:
         estado_qs = "pendiente"
 
+    # Filtrar por clientes del usuario operador logueado
     transacciones = (
         Transaccion.objects
-        .all()
-        .select_related("cliente", "moneda", "medio_pago")
+        .filter(cliente__usuarios=request.user)
+        .select_related("cliente", "moneda", "medio_pago", "medio_cobro")
     )
 
     # filtro por cliente (si aplica)
@@ -186,26 +229,30 @@ def transacciones_list(request):
     else:
         transacciones = transacciones.order_by("-fecha")
 
-    # ---- Contadores por estado (respetando cliente si está filtrado) ----
-    base = Transaccion.objects.all()
+    # ---- Contadores por estado (respetando cliente si está filtrado y usuario) ----
+    base = Transaccion.objects.filter(cliente__usuarios=request.user)
     if cliente_id:
         base = base.filter(cliente_id=cliente_id)
 
     counts = {
         "pendiente": base.filter(estado=EstadoTransaccionEnum.PENDIENTE).count(),
         "pagada": base.filter(estado=EstadoTransaccionEnum.PAGADA).count(),
+        "completada": base.filter(estado=EstadoTransaccionEnum.COMPLETADA).count(),
         "cancelada": base.filter(estado=EstadoTransaccionEnum.CANCELADA).count(),
         "anulada": base.filter(estado=EstadoTransaccionEnum.ANULADA).count(),
         "todas": base.count(),
     }
 
     clientes = Cliente.objects.all()
+    from tauser.models import Tauser
+    tausers = Tauser.objects.filter(estado="activo")
     ctx = {
         "transacciones": transacciones,
         "clientes": clientes,
         "cliente_id": cliente_id,
         "estado_qs": estado_qs,
         "counts": counts,
+        "tausers": tausers,
     }
     return render(request, "transacciones/transacciones_list.html", ctx)
 
@@ -286,6 +333,11 @@ def transaccion_create(request):
             medio_pago = form.cleaned_data["medio_pago"]
 
             try:
+                tauser_id = request.POST.get("tauser_id")
+                tauser = None
+                if tauser_id:
+                    from tauser.models import Tauser
+                    tauser = Tauser.objects.filter(id=tauser_id).first()
                 calculo = calcular_transaccion(cliente, tipo, moneda_operada, monto_operado, medio_pago)
                 transaccion = crear_transaccion(
                     cliente,
@@ -296,6 +348,7 @@ def transaccion_create(request):
                     calculo["comision"],
                     calculo["monto_pyg"],
                     medio_pago,
+                    tauser
                 )
                 messages.success(request, 
                     f"Transacción {transaccion.id} creada correctamente. "
@@ -344,9 +397,18 @@ def compra_moneda(request):
             
             # Determinar medio_pago según el método seleccionado
             medio_pago_obj = None
+            tipo_metodo_override = None
             
-            if metodo_pago in ['transferencia', 'billetera']:
-                # Para transferencia y billetera, se requiere un método guardado
+            if metodo_pago == 'efectivo':
+                # Para efectivo, usar método del sistema
+                medio_pago_obj = PaymentMethod.get_metodo_sistema('efectivo')
+                tipo_metodo_override = 'efectivo'
+            elif metodo_pago == 'tarjeta':
+                # Para tarjeta, usar método del sistema
+                medio_pago_obj = PaymentMethod.get_metodo_sistema('tarjeta')
+                tipo_metodo_override = 'tarjeta'
+            elif metodo_pago in ['transferencia', 'billetera']:
+                # Para transferencia y billetera, se requiere un método guardado del cliente
                 if not metodo_pago_id:
                     messages.error(request, f"Debe seleccionar un método de {metodo_pago} guardado")
                     return redirect("transacciones:compra_moneda")
@@ -359,16 +421,24 @@ def compra_moneda(request):
                 elif metodo_pago == 'billetera' and medio_pago_obj.payment_type != PaymentTypeEnum.BILLETERA.value:
                     messages.error(request, "El método seleccionado no es una billetera válida")
                     return redirect("transacciones:compra_moneda")
-            # Para efectivo y tarjeta, medio_pago_obj queda en None
+            else:
+                messages.error(request, f"Método de pago '{metodo_pago}' no reconocido")
+                return redirect("transacciones:compra_moneda")
 
             # Calcular y crear transacción
+            tauser_id = request.POST.get("tauser_id")
+            tauser = None
+            if tauser_id:
+                from tauser.models import Tauser
+                tauser = Tauser.objects.filter(id=tauser_id).first()
             calculo = calcular_transaccion(
                 cliente, 
                 TipoTransaccionEnum.COMPRA, 
                 moneda, 
-                monto
+                monto,
+                medio_pago_obj,
+                tipo_metodo_override
             )
-            
             transaccion = crear_transaccion(
                 cliente,
                 TipoTransaccionEnum.COMPRA,
@@ -378,6 +448,7 @@ def compra_moneda(request):
                 calculo["comision"],
                 calculo["monto_pyg"],
                 medio_pago_obj,
+                tauser
             )
 
             # Preparar datos para el modal
@@ -388,7 +459,6 @@ def compra_moneda(request):
                 'cliente': cliente,
                 'moneda': moneda,
             }
-            
             # Renderizar template con modal de confirmación
             return render(request, "transacciones/transaccion_confirmada.html", context)
 
@@ -404,10 +474,12 @@ def compra_moneda(request):
     # Solo mostrar clientes asociados al usuario operador
     clientes = Cliente.objects.filter(usuarios=request.user).order_by("nombre")
     monedas = Moneda.objects.filter(activa=True).order_by("nombre")
-    
+    from tauser.models import Tauser
+    tausers = Tauser.objects.filter(estado="activo")
     context = {
         "clientes": clientes,
         "monedas": monedas,
+        "tausers": tausers,
     }
     return render(request, "transacciones/compra_moneda.html", context)
 
@@ -436,19 +508,55 @@ def venta_moneda(request):
             moneda = get_object_or_404(Moneda, pk=int(moneda_id))
             monto = Decimal(str(monto_operado))
             
-            # Para VENTA, no usamos medio_pago del modelo actual
-            # (podríamos agregar medio_cobro como FK a MedioAcreditacion en el futuro)
-            # Por ahora, guardaremos el medio_cobro_id en algún lado o simplemente
-            # lo usaremos para la lógica pero no lo persistimos
+            # Para VENTA, el cliente COBRA en PYG (no paga)
+            # Determinar el tipo de método para calcular comisiones
+            tipo_metodo_override = None
+            medio_pago_obj = None
+            medio_cobro_obj = None
+            
+            if metodo_cobro == 'efectivo':
+                # Cliente cobra en efectivo - usar sistema MedioAcreditacion
+                from medios_acreditacion.models import MedioAcreditacion
+                medio_cobro_obj = MedioAcreditacion.get_metodo_sistema('efectivo')
+                tipo_metodo_override = 'efectivo'
+            elif metodo_cobro == 'tarjeta':
+                # Cliente cobra en tarjeta - usar sistema MedioAcreditacion
+                from medios_acreditacion.models import MedioAcreditacion
+                medio_cobro_obj = MedioAcreditacion.get_metodo_sistema('tarjeta')
+                tipo_metodo_override = 'tarjeta'
+            elif metodo_cobro == 'transferencia':
+                # Cliente cobra por transferencia - usar MedioAcreditacion del cliente
+                tipo_metodo_override = 'transferencia'
+                
+                # Validar que tenga un medio de cobro configurado
+                if not medio_cobro_id:
+                    messages.error(request, "Debe seleccionar una cuenta bancaria para recibir la transferencia")
+                    return redirect("transacciones:venta_moneda")
+                
+                from medios_acreditacion.models import MedioAcreditacion
+                medio_cobro_obj = get_object_or_404(
+                    MedioAcreditacion, 
+                    pk=int(medio_cobro_id), 
+                    cliente=cliente
+                )
+            else:
+                messages.error(request, f"Método de cobro '{metodo_cobro}' no reconocido")
+                return redirect("transacciones:venta_moneda")
             
             # Calcular y crear transacción
+            tauser_id = request.POST.get("tauser_id")
+            tauser = None
+            if tauser_id:
+                from tauser.models import Tauser
+                tauser = Tauser.objects.filter(id=tauser_id).first()
             calculo = calcular_transaccion(
                 cliente, 
                 TipoTransaccionEnum.VENTA, 
                 moneda, 
-                monto
+                monto,
+                medio_pago=None,  # Para VENTA no hay medio_pago (el cliente cobra)
+                tipo_metodo_override=tipo_metodo_override
             )
-            
             transaccion = crear_transaccion(
                 cliente,
                 TipoTransaccionEnum.VENTA,
@@ -457,21 +565,10 @@ def venta_moneda(request):
                 calculo["tasa_aplicada"],
                 calculo["comision"],
                 calculo["monto_pyg"],
-                None,  # medio_pago=None para VENTA (el cliente no paga, cobra)
+                None,  # medio_pago=None para VENTA
+                tauser,
+                medio_cobro_obj
             )
-
-            # Guardar referencia al medio de cobro si es transferencia
-            # (aquí podrías agregar un campo en el modelo o usar metadata)
-            if metodo_cobro == 'transferencia' and medio_cobro_id:
-                # Validar que el medio_cobro existe
-                from medios_acreditacion.models import MedioAcreditacion
-                medio_cobro_obj = get_object_or_404(
-                    MedioAcreditacion, 
-                    pk=int(medio_cobro_id), 
-                    cliente=cliente
-                )
-                # Por ahora solo lo usamos para validación
-                # En el futuro podrías agregarlo como FK al modelo Transaccion
 
             # Preparar datos para el modal
             context = {
@@ -482,7 +579,6 @@ def venta_moneda(request):
                 'moneda': moneda,
                 'tipo': 'VENTA',
             }
-            
             # Renderizar template con modal de confirmación
             return render(request, "transacciones/transaccion_confirmada.html", context)
 
@@ -498,10 +594,12 @@ def venta_moneda(request):
     # Solo mostrar clientes asociados al usuario operador
     clientes = Cliente.objects.filter(usuarios=request.user).order_by("nombre")
     monedas = Moneda.objects.filter(activa=True).order_by("nombre")
-    
+    from tauser.models import Tauser
+    tausers = Tauser.objects.filter(estado="activo")
     context = {
         "clientes": clientes,
         "monedas": monedas,
+        "tausers": tausers,
     }
     return render(request, "transacciones/venta_moneda.html", context)
 
@@ -525,8 +623,30 @@ def calcular_api(request):
             moneda = Moneda.objects.get(pk=int(data["moneda"]))
             monto = Decimal(str(data["monto_operado"]))
 
-            medio_pago = data.get("medio_pago")
-            calculo = calcular_transaccion(cliente, tipo, moneda, monto, medio_pago)
+            # Obtener método de pago (ID de PaymentMethod o tipo de método)
+            medio_pago_id = data.get("medio_pago_id")  # ID del PaymentMethod
+            tipo_metodo = data.get("tipo_metodo")  # 'efectivo', 'tarjeta', etc.
+            
+            # Si viene medio_pago_id, usarlo; si no, usar tipo_metodo como override
+            medio_pago = None
+            tipo_metodo_override = None
+            
+            if medio_pago_id:
+                medio_pago = medio_pago_id
+            elif tipo_metodo:
+                tipo_metodo_override = tipo_metodo
+            else:
+                # Default: efectivo (para compatibilidad con código antiguo)
+                tipo_metodo_override = 'efectivo'
+            
+            calculo = calcular_transaccion(
+                cliente, 
+                tipo, 
+                moneda, 
+                monto, 
+                medio_pago, 
+                tipo_metodo_override
+            )
             return JsonResponse(
                 {
                     "descuento_pct": str(calculo.get("descuento_pct", "")),
@@ -534,6 +654,8 @@ def calcular_api(request):
                     "tasa_aplicada": str(calculo["tasa_aplicada"]),
                     "comision": str(calculo["comision"]),
                     "monto_pyg": str(calculo["monto_pyg"]),
+                    "comision_metodo_pago": str(calculo.get("comision_metodo_pago", 0)),
+                    "porcentaje_metodo_pago": str(calculo.get("porcentaje_metodo_pago", 0)),
                 }
             )
         except Exception as e:
@@ -555,6 +677,9 @@ def iniciar_pago_tarjeta(request, pk):
         return redirect("transacciones:transacciones_list")
 
     try:
+        # Guardar el user_id autenticado en la sesión antes de redirigir a Stripe
+        if request.user.is_authenticated:
+            request.session['stripe_user_id'] = request.user.pk
         url = crear_checkout_para_transaccion(tx)
         return HttpResponseRedirect(url)
     except Exception as e:
@@ -564,9 +689,24 @@ def iniciar_pago_tarjeta(request, pk):
 
 
 def pago_success(request):
+
+    from django.contrib.auth import get_user_model, login
     session_id = request.GET.get("session_id")
     tx_id = request.GET.get("tx_id")
     info = None
+
+    # Si el usuario no está autenticado pero hay un stripe_user_id en sesión, re-autenticar
+    if not request.user.is_authenticated:
+        user_id = request.session.get('stripe_user_id')
+        if user_id:
+            User = get_user_model()
+            try:
+                user = User.objects.get(pk=user_id)
+                login(request, user)
+            except User.DoesNotExist:
+                pass
+        # Limpiar el stripe_user_id de la sesión para evitar reusos
+        request.session.pop('stripe_user_id', None)
 
     if session_id:
         try:
@@ -615,6 +755,11 @@ def pago_success(request):
         except Exception as e:
             logger.exception(f"[SUCCESS] Error en plan B para tx #{tx_id}: {e}")
 
+        # Redirigir a historial de transacciones después de pago exitoso
+        messages.success(request, "¡Pago recibido! La transacción fue procesada correctamente.")
+        return redirect("transacciones:transacciones_list")
+
+    # Si no es pago exitoso, mostrar la página de éxito (fallback)
     return render(request, "pagos/success.html", {
         "tx_id": tx_id,
         "session_id": session_id,

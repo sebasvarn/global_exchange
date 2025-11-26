@@ -21,4 +21,7 @@ urlpatterns = [
     path("medios-pago-por-cliente/", views.medios_pago_por_cliente, name="medios_pago_por_cliente"),
     path("medios-acreditacion-por-cliente/", views.medios_acreditacion_por_cliente, name="medios_acreditacion_por_cliente"),
 
+    path("validar-stock-tauser/", views.validar_stock_tauser, name="validar_stock_tauser"),
+    path("vincular-tauser/", views.vincular_tauser, name="vincular_tauser"),
+
 ]

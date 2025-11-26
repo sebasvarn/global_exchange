@@ -3,6 +3,7 @@ import random
 import string
 from django.db import models
 
+from tauser.models import Tauser
 from payments.models import PaymentMethod
 from clientes.models import Cliente
 from commons.enums import TipoTransaccionEnum, EstadoTransaccionEnum, TipoMovimientoEnum
@@ -52,6 +53,22 @@ class Transaccion(models.Model):
         null=True,   
         blank=True,
     )
+    medio_cobro = models.ForeignKey(
+        MedioAcreditacion,
+        on_delete=models.PROTECT,
+        related_name="transacciones",
+        verbose_name="Medio de Cobro",
+        null=True,
+        blank=True,
+    )
+    tauser = models.ForeignKey(
+        Tauser,
+        on_delete=models.PROTECT,
+        related_name="transacciones",
+        verbose_name="Tauser",
+        null=True,
+        blank=True,
+    )
     monto_operado = models.DecimalField(max_digits=18, decimal_places=2)
     monto_pyg = models.DecimalField(max_digits=18, decimal_places=2)
     tasa_aplicada = models.DecimalField(max_digits=18, decimal_places=4)
@@ -65,7 +82,6 @@ class Transaccion(models.Model):
     fecha = models.DateTimeField(auto_now_add=True)
     
     # Campos para gestión de pagos y expiración
-    datos_metodo_pago = models.JSONField(default=dict, blank=True, verbose_name="Datos del Método de Pago")
     fecha_actualizacion = models.DateTimeField(auto_now=True, verbose_name="Fecha de Actualización")
     fecha_expiracion = models.DateTimeField(null=True, blank=True, verbose_name="Fecha de Expiración")
     fecha_pago = models.DateTimeField(null=True, blank=True, verbose_name="Fecha de Pago")

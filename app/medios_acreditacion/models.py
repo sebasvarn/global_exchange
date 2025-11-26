@@ -87,4 +87,64 @@ class MedioAcreditacion(models.Model):
             return f"Cuenta bancaria ({self.banco or ''} - {self.numero_cuenta or ''})"
         elif self.tipo_medio == TipoMedioAcreditacionEnum.BILLETERA.value:
             return f"Billetera ({self.proveedor_billetera or ''} - {self.billetera_email_telefono or ''})"
+        elif self.tipo_medio == TipoMedioAcreditacionEnum.EFECTIVO.value:
+            return "Efectivo"
+        elif self.tipo_medio == TipoMedioAcreditacionEnum.TARJETA.value:
+            return "Tarjeta"
         return f"Medio de acreditación {self.pk}"
+
+    @property
+    def payment_type(self):
+        """
+        Compatibilidad con PaymentMethod: retorna el tipo de medio.
+        Permite usar la misma lógica en templates para ambos modelos.
+        """
+        return self.tipo_medio
+
+    @classmethod
+    def get_metodo_sistema(cls, tipo_metodo):
+        """
+        Obtiene o crea un medio de acreditación del sistema (efectivo o tarjeta).
+        Estos métodos pertenecen a un cliente especial llamado "Sistema"
+        y se reutilizan para todas las transacciones de VENTA.
+        
+        Args:
+            tipo_metodo: 'efectivo' o 'tarjeta'
+        
+        Returns:
+            MedioAcreditacion: El método de cobro del sistema
+        """
+        # Obtener o crear cliente sistema
+        cliente_sistema, created = Cliente.objects.get_or_create(
+            nombre='Sistema',
+            defaults={
+                'tipo': 'CORP',
+                'estado': 'activo',
+            }
+        )
+        
+        # Obtener o crear el medio de acreditación
+        if tipo_metodo == 'efectivo':
+            metodo, created = cls.objects.get_or_create(
+                tipo_medio=TipoMedioAcreditacionEnum.EFECTIVO.value,
+                cliente=cliente_sistema,
+                defaults={
+                    'titular_cuenta': 'Sistema - Efectivo',
+                    'banco': 'Caja',
+                    'numero_cuenta': 'EFECTIVO',
+                }
+            )
+        elif tipo_metodo == 'tarjeta':
+            metodo, created = cls.objects.get_or_create(
+                tipo_medio=TipoMedioAcreditacionEnum.TARJETA.value,
+                cliente=cliente_sistema,
+                defaults={
+                    'titular_cuenta': 'Sistema - Tarjeta',
+                    'banco': 'Stripe',
+                    'numero_cuenta': 'STRIPE',
+                }
+            )
+        else:
+            raise ValueError(f"Tipo de método no válido para sistema: {tipo_metodo}")
+        
+        return metodo

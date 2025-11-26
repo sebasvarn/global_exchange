@@ -4,6 +4,31 @@ import transaccion.models
 from django.db import migrations, models
 
 
+def generar_codigos_unicos(apps, schema_editor):
+    """
+    Genera códigos únicos para todas las transacciones existentes.
+    """
+    import random
+    import string
+    
+    Transaccion = apps.get_model('transaccion', 'Transaccion')
+    codigos_usados = set()
+    
+    def generar_codigo():
+        """Genera un código alfanumérico único de 6 caracteres."""
+        caracteres = string.ascii_uppercase + string.digits
+        while True:
+            codigo = ''.join(random.choice(caracteres) for _ in range(6))
+            if codigo not in codigos_usados:
+                codigos_usados.add(codigo)
+                return codigo
+    
+    # Asignar códigos únicos a todas las transacciones existentes
+    for transaccion in Transaccion.objects.all():
+        transaccion.codigo_verificacion = generar_codigo()
+        transaccion.save(update_fields=['codigo_verificacion'])
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -18,10 +43,11 @@ class Migration(migrations.Migration):
             name='transaccion',
             options={'ordering': ['-fecha'], 'verbose_name': 'Transacción', 'verbose_name_plural': 'Transacciones'},
         ),
+        # Step 1: Add field as nullable without unique constraint or default
         migrations.AddField(
             model_name='transaccion',
             name='codigo_verificacion',
-            field=models.CharField(default=transaccion.models.generar_codigo_verificacion, editable=False, max_length=10, unique=True, verbose_name='Código de Verificación'),
+            field=models.CharField(max_length=10, null=True, blank=True, editable=False, verbose_name='Código de Verificación'),
         ),
         migrations.AddField(
             model_name='transaccion',
@@ -42,6 +68,14 @@ class Migration(migrations.Migration):
             model_name='transaccion',
             name='fecha_pago',
             field=models.DateTimeField(blank=True, null=True, verbose_name='Fecha de Pago'),
+        ),
+        # Step 2: Populate all existing rows with unique codes
+        migrations.RunPython(generar_codigos_unicos, migrations.RunPython.noop),
+        # Step 3: Make field non-nullable with unique constraint and default
+        migrations.AlterField(
+            model_name='transaccion',
+            name='codigo_verificacion',
+            field=models.CharField(default=transaccion.models.generar_codigo_verificacion, editable=False, max_length=10, unique=True, verbose_name='Código de Verificación'),
         ),
         migrations.AddIndex(
             model_name='transaccion',
