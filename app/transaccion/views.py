@@ -43,7 +43,15 @@ def marcar_pagada_simple(request, pk):
     # Clear MFA flag
     del request.session[f'mfa_verified_{pk}']
 
-    tx = get_object_or_404(Transaccion, pk=pk)
+    # Filtrar por clientes del usuario autenticado
+    if request.user.is_authenticated:
+        tx = get_object_or_404(
+            Transaccion.objects.filter(cliente__usuarios=request.user),
+            pk=pk
+        )
+    else:
+        tx = get_object_or_404(Transaccion, pk=pk)
+
     if tx.estado != EstadoTransaccionEnum.PAGADA:
         tx.estado = EstadoTransaccionEnum.PAGADA
         tx.save()
@@ -693,7 +701,14 @@ def iniciar_pago_tarjeta(request, pk):
     # Clear MFA flag
     del request.session[f'mfa_verified_{pk}']
 
-    tx = get_object_or_404(Transaccion, pk=pk)
+    # Filtrar por clientes del usuario autenticado
+    if request.user.is_authenticated:
+        tx = get_object_or_404(
+            Transaccion.objects.filter(cliente__usuarios=request.user),
+            pk=pk
+        )
+    else:
+        tx = get_object_or_404(Transaccion, pk=pk)
 
     # Debe estar pendiente
     if str(tx.estado) != str(EstadoTransaccionEnum.PENDIENTE):
