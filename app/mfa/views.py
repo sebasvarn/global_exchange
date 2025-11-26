@@ -52,7 +52,7 @@ def generate_otp_view(request):
         return JsonResponse({"error": str(e)}, status=500)
 
 
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from transaccion.models import Transaccion
@@ -136,4 +136,45 @@ def verify_tauser_transaction_otp(request):
     except Exception as e:
         logger.error(f"Error en verify_tauser_transaction_otp: {e}")
         return JsonResponse({'ok': False, 'error': 'Ocurrió un error inesperado.'}, status=500)
+
+@login_required
+@require_POST
+def generate_otp_for_transaction(request, transaction_id):
+    try:
+        transaction = get_object_or_404(Transaccion, pk=transaction_id)
+        # Check if user has permission to access this transaction if needed
+        
+        purpose = f'transaction_{transaction_id}'
+        # Force email method to ensure it goes to Mailtrap (if configured)
+        generate_otp(request.user, purpose, method='email')
+        
+        return JsonResponse({'status': 'success', 'message': 'OTP enviado'})
+    except Exception as e:
+        logger.error(f"Error generating OTP: {e}")
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+@login_required
+@require_POST
+def verify_otp_api(request):
+    try:
+        data = json.loads(request.body)
+        transaction_id = data.get('transaction_id')
+        code = data.get('code')
+        
+        if not transaction_id or not code:
+            return JsonResponse({'status': 'error', 'message': 'Datos incompletos'}, status=400)
+            
+        purpose = f'transaction_{transaction_id}'
+        is_valid, _ = verify_otp_service(request.user, purpose, code)
+        
+        if is_valid:
+            # Mark as verified in session
+            request.session[f'mfa_verified_{transaction_id}'] = True
+            return JsonResponse({'status': 'success'})
+        else:
+            return JsonResponse({'status': 'error', 'message': 'Código inválido'}, status=400)
+            
+    except Exception as e:
+        logger.error(f"Error verifying OTP: {e}")
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 

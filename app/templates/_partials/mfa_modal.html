@@ -1,0 +1,246 @@
+<!-- MFA Modal -->
+<style>
+    .otp-input-container {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+    }
+    .otp-input {
+        width: 45px;
+        height: 50px;
+        text-align: center;
+        font-size: 1.5rem;
+        border: 1px solid #ced4da;
+        border-radius: .25rem;
+        transition: border-color .15s ease-in-out,box-shadow .15s ease-in-out;
+    }
+    .otp-input:focus {
+        border-color: #86b7fe;
+        outline: 0;
+        box-shadow: 0 0 0 0.25rem rgb(13 110 253 / 25%);
+    }
+</style>
+
+<div class="modal fade" id="mfaModal" tabindex="-1" aria-labelledby="mfaModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="mfaModalLabel">Verificación de Seguridad</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Por favor, ingrese el código de verificación enviado a su correo electrónico.</p>
+        
+        <div id="mfa-alert" class="alert alert-danger d-none"></div>
+        <div id="mfa-success" class="alert alert-success d-none">Código verificado correctamente. Redirigiendo...</div>
+
+        <form id="mfaForm" onsubmit="return false;">
+            <div class="otp-input-container mb-3">
+                <input type="text" class="form-control otp-input" id="otp-1" maxlength="1" autocomplete="off">
+                <input type="text" class="form-control otp-input" id="otp-2" maxlength="1" autocomplete="off">
+                <input type="text" class="form-control otp-input" id="otp-3" maxlength="1" autocomplete="off">
+                <input type="text" class="form-control otp-input" id="otp-4" maxlength="1" autocomplete="off">
+                <input type="text" class="form-control otp-input" id="otp-5" maxlength="1" autocomplete="off">
+                <input type="text" class="form-control otp-input" id="otp-6" maxlength="1" autocomplete="off">
+            </div>
+            <input type="hidden" id="otp_code" name="otp_code">
+            
+            <div class="d-grid gap-2">
+                <button type="button" class="btn btn-primary" id="verifyBtn">Verificar</button>
+                <button type="button" class="btn btn-secondary" id="resendBtn" disabled>
+                  Reenviar Código <span id="countdown">(30s)</span>
+                </button>
+            </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let mfaTransactionId = null;
+let mfaTargetUrl = null;
+let mfaIsPost = false;
+let countdownInterval = null;
+
+function openMfaModal(transactionId, targetUrl, isPost) {
+    mfaTransactionId = transactionId;
+    mfaTargetUrl = targetUrl;
+    mfaIsPost = isPost;
+    
+    // Reset UI
+    document.getElementById('otp_code').value = '';
+    document.querySelectorAll('.otp-input').forEach(i => i.value = '');
+    document.getElementById('mfa-alert').classList.add('d-none');
+    document.getElementById('mfa-success').classList.add('d-none');
+    document.getElementById('verifyBtn').disabled = false;
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('mfaModal'));
+    modal.show();
+    
+    // Trigger OTP generation
+    requestOtp();
+}
+
+function startCountdown(seconds) {
+    const btn = document.getElementById('resendBtn');
+    const span = document.getElementById('countdown');
+    let timeLeft = seconds;
+    
+    btn.disabled = true;
+    span.textContent = `(${timeLeft}s)`;
+    
+    if (countdownInterval) clearInterval(countdownInterval);
+    
+    countdownInterval = setInterval(() => {
+        timeLeft--;
+        span.textContent = `(${timeLeft}s)`;
+        
+        if (timeLeft <= 0) {
+            clearInterval(countdownInterval);
+            btn.disabled = false;
+            span.textContent = '';
+        }
+    }, 1000);
+}
+
+function requestOtp() {
+    // Clear previous errors
+    document.getElementById('mfa-alert').classList.add('d-none');
+    
+    fetch(`/mfa/generate/${mfaTransactionId}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            console.log('OTP sent');
+            startCountdown(30); // Start 30s countdown
+        } else {
+            showError(data.message || 'Error al enviar el código');
+        }
+    })
+    .catch(error => showError('Error de conexión'));
+}
+
+// OTP Input Logic
+document.addEventListener('DOMContentLoaded', function() {
+    const otpInputs = document.querySelectorAll('.otp-input');
+    
+    otpInputs.forEach((input, index) => {
+        input.addEventListener('input', () => {
+            if (input.value.length === 1 && index < otpInputs.length - 1) {
+                otpInputs[index + 1].focus();
+            }
+            // Collect all inputs to form the full code
+            let otp = '';
+            otpInputs.forEach(i => otp += i.value);
+            document.getElementById('otp_code').value = otp;
+        });
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Backspace' && input.value.length === 0 && index > 0) {
+                otpInputs[index - 1].focus();
+            }
+        });
+
+        input.addEventListener('paste', (e) => {
+            e.preventDefault();
+            const pasteData = (e.clipboardData || window.clipboardData).getData('text');
+            if (pasteData.length === 6) {
+                otpInputs.forEach((otpInput, i) => {
+                    otpInput.value = pasteData[i] || '';
+                });
+                document.getElementById('otp_code').value = pasteData;
+                otpInputs[5].focus();
+            }
+        });
+    });
+});
+
+document.getElementById('verifyBtn').addEventListener('click', function(e) {
+    e.preventDefault();
+    const code = document.getElementById('otp_code').value;
+    const btn = document.getElementById('verifyBtn');
+    
+    if (code.length !== 6) {
+        showError('Por favor ingrese el código completo de 6 dígitos');
+        return;
+    }
+
+    btn.disabled = true;
+    
+    fetch('/mfa/api/verify/', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            transaction_id: mfaTransactionId,
+            code: code
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            document.getElementById('mfa-success').classList.remove('d-none');
+            setTimeout(() => {
+                if (mfaIsPost) {
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = mfaTargetUrl;
+                    
+                    const csrfInput = document.createElement('input');
+                    csrfInput.type = 'hidden';
+                    csrfInput.name = 'csrfmiddlewaretoken';
+                    csrfInput.value = getCookie('csrftoken');
+                    form.appendChild(csrfInput);
+                    
+                    document.body.appendChild(form);
+                    form.submit();
+                } else {
+                    window.location.href = mfaTargetUrl;
+                }
+            }, 1000);
+        } else {
+            showError(data.message || 'Código inválido');
+            btn.disabled = false;
+        }
+    })
+    .catch(error => {
+        showError('Error al verificar el código');
+        btn.disabled = false;
+    });
+});
+
+document.getElementById('resendBtn').addEventListener('click', function() {
+    requestOtp();
+});
+
+function showError(msg) {
+    const alert = document.getElementById('mfa-alert');
+    alert.textContent = msg;
+    alert.classList.remove('d-none');
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>

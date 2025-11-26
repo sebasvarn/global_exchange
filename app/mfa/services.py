@@ -14,6 +14,26 @@ import sys
 
 logger = logging.getLogger(__name__)
 
+PURPOSE_MAP = {
+    'tauser_confirm_transaction': 'Confirmación de Transacción Tauser',
+    'tauser_search_transaction': 'Búsqueda de Transacción Tauser',
+    'transaction': 'Confirmación de Transacción',
+}
+
+def _get_friendly_purpose(purpose):
+    # Check exact match
+    if purpose in PURPOSE_MAP:
+        return PURPOSE_MAP[purpose]
+    
+    # Check prefix match (e.g. transaction_123)
+    if purpose.startswith('transaction_'):
+        try:
+            tx_id = purpose.split('_')[1]
+            return f"Confirmación de Transacción #{tx_id}"
+        except IndexError:
+            pass
+            
+    return purpose
 
 def _random_numeric_code(length=6):
     start = 10 ** (length - 1)
@@ -24,14 +44,24 @@ def _random_numeric_code(length=6):
 def _send_otp_by_email(user, raw_code, purpose, expires_at, destination):
     """Envia el código OTP por correo electrónico."""
     try:
-        subject = f"Tu código de verificación para {purpose}"
+        friendly_purpose = _get_friendly_purpose(purpose)
+        subject = f"Tu código de verificación para {friendly_purpose}"
         context = {
             'user': user,
             'raw_code': raw_code,
-            'purpose': purpose,
+            'purpose': friendly_purpose,  # Use friendly name in body too
             'expires_at': expires_at,
         }
         body = render_to_string('mfa/email/otp_body.txt', context)
+
+        if settings.DEBUG:
+            print('=' * 60, file=sys.stderr)
+            print(f'----- EMAIL CONTENT PREVIEW (DEBUG) -----', file=sys.stderr)
+            print(f"To: {destination}", file=sys.stderr)
+            print(f"Subject: {subject}", file=sys.stderr)
+            print(f"Body:\n{body}", file=sys.stderr)
+            print('=' * 60, file=sys.stderr)
+            sys.stderr.flush()
 
         send_mail(
             subject=subject,
@@ -133,10 +163,11 @@ def generate_otp(user, purpose, method=None, destination=None, length=6, ttl_sec
 
     # Imprimir siempre en consola si estamos en modo DEBUG (desarrollo)
     if settings.DEBUG:
+        friendly_purpose = _get_friendly_purpose(purpose)
         print('\n' + '=' * 60, file=sys.stderr)
         print(f'MFA CODE (DEBUG MODE)', file=sys.stderr)
         print(f'Usuario: {user.email}', file=sys.stderr)
-        print(f'Propósito: {purpose}', file=sys.stderr)
+        print(f'Propósito: {friendly_purpose}', file=sys.stderr)
         print(f'Método: {method}', file=sys.stderr)
         print(f'Destino: {destination}', file=sys.stderr)
         print(f'CÓDIGO: {raw_code}', file=sys.stderr)

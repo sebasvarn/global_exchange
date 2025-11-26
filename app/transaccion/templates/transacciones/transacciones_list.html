@@ -249,20 +249,20 @@
                             {% if estado == 'pendiente' and t.tipo == 'compra' %}
                               {% if t.medio_pago.payment_type == 'tarjeta' %}
                                 {% if request.user|has_permission:'transacciones.confirmar' %}
-                                  <a href="{% url 'transacciones:iniciar_pago_tarjeta' t.id %}"
-                                     class="btn btn-sm btn-primary" data-bs-toggle="tooltip" 
-                                     title="Pagar con tarjeta (Stripe)">
+                                  <button type="button" 
+                                          onclick='openMfaModal({{ t.id }}, "{% url "transacciones:iniciar_pago_tarjeta" t.id %}", false)'
+                                          class="btn btn-sm btn-primary" data-bs-toggle="tooltip" 
+                                          title="Pagar con tarjeta (Stripe)">
                                     <i class="bi bi-credit-card"></i> Pagar
-                                  </a>
+                                  </button>
                                 {% endif %}
                               {% elif t.medio_pago.payment_type == 'billetera' or t.medio_pago.payment_type == 'cuenta_bancaria' %}
                                 {% if request.user|has_permission:'transacciones.confirmar' %}
-                                  <form method="post" action="{% url 'transacciones:pago_simplesipap' t.id %}" style="display:inline;">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn btn-sm btn-info" data-bs-toggle="tooltip" title="Pagar con SIPAP (simple)">
+                                    <button type="button" 
+                                            onclick='openMfaModal({{ t.id }}, "{% url "transacciones:pago_simplesipap" t.id %}", true)'
+                                            class="btn btn-sm btn-info" data-bs-toggle="tooltip" title="Pagar con SIPAP (simple)">
                                       <i class="bi bi-bank"></i> SIPAP
                                     </button>
-                                  </form>
                                 {% endif %}
                               {% endif %}
                             {% endif %}
@@ -304,7 +304,7 @@
     </div>
   </div>
 
-
+  {% include "_partials/mfa_modal.html" %}
 
   <script>
     document.addEventListener('DOMContentLoaded', function() {

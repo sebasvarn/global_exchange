@@ -222,40 +222,7 @@
   </div>
 </div>
 
-<!-- ========== MODAL MFA ========== -->
-<div class="modal fade" id="mfaModal" tabindex="-1" aria-labelledby="mfaModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="mfaModalLabel">Verificación de Operador</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-      </div>
-      <div class="modal-body">
-        <p>Para continuar, por favor ingrese el código de verificación enviado a su correo.</p>
-        <form id="mfaForm" onsubmit="return false;">
-            <div class="otp-input-container mb-3">
-                <input type="text" class="form-control otp-input" id="otp-1" maxlength="1" autocomplete="off">
-                <input type="text" class="form-control otp-input" id="otp-2" maxlength="1" autocomplete="off">
-                <input type="text" class="form-control otp-input" id="otp-3" maxlength="1" autocomplete="off">
-                <input type="text" class="form-control otp-input" id="otp-4" maxlength="1" autocomplete="off">
-                <input type="text" class="form-control otp-input" id="otp-5" maxlength="1" autocomplete="off">
-                <input type="text" class="form-control otp-input" id="otp-6" maxlength="1" autocomplete="off">
-            </div>
-            <input type="hidden" id="mfaCode" name="mfaCode">
-            <div id="mfaError" class="alert alert-danger d-none"></div>
-        </form>
-        <div class="d-flex justify-content-between align-items-center mt-3">
-            <button type="button" id="resendOtpBtn" class="btn btn-sm btn-outline-secondary" disabled>Reenviar código</button>
-            <span id="otpTimer" class="text-muted"></span>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" id="verifyOtpBtn" class="btn btn-primary">Verificar y Buscar</button>
-      </div>
-    </div>
-  </div>
-</div>
+
 
 <!-- ========== MODAL PROCESANDO (ANIMACIÓN) ========== -->
 <div class="modal fade" id="modalProcesando" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
@@ -335,16 +302,8 @@ document.addEventListener("DOMContentLoaded", () => {
     inputs.forEach(input => {
       input.addEventListener('input', calcularTotal);
     });
-    formDenominaciones.addEventListener('submit', async function(e) {
-      e.preventDefault();
-      const total = calcularTotal();
-      if (Math.abs(total - montoEsperado) > 0.009) {
-        errorDiv.textContent = `El total ingresado (${total.toFixed(2)}) no coincide con el monto de la transacción (${montoEsperado.toFixed(2)}).`;
-        errorDiv.classList.remove('d-none');
-        return;
-      }
-      errorDiv.classList.add('d-none');
-      // Enviar denominaciones al backend para completar la transacción
+
+    async function submitDenominations() {
       const modalProcesando = new bootstrap.Modal(document.getElementById("modalProcesando"));
       const modalExito = new bootstrap.Modal(document.getElementById("modalExito"));
       modalProcesando.show();
@@ -387,7 +346,7 @@ document.addEventListener("DOMContentLoaded", () => {
             setTimeout(() => {
               modalExito.show();
               document.getElementById("btnCerrarExito").onclick = () => {
-                window.location.reload();
+                window.location.href = window.location.pathname;
               };
             }, 100); // Pequeño delay para evitar solapamiento
           } else {
@@ -400,6 +359,19 @@ document.addEventListener("DOMContentLoaded", () => {
         errorDiv.textContent = 'Error de red o del servidor.';
         errorDiv.classList.remove('d-none');
       }
+    }
+
+    formDenominaciones.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const total = calcularTotal();
+      if (Math.abs(total - montoEsperado) > 0.009) {
+        errorDiv.textContent = `El total ingresado (${total.toFixed(2)}) no coincide con el monto de la transacción (${montoEsperado.toFixed(2)}).`;
+        errorDiv.classList.remove('d-none');
+        return;
+      }
+      errorDiv.classList.add('d-none');
+      
+      submitDenominations();
     });
     return;
   }
@@ -412,8 +384,8 @@ document.addEventListener("DOMContentLoaded", () => {
   btnRealizar.onclick = () => {
     modalConfirmar.show();
   };
-  document.getElementById("btnConfirmarOK").onclick = async () => {
-    modalConfirmar.hide();
+
+  async function submitConfirmacion() {
     modalProcesando.show();
     const codigo = document.getElementById("codigo_verificacion").value.trim().toUpperCase();
     function getCookie(name) {
@@ -451,9 +423,14 @@ document.addEventListener("DOMContentLoaded", () => {
       modalProcesando.hide();
       alert('Error al confirmar la transacción.');
     }
+  }
+
+  document.getElementById("btnConfirmarOK").onclick = () => {
+    modalConfirmar.hide();
+    submitConfirmacion();
   };
   document.getElementById("btnCerrarExito").onclick = () => {
-    window.location.reload();
+    window.location.href = window.location.pathname;
   };
 });
 </script>
@@ -465,7 +442,8 @@ document.addEventListener("DOMContentLoaded", () => {
 document.addEventListener('DOMContentLoaded', function () {
     const searchBtn = document.getElementById('searchBtn');
     const searchForm = document.getElementById('searchTransactionForm');
-    const mfaModal = new bootstrap.Modal(document.getElementById('mfaModal'));
+    const mfaModalEl = document.getElementById('mfaModal');
+    const mfaModal = new bootstrap.Modal(mfaModalEl);
     const otpInputs = document.querySelectorAll('.otp-input');
 
     otpInputs.forEach((input, index) => {
@@ -518,6 +496,13 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    if (searchForm) {
+        searchForm.addEventListener('submit', function (event) {
+            event.preventDefault();
+            searchBtn.click();
+        });
+    }
+
     let timerInterval;
     const resendBtn = document.getElementById('resendOtpBtn');
     const otpTimerSpan = document.getElementById('otpTimer');
@@ -526,10 +511,15 @@ document.addEventListener('DOMContentLoaded', function () {
         let timer = duration;
         resendBtn.disabled = true;
         
+        // Clear any existing interval to avoid duplicates
+        if (timerInterval) clearInterval(timerInterval);
+
+        otpTimerSpan.textContent = `Puede reenviar en ${timer}s`;
+        
         timerInterval = setInterval(function () {
-            otpTimerSpan.textContent = `Puede reenviar en ${timer}s`;
             timer--;
-            if (timer < 0) {
+            otpTimerSpan.textContent = `Puede reenviar en ${timer}s`;
+            if (timer <= 0) {
                 clearInterval(timerInterval);
                 otpTimerSpan.textContent = '';
                 resendBtn.disabled = false;
@@ -555,7 +545,7 @@ document.addEventListener('DOMContentLoaded', function () {
         .then(response => response.json())
         .then(data => {
             if (data.ok) {
-                startOtpTimer(data.ttl_seconds || 60);
+                startOtpTimer(30);
             } else {
                 const mfaError = document.getElementById('mfaError');
                 mfaError.textContent = data.error || 'No se pudo enviar el código.';
@@ -570,6 +560,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     resendBtn.addEventListener('click', function() {
+        // Clear error message on resend
+        document.getElementById('mfaError').classList.add('d-none');
         requestOtp('tauser_search_transaction');
     });
 
@@ -592,7 +584,7 @@ document.addEventListener('DOMContentLoaded', function () {
         .then(response => response.json())
         .then(data => {
             if (data.ok) {
-                // Si el OTP es correcto, enviar el formulario de búsqueda original
+                // MFA verified successfully
                 searchForm.submit();
             } else {
                 mfaError.textContent = data.error || 'Error de verificación.';

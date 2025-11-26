@@ -90,26 +90,22 @@ def tramitar_transacciones(request):
     if request.method == "POST":
         accion = request.POST.get("accion", "buscar")
     
-        # --- Verificación de MFA solo para la acción de búsqueda ---
+        # --- Verificación de MFA para acciones críticas (Buscar) ---
         if accion == "buscar":
             mfa_purpose = 'tauser_search_transaction'
             mfa_verified_session_key = f'mfa_verified_{mfa_purpose}'
 
             if not request.session.get(mfa_verified_session_key):
-                error = "Se requiere verificación de seguridad para realizar esta acción."
-                return render(request, "tramitar_transacciones.html", {
-                    "error": error,
-                    "codigo_verificacion": codigo_verificacion,
-                    "tausers": tausers_activos,
-                    "tauser_seleccionado": tauser_seleccionado,
-                })
-            
-            # Limpiar la marca de sesión para que no se reutilice en futuras búsquedas
-            del request.session[mfa_verified_session_key]
+                error = "Se requiere verificación de seguridad para realizar la búsqueda."
+                # No procesamos la búsqueda si no hay MFA
+                codigo_verificacion = "" 
+            else:
+                # Si está verificado, consumimos el token para que pida de nuevo en la siguiente
+                del request.session[mfa_verified_session_key]
 
-        if not codigo_verificacion:
-            error = "Debe ingresar el código de verificación de la transacción."
-        else:
+        if not codigo_verificacion and accion == "buscar" and not error:
+             error = "Debe ingresar el código de verificación de la transacción."
+        elif codigo_verificacion:
             try:
                 tx = Transaccion.objects.select_related("moneda", "cliente").get(codigo_verificacion=codigo_verificacion)
             except Transaccion.DoesNotExist:

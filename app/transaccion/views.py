@@ -35,6 +35,14 @@ from tauser.services import validar_stock_tauser_para_transaccion
 # Endpoint super simple para marcar como pagada (usado por el botón SIPAP)
 @require_POST
 def marcar_pagada_simple(request, pk):
+    # MFA Check
+    if not request.session.get(f'mfa_verified_{pk}'):
+        messages.error(request, "Verificación MFA requerida.")
+        return redirect("transacciones:transacciones_list")
+    
+    # Clear MFA flag
+    del request.session[f'mfa_verified_{pk}']
+
     tx = get_object_or_404(Transaccion, pk=pk)
     if tx.estado != EstadoTransaccionEnum.PAGADA:
         tx.estado = EstadoTransaccionEnum.PAGADA
@@ -677,6 +685,14 @@ def calcular_api(request):
 
 
 def iniciar_pago_tarjeta(request, pk):
+    # MFA Check
+    if not request.session.get(f'mfa_verified_{pk}'):
+        messages.error(request, "Verificación MFA requerida.")
+        return redirect("transacciones:transacciones_list")
+    
+    # Clear MFA flag
+    del request.session[f'mfa_verified_{pk}']
+
     tx = get_object_or_404(Transaccion, pk=pk)
 
     # Debe estar pendiente
