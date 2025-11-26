@@ -351,10 +351,10 @@
         </ul>
       </li>
 
-      <!-- Reportes -->
+      <!-- Tablero de control de ganancias (nuevo dashboard real) -->
       <li class="nav-item">
-        <a class="nav-link" href="#">
-          <i class="nav-icon bi bi-bar-chart"></i>
+        <a class="nav-link {% if request.resolver_match.url_name == 'dashboard_ganancias' %}active{% endif %}" href="{% url 'dashboard_ganancias' %}">
+          <i class="nav-icon bi bi-graph-up"></i>
           Reportes
         </a>
       </li>

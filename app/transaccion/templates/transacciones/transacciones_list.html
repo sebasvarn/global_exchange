@@ -255,6 +255,15 @@
                                     <i class="bi bi-credit-card"></i> Pagar
                                   </a>
                                 {% endif %}
+                              {% elif t.medio_pago.payment_type == 'billetera' or t.medio_pago.payment_type == 'cuenta_bancaria' %}
+                                {% if request.user|has_permission:'transacciones.confirmar' %}
+                                  <form method="post" action="{% url 'transacciones:pago_simplesipap' t.id %}" style="display:inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-sm btn-info" data-bs-toggle="tooltip" title="Pagar con SIPAP (simple)">
+                                      <i class="bi bi-bank"></i> SIPAP
+                                    </button>
+                                  </form>
+                                {% endif %}
                               {% endif %}
                             {% endif %}
                             {# Botón de cancelar (solo para pendientes) #}
