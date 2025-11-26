@@ -89,7 +89,9 @@ class PagoPasarela(models.Model):
     
     # Error (si aplica)
     mensaje_error = models.TextField(
+        null=True,
         blank=True,
+        default='',
         verbose_name="Mensaje de Error"
     )
     

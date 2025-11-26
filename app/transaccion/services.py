@@ -422,24 +422,26 @@ def procesar_pago_via_sipap(transaccion: Transaccion):
             datos=datos_sipap
         )
         
-        # Verificar resultado
-        if resultado and resultado.es_exitoso():
+        # resultado es un dict con 'success', 'pago', 'estado', etc.
+        if resultado.get('success') and resultado.get('estado') == 'exito':
+            pago = resultado.get('pago')
             logger.info(
                 f"Pago EXITOSO via SIPAP | Transacción: {transaccion.uuid} | "
-                f"ID Externo: {resultado.id_pago_externo}"
+                f"ID Externo: {resultado.get('payment_id')}"
             )
-            return (True, "Pago procesado exitosamente", resultado)
+            return (True, "Pago procesado exitosamente", pago)
         
         else:
             # Pago fallido o pendiente
-            estado = resultado.estado if resultado else 'desconocido'
-            mensaje_error = resultado.respuesta_pasarela.get('mensaje', 'Error desconocido') if resultado else 'Sin respuesta'
+            estado = resultado.get('estado', 'desconocido')
+            mensaje_error = resultado.get('error', 'Error desconocido')
+            pago = resultado.get('pago')
             
             logger.warning(
                 f"Pago FALLIDO via SIPAP | Transacción: {transaccion.uuid} | "
                 f"Estado: {estado} | Mensaje: {mensaje_error}"
             )
-            return (False, mensaje_error, resultado)
+            return (False, mensaje_error, pago)
     
     except Exception as e:
         logger.error(

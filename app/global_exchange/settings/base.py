@@ -42,7 +42,7 @@ STRIPE_SUCCESS_URL = os.getenv("STRIPE_SUCCESS_URL", f"{SITE_URL}/pagos/success/
 STRIPE_CANCEL_URL  = os.getenv("STRIPE_CANCEL_URL",  f"{SITE_URL}/pagos/cancel/")
 
 # === Pasarela de Pagos (Simulador) ===
-PASARELA_BASE_URL = os.getenv("PASARELA_BASE_URL", "http://localhost:3001")
+PASARELA_BASE_URL = os.getenv("PASARELA_BASE_URL", "http://localhost:8080")
 PASARELA_TIMEOUT = int(os.getenv("PASARELA_TIMEOUT", "30"))  # segundos
 PASARELA_WEBHOOK_URL = os.getenv("PASARELA_WEBHOOK_URL", f"{SITE_URL}/pagos/webhook/")
 
