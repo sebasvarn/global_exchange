@@ -1,0 +1,119 @@
+
+{% extends 'base.html' %}
+{% block title %}Movimientos de Stock - {{ tauser }}{% endblock %}
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>Movimientos de Stock - {{ tauser }}</strong>
+                    <a href="{% url 'tauser:ver_stock_tauser' tauser.id %}" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-arrow-left"></i> Volver a Stock
+                    </a>
+                </div>
+                <div class="card-body">
+                    <form method="get" class="row g-2 mb-3 align-items-end">
+                        <div class="col-md-3">
+                            <label for="tauser" class="form-label mb-0">Filtrar por Tauser</label>
+                            <select name="tauser" id="tauser" class="form-select" onchange="this.form.submit()">
+                                {% for t in tausers %}
+                                    <option value="{{ t.id }}" {% if t.id == tauser_id_selected %}selected{% endif %}>{{ t.nombre }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="moneda" class="form-label mb-0">Filtrar por moneda</label>
+                            <select name="moneda" id="moneda" class="form-select" onchange="this.form.submit()">
+                                <option value="">Todas</option>
+                                {% for moneda in monedas %}
+                                    <option value="{{ moneda.codigo }}" {% if moneda.codigo == moneda_codigo %}selected{% endif %}>{{ moneda }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="tipo" class="form-label mb-0">Tipo</label>
+                            <select name="tipo" id="tipo" class="form-select" onchange="this.form.submit()">
+                                <option value="">Todos</option>
+                                <option value="entrada" {% if tipo_movimiento == 'entrada' %}selected{% endif %}>Entrada</option>
+                                <option value="salida" {% if tipo_movimiento == 'salida' %}selected{% endif %}>Salida</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="fecha_inicio" class="form-label mb-0">Desde</label>
+                            <input type="date" name="fecha_inicio" id="fecha_inicio" class="form-control" value="{{ fecha_inicio }}" onchange="this.form.submit()">
+                        </div>
+                        <div class="col-md-2">
+                            <label for="fecha_fin" class="form-label mb-0">Hasta</label>
+                            <input type="date" name="fecha_fin" id="fecha_fin" class="form-control" value="{{ fecha_fin }}" onchange="this.form.submit()">
+                        </div>
+                        <div class="col-md-12 mt-2 d-flex align-items-center gap-4">
+                            <a href="?tauser={{ tauser_id_selected }}" class="btn btn-secondary">Limpiar</a>
+                            <div class="row w-100">
+                                <div class="col-md-6">
+                                    <div class="p-2 rounded-3" style="background:#eaf3fb;min-height:70px;">
+                                        <div class="text-center" style="color:#1976d2;font-size:1rem;">Entradas</div>
+                                        <div class="text-center d-flex justify-content-center align-items-baseline" style="font-size:1.7rem;font-weight:700;color:#1976d2;gap:0.3em;">
+                                            <span>{% if not moneda_codigo %}0{% else %}{{ suma_entrada_valor|floatformat:0 }}{% endif %}</span>
+                                            <span style="font-size:1.1rem;color:#555;">
+                                                {% if moneda_codigo %}
+                                                    {% for moneda in monedas %}{% if moneda.codigo == moneda_codigo %}{% if moneda.simbolo %}{{ moneda.simbolo }}{% else %}{{ moneda.codigo }}{% endif %}{% endif %}{% endfor %}
+                                                {% endif %}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="p-2 rounded-3" style="background:#eaf3fb;min-height:70px;">
+                                        <div class="text-center" style="color:#1976d2;font-size:1rem;">Salidas</div>
+                                        <div class="text-center d-flex justify-content-center align-items-baseline" style="font-size:1.7rem;font-weight:700;color:#1976d2;gap:0.3em;">
+                                            <span>{% if not moneda_codigo %}0{% else %}{{ suma_salida_valor|floatformat:0 }}{% endif %}</span>
+                                            <span style="font-size:1.1rem;color:#555;">
+                                                {% if moneda_codigo %}
+                                                    {% for moneda in monedas %}{% if moneda.codigo == moneda_codigo %}{% if moneda.simbolo %}{{ moneda.simbolo }}{% else %}{{ moneda.codigo }}{% endif %}{% endif %}{% endfor %}
+                                                {% endif %}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Tipo</th>
+                                    <th>Denominación</th>
+                                    <th>Cantidad</th>
+                                    <th>Moneda</th>
+                                    <th>Transacción</th>
+                                    <th>Cliente</th>
+                                    <th>Usuario</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for info in movimientos_info %}
+                                <tr>
+                                    <td>{{ info.mov.fecha|date:'d/m/Y H:i' }}</td>
+                                    <td>{{ info.mov.get_tipo_movimiento_display }}</td>
+                                    <td>{{ info.mov.denominacion.value }} ({{ info.mov.denominacion.get_type_display }})</td>
+                                    <td>{{ info.mov.cantidad }}</td>
+                                    <td>{{ info.mov.denominacion.moneda.codigo }}</td>
+                                    <td>{% if info.mov.transaccion %}#{{ info.mov.transaccion.id }}{% else %}-{% endif %}</td>
+                                    <td>{% if info.cliente %}{{ info.cliente }}{% else %}-{% endif %}</td>
+                                    <td>{% if info.usuario %}{{ info.usuario }}{% else %}-{% endif %}</td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="8">No hay movimientos registrados.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -10,4 +10,5 @@ urlpatterns = [
     path('editar-estado/<int:tauser_id>/', views.editar_estado_tauser, name='editar_estado_tauser'),
     path('asignar_stock/', views.asignar_stock_tauser, name='asignar_stock_tauser'),
     path('ver-stock/<int:tauser_id>/', views.ver_stock_tauser, name='ver_stock_tauser'),
+    path('movimientos/<int:tauser_id>/', views.movimientos_tauser, name='movimientos_tauser'),
 ]

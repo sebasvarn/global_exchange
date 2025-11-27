@@ -800,24 +800,9 @@ def pago_success(request):
                         tx.stripe_status = "completed"
                     # Guardar todo junto para que se ejecute la lógica de ganancia
                     tx.save()  # No usar update_fields para que se ejecute el cálculo de ganancia
+                    # Ya no se crea el movimiento aquí. Solo se marca como pagada.
+                    logger.info(f"[SUCCESS] ✅ tx #{tx.id} marcada PAGADA (movimiento de stock se creará en tauser)")
 
-                    # crear movimiento coherente con el tipo
-                    if str(tx.tipo) == str(TipoTransaccionEnum.COMPRA):
-                        mov_tipo = TipoMovimientoEnum.DEBITO
-                        monto_mov = (tx.monto_pyg or 0) + (tx.comision or 0)
-                    else:
-                        mov_tipo = TipoMovimientoEnum.CREDITO
-                        monto_mov = tx.monto_pyg
-
-                    # idempotencia simple: no crear duplicados si ya existe
-                    if not Movimiento.objects.filter(transaccion=tx).exists():
-                        Movimiento.objects.create(
-                            transaccion=tx,
-                            cliente=tx.cliente,
-                            medio=None,
-                            tipo=mov_tipo,
-                            monto=monto_mov,
-                        )
         except Exception as e:
             logger.exception(f"[SUCCESS] Error en plan B para tx #{tx_id}: {e}")
 
@@ -909,22 +894,8 @@ def stripe_webhook(request):
                 tx.estado = EstadoTransaccionEnum.PAGADA
                 tx.save()  # No usar update_fields para que se ejecute el cálculo de ganancia
 
-                # Movimiento en caja PYG coherente con el tipo
-                if str(tx.tipo) == str(TipoTransaccionEnum.COMPRA):
-                    mov_tipo = TipoMovimientoEnum.DEBITO
-                    monto_mov = (tx.monto_pyg or 0) + (tx.comision or 0)  # si cobrás comisión por Stripe
-                else:  # VENTA
-                    mov_tipo = TipoMovimientoEnum.CREDITO
-                    monto_mov = tx.monto_pyg  # normalmente no cobrás por Stripe en VENTA
-
-                Movimiento.objects.create(
-                    transaccion=tx,
-                    cliente=tx.cliente,
-                    medio=None,
-                    tipo=mov_tipo,
-                    monto=monto_mov,
-                )
-                logger.info(f"[STRIPE] ✅ tx #{tx.id} marcada PAGADA y movimiento {mov_tipo} creado por ₲ {monto_mov}")
+                # Ya no se crea el movimiento aquí. Solo se marca como pagada.
+                logger.info(f"[STRIPE] ✅ tx #{tx.id} marcada PAGADA (movimiento de stock se creará en tauser)")
 
         except Transaccion.DoesNotExist:
             logger.warning(f"[STRIPE] Transacción {tx_id} no encontrada")
@@ -988,5 +959,4 @@ def mostrar_comprobante_sipap(request, pk):
     
     return render(request, "transacciones/transaccion_confirmada.html", context)
 
-    
-    
+

@@ -19,6 +19,11 @@ class TauserForm(forms.ModelForm):
 class TauserStockForm(forms.Form):
     tauser = forms.ModelChoiceField(queryset=Tauser.objects.all(), label="TAUser", widget=forms.Select(attrs={'class': 'form-select'}))
     moneda = forms.ModelChoiceField(queryset=Moneda.objects.all(), label="Moneda", widget=forms.Select(attrs={'class': 'form-select', 'onchange': 'this.form.submit();'}))
+    operacion = forms.ChoiceField(
+        choices=[('agregar', 'Agregar'), ('descontar', 'Descontar')],
+        label="Operación",
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
 
     def __init__(self, *args, **kwargs):
         denominaciones = kwargs.pop('denominaciones', None)

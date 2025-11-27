@@ -148,6 +148,13 @@
                         Asignar Stock a Tauser
                       </a>
                     </li>
+                    <li class="nav-item">
+                      <a class="nav-link {% if request.resolver_match.url_name == 'movimientos_tauser' %}active{% endif %}"
+                          href="{% url 'tauser:movimientos_tauser' 1 %}">
+                        <span class="nav-icon"><span class="nav-icon-bullet"></span></span>
+                        Movimientos de Stock
+                      </a>
+                    </li>
                     {% endif %}
                   </ul>
                 </li>
