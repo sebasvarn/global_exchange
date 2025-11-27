@@ -1,7 +1,9 @@
+import uuid
 from django.contrib import messages
 from django.shortcuts import render, get_object_or_404, redirect
 from django.utils import timezone
 from django.http import JsonResponse
+from facturacion.models import FacturaElectronica
 from commons.enums import EstadoTransaccionEnum
 from mfa.services import generate_otp
 from monedas.models import TasaCambio
@@ -279,9 +281,10 @@ def tramitar_transacciones(request):
                             error = str(e)
 
                     elif accion == "concluir_venta":
-                        # Procesar denominaciones y concluir la venta
                         try:
-                            # 1. Parsear denominaciones del POST
+                            # ===========================
+                            # 1. Procesar denominaciones
+                            # ===========================
                             denominaciones = {}
 
                             for key, value in request.POST.items():
@@ -292,12 +295,10 @@ def tramitar_transacciones(request):
                                         cantidad = 0
 
                                     if cantidad > 0:
-                                        # key format: den_{type}_{value}
                                         _, tipo, valor_str = key.split("_", 2)
                                         valor = float(valor_str.replace("_", "."))
                                         denominaciones[(tipo, valor)] = cantidad
 
-                            # 2. Actualizar stock del tauser
                             tauser = tx.tauser
                             if not tauser:
                                 raise Exception("La transacción no tiene un TAUser asignado.")
@@ -317,20 +318,45 @@ def tramitar_transacciones(request):
                                 stock_obj.quantity += cantidad
                                 stock_obj.save()
 
-                            # Ganancia (si aplica)
-                            if tx.monto_operado is not None and tx.comision is not None:
-                                tx.ganancia = tx.monto_operado * tx.comision
-                                tx.save(update_fields=['ganancia'])
-
+                            # ===========================
+                            # 2. Confirmar transacción
+                            # ===========================
                             confirmar_transaccion(tx)
 
                             tx.estado = EstadoTransaccionEnum.COMPLETADA
                             tx.save()
 
-                            return JsonResponse({"success": True})
+                            # ===========================
+                            # 3. Generar factura (NUEVO)
+                            # ===========================
+                            result_factura = None
+                            if generar_factura:
+                                from facturacion.services import ServicioFacturacion
+                                # =====================
+                                # CAPTURAR DATOS FISCALES
+                                # =====================
+
+                                tx.datos_fiscales = {
+                                    "nombre": request.POST.get("fact_nombre"),
+                                    "cedula": request.POST.get("fact_cedula"),
+                                    "ruc": request.POST.get("fact_ruc"),
+                                    "dv": request.POST.get("fact_dv"),
+                                    "email": request.POST.get("fact_email"),
+                                    "direccion": request.POST.get("fact_direccion"),
+                                }
+                                tx.save()
+
+                                from facturacion.services import ServicioFacturacion
+                                servicio = ServicioFacturacion()
+                                result_factura = servicio.generar_factura(tx)
+   
+
+                            return JsonResponse({
+                                "success": True,
+                                "factura": result_factura
+                            })
 
                         except Exception as e:
-                            from django.http import JsonResponse
                             return JsonResponse({"success": False, "error": str(e)})
 
                     # ======================

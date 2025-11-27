@@ -144,7 +144,7 @@
           </div>
           <div id="denominacionesError" class="alert alert-danger mt-2 d-none"></div>
           <div class="text-center mt-3">
-            <button type="submit" class="btn btn-success" id="btnConfirmarDenominaciones">Concluir transacción</button>
+            <button type="button" class="btn btn-success" id="btnConfirmarDenominaciones">Concluir transacción</button>
           </div>
         </form>
       {% else %}
@@ -193,57 +193,6 @@
 </div>
 
 
-
-<!-- ========== MODAL CONFIRMACIÓN ========== -->
-<div class="modal fade" id="modalConfirmar" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header bg-primary text-white">
-        <h5 class="modal-title">Confirmar acción</h5>
-      </div>
-      <div class="modal-body text-center">
-        <p>¿Proceder con la transacción?</p>
-        <button class="btn btn-primary" id="btnConfirmarOK">OK</button>
-        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-      </div>
-    </div>
-  </div>
-</div>
-<div class="modal fade" id="mfaModal" tabindex="-1" aria-labelledby="mfaModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="mfaModalLabel">Verificación de Operador</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-      </div>
-      <div class="modal-body">
-        <p>Para continuar, por favor ingrese el código de verificación enviado a su correo.</p>
-        <form id="mfaForm" onsubmit="return false;">
-            <div class="otp-input-container mb-3">
-                <input type="text" class="form-control otp-input" id="otp-1" maxlength="1" autocomplete="off">
-                <input type="text" class="form-control otp-input" id="otp-2" maxlength="1" autocomplete="off">
-                <input type="text" class="form-control otp-input" id="otp-3" maxlength="1" autocomplete="off">
-                <input type="text" class="form-control otp-input" id="otp-4" maxlength="1" autocomplete="off">
-                <input type="text" class="form-control otp-input" id="otp-5" maxlength="1" autocomplete="off">
-                <input type="text" class="form-control otp-input" id="otp-6" maxlength="1" autocomplete="off">
-            </div>
-            <input type="hidden" id="mfaCode" name="mfaCode">
-            <div id="mfaError" class="alert alert-danger d-none"></div>
-        </form>
-        <div class="d-flex justify-content-between align-items-center mt-3">
-            <button type="button" id="resendOtpBtn" class="btn btn-sm btn-outline-secondary" disabled>Reenviar código</button>
-            <span id="otpTimer" class="text-muted"></span>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" id="verifyOtpBtn" class="btn btn-primary">Verificar y Buscar</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ========== MODAL MFA ========== -->
 <div class="modal fade" id="mfaModal" tabindex="-1" aria-labelledby="mfaModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
@@ -339,6 +288,58 @@
   </div>
 </div>
 
+<!-- ========== MODAL DATOS PARA FACTURA ========== -->
+<div class="modal fade" id="modalDatosFactura" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+
+      <div class="modal-header bg-warning">
+        <h5 class="modal-title">Datos para Factura Electrónica</h5>
+      </div>
+
+      <div class="modal-body">
+
+        <div class="mb-2">
+          <label>Nombre / Razón Social</label>
+          <input class="form-control" id="fact_nombre" required>
+        </div>
+
+        <div class="mb-2">
+          <label>RUC</label>
+          <input class="form-control" id="fact_ruc" placeholder="Opcional si usa Cédula">
+        </div>
+        <div class="mb-2">
+          <label>DV</label>
+          <input class="form-control" id="fact_dv">
+        </div>
+
+        <div class="mb-2">
+          <label>Cédula</label>
+          <input class="form-control" id="fact_cedula" placeholder="Opcional si usa RUC">
+        </div>
+
+        <div class="mb-2">
+          <label>Email</label>
+          <input class="form-control" id="fact_email">
+        </div>
+
+        <div class="mb-2">
+          <label>Dirección</label>
+          <input class="form-control" id="fact_direccion">
+        </div>
+
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button id="btnEnviarDatosFactura" class="btn btn-success">Generar Factura</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
 <style>
 @keyframes paw-spin { 100% { transform: rotate(360deg); } }
 .paw-loader { display:inline-block; animation: paw-spin 1.2s linear infinite; }
@@ -359,418 +360,289 @@
   </div>
 </div>
 
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-  // Lógica para formulario de denominaciones en venta
-  const formDenominaciones = document.getElementById("formDenominacionesVenta");
-  if (formDenominaciones) {
-    // Determinar el monto y la moneda a usar según el tipo de transacción
-    let montoEsperado = 0;
-    let monedaEsperada = "";
-    const tipo = "{{ datos_transaccion.tipo|lower }}";
-    const medioPago = "{{ datos_transaccion.medio_pago|default:'' }}";
-    if (tipo === 'compra' && medioPago === 'Efectivo') {
-      montoEsperado = parseFloat("{{ datos_transaccion.monto_pyg|floatformat:2 }}");
-      monedaEsperada = "PYG";
-    } else {
-      montoEsperado = parseFloat("{{ datos_transaccion.monto_operado|floatformat:2 }}");
-      monedaEsperada = "{{ datos_transaccion.moneda.codigo }}";
-    }
-    const totalSpan = document.getElementById("totalDenominaciones");
-    const errorDiv = document.getElementById("denominacionesError");
-    const inputs = formDenominaciones.querySelectorAll("input[type='number']");
-    function calcularTotal() {
-      let total = 0;
-      inputs.forEach(input => {
-        total += (parseInt(input.value) || 0) * parseFloat(input.dataset.valor);
-      });
-      totalSpan.textContent = total.toFixed(2);
-      return total;
-    }
-    // Cambiar la moneda mostrada en el total ingresado
-    totalSpan.nextSibling.textContent = " " + monedaEsperada;
-    inputs.forEach(input => {
-      input.addEventListener('input', calcularTotal);
-    });
-    formDenominaciones.addEventListener('submit', async function(e) {
-      e.preventDefault();
-      const total = calcularTotal();
-      if (Math.abs(total - montoEsperado) > 0.009) {
-        errorDiv.textContent = `El total ingresado (${total.toFixed(2)}) no coincide con el monto de la transacción (${montoEsperado.toFixed(2)}).`;
-        errorDiv.classList.remove('d-none');
-        return;
-      }
-      errorDiv.classList.add('d-none');
-      // Enviar denominaciones al backend para completar la transacción
-      const modalProcesando = new bootstrap.Modal(document.getElementById("modalProcesando"));
-      const modalExito = new bootstrap.Modal(document.getElementById("modalExito"));
-      modalProcesando.show();
-      const codigo = document.getElementById("codigo_verificacion").value.trim().toUpperCase();
-      function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-          const cookies = document.cookie.split(';');
-          for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-            if (cookie.substring(0, name.length + 1) === (name + '=')) {
-              cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-              break;
-            }
-          }
-        }
-        return cookieValue;
-      }
-      const csrftoken = getCookie('csrftoken');
-      // Construir datos de denominaciones
-      const data = new URLSearchParams();
-      data.append('codigo_verificacion', codigo);
-      data.append('accion', 'concluir_venta');
-      inputs.forEach(input => {
-        data.append(input.name, input.value);
-      });
-      try {
-        const response = await fetch(window.location.href, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'X-CSRFToken': csrftoken,
-          },
-          body: data
-        });
-        const result = await response.json();
-        setTimeout(() => {
-          modalProcesando.hide();
-          if (result.success) {
-            setTimeout(() => {
-              modalExito.show();
-              document.getElementById("btnCerrarExito").onclick = () => {
-                window.location.reload();
-              };
-            }, 100); // Pequeño delay para evitar solapamiento
-          } else {
-            errorDiv.textContent = result.error || 'Ocurrió un error al completar la transacción.';
-            errorDiv.classList.remove('d-none');
-          }
-        }, 800);
-      } catch (e) {
-        modalProcesando.hide();
-        errorDiv.textContent = 'Error de red o del servidor.';
-        errorDiv.classList.remove('d-none');
-      }
-    });
-    return;
-  }
-  // Lógica para compras (flujo anterior)
-  const btnRealizar = document.getElementById("btnRealizarTransaccion");
-  if (!btnRealizar) return;
-  const modalConfirmar = new bootstrap.Modal(document.getElementById("modalConfirmar"));
-  const modalProcesando = new bootstrap.Modal(document.getElementById("modalProcesando"));
-  const modalExito = new bootstrap.Modal(document.getElementById("modalExito"));
-  btnRealizar.onclick = () => {
-    modalConfirmar.show();
-  };
-  document.getElementById("btnConfirmarOK").onclick = async () => {
-    modalConfirmar.hide();
-    modalProcesando.show();
-    const codigo = document.getElementById("codigo_verificacion").value.trim().toUpperCase();
-    function getCookie(name) {
-      let cookieValue = null;
-      if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-          const cookie = cookies[i].trim();
-          if (cookie.substring(0, name.length + 1) === (name + '=')) {
-            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-            break;
-          }
-        }
-      }
-      return cookieValue;
-    }
-    const csrftoken = getCookie('csrftoken');
-    try {
-      const response = await fetch(window.location.href, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'X-CSRFToken': csrftoken,
-        },
-        body: new URLSearchParams({
-          'codigo_verificacion': codigo,
-          'accion': 'confirmar',
-        })
-      });
-      setTimeout(() => {
-        modalProcesando.hide();
-        modalExito.show();
-      }, 800);
-    } catch (e) {
-      modalProcesando.hide();
-      alert('Error al confirmar la transacción.');
-    }
-  };
-  document.getElementById("btnCerrarExito").onclick = () => {
-    window.location.reload();
-  };
-});
-</script>
-
 {% endblock %}
 
 {% block extra_js %}
 <script>
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener("DOMContentLoaded", () => {
+
+    /* ============================================================
+       =====================  MODALES  ============================
+       ============================================================ */
+    const modalConfirmar = new bootstrap.Modal(document.getElementById("modalConfirmar"));
+    const modalProcesando = new bootstrap.Modal(document.getElementById("modalProcesando"));
+    const modalExito = new bootstrap.Modal(document.getElementById("modalExito"));
+    const modalDatosFactura = new bootstrap.Modal(document.getElementById("modalDatosFactura"));
+    const mfaModal = new bootstrap.Modal(document.getElementById("mfaModal"));
+
+    /* ============================================================
+       ====================  MFA - BÚSQUEDA  ======================
+       ============================================================ */
+
     const searchBtn = document.getElementById('searchBtn');
     const searchForm = document.getElementById('searchTransactionForm');
-    const mfaModal = new bootstrap.Modal(document.getElementById('mfaModal'));
     const otpInputs = document.querySelectorAll('.otp-input');
+    const resendBtn = document.getElementById('resendOtpBtn');
+    const otpTimerSpan = document.getElementById('otpTimer');
+    const mfaError = document.getElementById('mfaError');
 
+    let timerInterval;
+
+    // Movimiento automático entre inputs
     otpInputs.forEach((input, index) => {
-        input.addEventListener('input', () => {
+        input.addEventListener("input", () => {
             if (input.value.length === 1 && index < otpInputs.length - 1) {
                 otpInputs[index + 1].focus();
             }
-            // Collect all inputs to form the full code
-            let otp = '';
+            let otp = "";
             otpInputs.forEach(i => otp += i.value);
-            document.getElementById('mfaCode').value = otp;
+            document.getElementById("mfaCode").value = otp;
         });
 
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'Backspace' && input.value.length === 0 && index > 0) {
+        input.addEventListener("keydown", (e) => {
+            if (e.key === "Backspace" && input.value.length === 0 && index > 0) {
                 otpInputs[index - 1].focus();
             }
         });
 
-        // Handle pasting the code
-        input.addEventListener('paste', (e) => {
+        input.addEventListener("paste", (e) => {
             e.preventDefault();
-            const pasteData = (e.clipboardData || window.clipboardData).getData('text');
-            if (pasteData.length === 6) {
-                otpInputs.forEach((otpInput, i) => {
-                    otpInput.value = pasteData[i] || '';
-                });
-                document.getElementById('mfaCode').value = pasteData;
+            const data = e.clipboardData.getData("text");
+            if (data.length === 6) {
+                otpInputs.forEach((inp, i) => inp.value = data[i] || "");
+                document.getElementById("mfaCode").value = data;
                 otpInputs[5].focus();
             }
         });
     });
-    
-    if (searchBtn) {
-        searchBtn.addEventListener('click', function (event) {
-            event.preventDefault();
-            const transactionCodeInput = document.getElementById('codigo_verificacion');
-            if (!transactionCodeInput.value.trim()) {
-                alert('Por favor, ingrese un código de verificación.');
-                return;
-            }
-            
-            // Reset OTP fields and errors before showing
-            otpInputs.forEach(i => i.value = '');
-            document.getElementById('mfaError').classList.add('d-none');
-
-            // Solicitar OTP al servidor y mostrar el modal
-            requestOtp('tauser_search_transaction');
-            mfaModal.show();
-        });
-    }
-
-    let timerInterval;
-    const resendBtn = document.getElementById('resendOtpBtn');
-    const otpTimerSpan = document.getElementById('otpTimer');
 
     function startOtpTimer(duration) {
         let timer = duration;
         resendBtn.disabled = true;
-        
-        timerInterval = setInterval(function () {
+
+        clearInterval(timerInterval);
+        timerInterval = setInterval(() => {
             otpTimerSpan.textContent = `Puede reenviar en ${timer}s`;
             timer--;
+
             if (timer < 0) {
                 clearInterval(timerInterval);
-                otpTimerSpan.textContent = '';
+                otpTimerSpan.textContent = "";
                 resendBtn.disabled = false;
             }
         }, 1000);
     }
 
     function requestOtp(purpose) {
-        clearInterval(timerInterval);
-        document.getElementById('mfaError').classList.add('d-none');
+        mfaError.classList.add("d-none");
 
         fetch("{% url 'mfa:generate_otp_api' %}", {
-            method: 'POST',
+            method: "POST",
             headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': '{{ csrf_token }}'
+                "Content-Type": "application/json",
+                "X-CSRFToken": "{{ csrf_token }}"
             },
             body: JSON.stringify({
-                email: '{{ request.user.email }}',
+                email: "{{ request.user.email }}",
                 purpose: purpose
             })
         })
-        .then(response => response.json())
+        .then(r => r.json())
         .then(data => {
             if (data.ok) {
                 startOtpTimer(data.ttl_seconds || 60);
             } else {
-                const mfaError = document.getElementById('mfaError');
-                mfaError.textContent = data.error || 'No se pudo enviar el código.';
-                mfaError.classList.remove('d-none');
+                mfaError.textContent = data.error || "No se pudo enviar el código.";
+                mfaError.classList.remove("d-none");
             }
         })
-        .catch(error => {
-            const mfaError = document.getElementById('mfaError');
-            mfaError.textContent = 'Error de red al solicitar el código.';
-            mfaError.classList.remove('d-none');
+        .catch(() => {
+            mfaError.textContent = "Error de red al solicitar código.";
+            mfaError.classList.remove("d-none");
         });
     }
 
-    resendBtn.addEventListener('click', function() {
-        requestOtp('tauser_search_transaction');
+    if (searchBtn) {
+        searchBtn.addEventListener("click", () => {
+            const val = document.getElementById("codigo_verificacion").value.trim();
+            if (!val) {
+                alert("Ingrese un código de verificación.");
+                return;
+            }
+
+            otpInputs.forEach(i => i.value = "");
+            mfaError.classList.add("d-none");
+
+            requestOtp("tauser_search_transaction");
+            mfaModal.show();
+        });
+    }
+
+    resendBtn.addEventListener("click", () => {
+        requestOtp("tauser_search_transaction");
     });
 
-    document.getElementById('verifyOtpBtn').addEventListener('click', function() {
-        const code = document.getElementById('mfaCode').value;
-        const mfaError = document.getElementById('mfaError');
-        mfaError.classList.add('d-none');
+    document.getElementById("verifyOtpBtn").addEventListener("click", () => {
+
+        const code = document.getElementById("mfaCode").value;
 
         fetch("{% url 'mfa:api_verify_tauser_otp' %}", {
-            method: 'POST',
+            method: "POST",
             headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': '{{ csrf_token }}'
+                "Content-Type": "application/json",
+                "X-CSRFToken": "{{ csrf_token }}"
             },
             body: JSON.stringify({
                 code: code,
-                purpose: 'tauser_search_transaction'
+                purpose: "tauser_search_transaction"
             })
         })
-        .then(response => response.json())
+        .then(r => r.json())
         .then(data => {
             if (data.ok) {
-                // Si el OTP es correcto, enviar el formulario de búsqueda original
                 searchForm.submit();
             } else {
-                mfaError.textContent = data.error || 'Error de verificación.';
-                mfaError.classList.remove('d-none');
+                mfaError.textContent = data.error || "Código incorrecto.";
+                mfaError.classList.remove("d-none");
             }
         })
-        .catch(error => {
-            mfaError.textContent = 'Error de red al verificar el código.';
-            mfaError.classList.remove('d-none');
+        .catch(() => {
+            mfaError.textContent = "Error al verificar.";
+            mfaError.classList.remove("d-none");
         });
     });
-});
-</script>
-<script>
-  document.addEventListener("DOMContentLoaded", () => {
-  // Lógica para compras (flujo anterior)
-  const btnRealizar = document.getElementById("btnRealizarTransaccion");
-  if (!btnRealizar) return;
-  
-  const modalConfirmar = new bootstrap.Modal(document.getElementById("modalConfirmar"));
-  const modalProcesando = new bootstrap.Modal(document.getElementById("modalProcesando"));
-  const modalExito = new bootstrap.Modal(document.getElementById("modalExito"));
 
-  btnRealizar.onclick = () => {
-    modalConfirmar.show();
-  };
 
-  // Botón: Confirmar CON factura
-  document.getElementById("btnConfirmarConFactura").onclick = async () => {
-    await confirmarTransaccion(true);
-  };
+    /* ============================================================================
+       ===============  DENOMINACIONES → FLUJO DE CONFIRMACIÓN  ==================
+       ============================================================================ */
 
-  // Botón: Confirmar SIN factura
-  document.getElementById("btnConfirmarSinFactura").onclick = async () => {
-    await confirmarTransaccion(false);
-  };
+    const formDenominaciones = document.getElementById("formDenominacionesVenta");
 
-  async function confirmarTransaccion(generarFactura) {
-    modalConfirmar.hide();
-    modalProcesando.show();
-    
-    const codigo = document.getElementById("codigo_verificacion").value.trim().toUpperCase();
-    
-    function getCookie(name) {
-      let cookieValue = null;
-      if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-          const cookie = cookies[i].trim();
-          if (cookie.substring(0, name.length + 1) === (name + '=')) {
-            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-            break;
-          }
-        }
-      }
-      return cookieValue;
-    }
+    if (formDenominaciones) {
 
-    const csrftoken = getCookie('csrftoken');
-    
-    try {
-      const formData = new URLSearchParams({
-        'codigo_verificacion': codigo,
-        'accion': 'confirmar',
-        'generar_factura': generarFactura ? 'si' : 'no'
-      });
+        const tipo = "{{ datos_transaccion.tipo|lower }}";
+        const medioPago = "{{ datos_transaccion.medio_pago|default:'' }}";
 
-      const response = await fetch(window.location.href, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'X-CSRFToken': csrftoken,
-        },
-        body: formData
-      });
+        let montoEsperado = 0;
+        let monedaEsperada = "";
 
-      // Verificar si la respuesta es HTML (redirección) o éxito
-      const responseText = await response.text();
-      
-      setTimeout(() => {
-        modalProcesando.hide();
-        
-        if (response.ok) {
-          // Mostrar mensaje de éxito
-          const modalExitoBody = document.querySelector('#modalExito .modal-body');
-          if (generarFactura) {
-            modalExitoBody.innerHTML = `
-              <div class="text-center">
-                <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i>
-                <h5 class="mt-3">¡Transacción Completada!</h5>
-                <p>La transacción ha sido confirmada y la factura electrónica está en proceso de generación.</p>
-                <p class="text-muted small">Podrás descargar la factura cuando esté aprobada por el SIFEN.</p>
-              </div>
-            `;
-          } else {
-            modalExitoBody.innerHTML = `
-              <div class="text-center">
-                <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i>
-                <h5 class="mt-3">¡Transacción Completada!</h5>
-                <p>La transacción ha sido confirmada exitosamente.</p>
-              </div>
-            `;
-          }
-          
-          modalExito.show();
+        if (tipo === "compra" && medioPago === "Efectivo") {
+            montoEsperado = parseFloat("{{ datos_transaccion.monto_pyg|floatformat:2 }}");
+            monedaEsperada = "PYG";
         } else {
-          // Mostrar error
-          alert('Error al confirmar la transacción. Por favor, intente nuevamente.');
+            montoEsperado = parseFloat("{{ datos_transaccion.monto_operado|floatformat:2 }}");
+            monedaEsperada = "{{ datos_transaccion.moneda.codigo }}";
         }
-      }, 1500);
-      
-    } catch (e) {
-      modalProcesando.hide();
-      alert('Error de red al confirmar la transacción.');
-    }
-  }
 
-  document.getElementById("btnCerrarExito").onclick = () => {
-    window.location.reload();
-  };
+        const totalSpan = document.getElementById("totalDenominaciones");
+        const errorDiv = document.getElementById("denominacionesError");
+        const inputs = formDenominaciones.querySelectorAll("input[type='number']");
+
+        function calcularTotal() {
+            let total = 0;
+            inputs.forEach(input => {
+                total += (parseInt(input.value) || 0) * parseFloat(input.dataset.valor);
+            });
+            totalSpan.textContent = total.toFixed(2);
+            return total;
+        }
+
+        inputs.forEach(input => input.addEventListener("input", calcularTotal));
+
+        document.getElementById("btnConfirmarDenominaciones").onclick = () => {
+            const total = calcularTotal();
+
+            if (Math.abs(total - montoEsperado) > 0.009) {
+                errorDiv.textContent = `El total (${total.toFixed(2)}) no coincide con ${montoEsperado.toFixed(2)}.`;
+                errorDiv.classList.remove("d-none");
+                return;
+            }
+
+            errorDiv.classList.add("d-none");
+            modalConfirmar.show();
+        };
+
+        /* =======================================================
+           BOTONES DEL MODAL CONFIRMAR
+        ======================================================= */
+        document.getElementById("btnConfirmarConFactura").onclick = () => {
+            modalConfirmar.hide();
+            modalDatosFactura.show();
+        };
+
+        document.getElementById("btnConfirmarSinFactura").onclick = () => {
+            modalConfirmar.hide();
+            enviarTransaccion(false);
+        };
+
+        document.getElementById("btnEnviarDatosFactura").onclick = () => {
+            modalDatosFactura.hide();
+            enviarTransaccion(true);
+        };
+
+        /* =======================================================
+           ENVÍO FINAL DE TRANSACCIÓN
+        ======================================================= */
+        async function enviarTransaccion(conFactura) {
+
+            modalProcesando.show();
+
+            const csrftoken = document.cookie.split("; ")
+                .find(row => row.startsWith("csrftoken="))
+                ?.split("=")[1];
+
+            const codigo = document.getElementById("codigo_verificacion").value.trim();
+
+            const data = new URLSearchParams();
+            data.append("codigo_verificacion", codigo);
+            data.append("accion", "concluir_venta");
+
+            inputs.forEach(i => data.append(i.name, i.value));
+
+            data.append("generar_factura", conFactura ? "si" : "no");
+
+            if (conFactura) {
+                data.append("fact_nombre", document.getElementById("fact_nombre").value);
+                data.append("fact_cedula", document.getElementById("fact_cedula").value);
+                data.append("fact_ruc", document.getElementById("fact_ruc").value);
+                data.append("fact_dv", document.getElementById("fact_dv").value);
+                data.append("fact_email", document.getElementById("fact_email").value);
+                data.append("fact_direccion", document.getElementById("fact_direccion").value);
+            }
+
+            const response = await fetch(window.location.href, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "X-CSRFToken": csrftoken
+                },
+                body: data
+            });
+
+            const result = await response.json();
+
+            modalProcesando.hide();
+
+            if (result.success) {
+                modalExito.show();
+                document.getElementById("btnCerrarExito").onclick = () => location.reload();
+            } else {
+                errorDiv.textContent = result.error || "Ocurrió un error.";
+                errorDiv.classList.remove("d-none");
+            }
+        }
+    }
+
+    /* =======================================================
+       COMPRAS SIN DENOMINACIONES → botón realizar transacción
+    ======================================================= */
+    const btnRealizar = document.getElementById("btnRealizarTransaccion");
+    if (btnRealizar) {
+        btnRealizar.onclick = () => modalConfirmar.show();
+    }
 });
 </script>
+
 {% endblock %}
 

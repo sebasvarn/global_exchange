@@ -39,6 +39,8 @@ class FacturaElectronica(models.Model):
         ('RECHAZADO', 'Rechazado'),
         ('ERROR', 'Error'),
         ('CANCELADO', 'Cancelado'),
+        ('INUTILIZADO', 'Inutilizado'),
+        ('REEMPLAZADA', 'Reemplazada'),
     ]
     
     uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
@@ -50,16 +52,27 @@ class FacturaElectronica(models.Model):
     )
     
     # Datos del DE
-    cdc = models.CharField(max_length=200, unique=True, verbose_name="Código de Control")
+    cdc = models.CharField(max_length=200, verbose_name="Código de Control", blank=True)
     id_de = models.BigIntegerField(null=True, blank=True, verbose_name="ID Documento Electrónico")
-    numero_factura = models.CharField(max_length=50, blank=True, verbose_name="Número de Factura")
+    numero_factura = models.CharField(max_length=50, blank=True, null=True, verbose_name="Número de Factura")
     
-    # Estados
+    # Estados - Campos adicionales para sincronización con SQL Proxy
     estado_sifen = models.CharField(
         max_length=20, 
         choices=ESTADOS_SIFEN, 
         default='PENDIENTE',
         verbose_name="Estado SIFEN"
+    )
+    desc_sifen = models.CharField(
+        max_length=200, 
+        blank=True, 
+        verbose_name="Descripción Estado SIFEN",
+        help_text="Descripción detallada del estado desde SIFEN"
+    )
+    error_sifen = models.TextField(
+        blank=True, 
+        verbose_name="Error SIFEN",
+        help_text="Mensaje de error devuelto por SIFEN"
     )
     
     # Fechas
@@ -80,6 +93,14 @@ class FacturaElectronica(models.Model):
     creado_en = models.DateTimeField(auto_now_add=True)
     actualizado_en = models.DateTimeField(auto_now=True)
 
+    # Datos del receptor (Cliente)
+    nombre_receptor = models.CharField(max_length=200, blank=True, verbose_name="Nombre del Receptor")
+    cedula_receptor = models.CharField(max_length=20, null=True, blank=True, verbose_name="Cédula del Receptor")
+    ruc_receptor = models.CharField(max_length=20, null=True, blank=True, verbose_name="RUC del Receptor")
+    dv_receptor = models.CharField(max_length=5, null=True, blank=True, verbose_name="DV del RUC")
+    email_receptor = models.EmailField(null=True, blank=True, verbose_name="Email del Receptor")
+    direccion_receptor = models.CharField(max_length=300, null=True, blank=True, verbose_name="Dirección del Receptor")
+
     class Meta:
         verbose_name = "Factura Electrónica"
         verbose_name_plural = "Facturas Electrónicas"
@@ -91,7 +112,7 @@ class FacturaElectronica(models.Model):
         ]
 
     def __str__(self):
-        return f"Factura {self.cdc or 'Pendiente'} - {self.transaccion.codigo_verificacion}"
+        return f"Factura {self.numero_factura or self.cdc or 'Pendiente'} - {self.transaccion.codigo_verificacion}"
 
     @property
     def esta_aprobada(self):
@@ -100,3 +121,8 @@ class FacturaElectronica(models.Model):
     @property
     def puede_descargar(self):
         return self.esta_aprobada and (self.xml_file or self.pdf_file)
+
+    @property
+    def tiene_error_numero_duplicado(self):
+        """Verifica si la factura tiene error de número duplicado"""
+        return 'NUMDOC_APROBADO' in (self.error_sifen or '')

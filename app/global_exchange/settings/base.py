@@ -118,3 +118,32 @@ MFA_RESEND_BLOCK_TTL = int(os.getenv('MFA_RESEND_BLOCK_TTL', '900'))
 
 _csrf = os.getenv("CSRF_TRUSTED_ORIGINS")
 CSRF_TRUSTED_ORIGINS = _csrf.split(",") if _csrf else []
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+        'facturacion_file': {
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'logs' / 'facturacion.log',
+            'level': 'INFO',
+        },
+    },
+
+    'loggers': {
+        'facturacion': {
+            'handlers': ['console', 'facturacion_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+    }
+}
