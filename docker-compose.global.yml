@@ -117,7 +117,7 @@ services:
     ports:
       - "45432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U fs_proxy_user -d fs_proxy_bd"]
       interval: 5s
       timeout: 5s
       retries: 10
