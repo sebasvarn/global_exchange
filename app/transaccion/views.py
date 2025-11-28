@@ -27,6 +27,7 @@ from .services import (
     cancelar_transaccion,
     crear_transaccion,
     crear_checkout_para_transaccion,
+    expirar_transacciones_pendientes,
     requiere_pago_tarjeta,
     verificar_pago_stripe,
 )
@@ -261,6 +262,8 @@ def transacciones_list(request):
             .select_related("cliente", "moneda", "medio_pago", "medio_cobro")
         )
         base = Transaccion.objects.all()
+
+    expirar_transacciones_pendientes(base)
 
     # filtro por cliente (si aplica)
     if cliente_id:
