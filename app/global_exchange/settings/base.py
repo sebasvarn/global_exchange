@@ -105,6 +105,9 @@ for static_dir in glob(str(BASE_DIR / "app" / "*" / "static")):
     STATICFILES_DIRS.append(static_dir)
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+# Tiempo (min) que permanece vigente una transacción pendiente antes de expirar
+TRANSACCION_EXPIRACION_MINUTOS = int(os.getenv("TRANSACCION_EXPIRACION_MINUTOS", "1"))
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # MFA defaults

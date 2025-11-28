@@ -224,22 +224,32 @@
                         {% endif %}
                       </td>
                       <td>
-                        {% if estado == 'pendiente' %}
-                          <span class="badge bg-warning text-dark">Pendiente</span>
-                        {% elif estado == 'pagada' %}
-                          <span class="badge bg-success">Pagada</span>
-                        {% elif estado == 'completada' %}
-                          <span class="badge bg-primary">Completada</span>
-                        {% elif estado == 'cancelada' %}
-                          <span class="badge bg-secondary">Cancelada</span>
-                        {% elif estado == 'anulada' %}
-                          <span class="badge bg-danger">Anulada</span>
-                        {% else %}
-                          <span class="badge bg-light text-dark">{{ t.estado }}</span>
-                        {% endif %}
-                        {% if t.stripe_status %}
-                          <span class="badge bg-info ms-1">Stripe: {{ t.stripe_status }}</span>
-                        {% endif %}
+                        <div class="d-flex flex-column gap-1">
+                          {% if estado == 'pendiente' %}
+                            <span class="badge bg-warning text-dark">Pendiente</span>
+                            {% if t.fecha_expiracion %}
+                              <small class="text-muted countdown" data-expiration="{{ t.fecha_expiracion|date:'c' }}">
+                                Expira en <span class="countdown-value">--:--</span>
+                              </small>
+                            {% endif %}
+                          {% elif estado == 'pagada' %}
+                            <span class="badge bg-success">Pagada</span>
+                          {% elif estado == 'completada' %}
+                            <span class="badge bg-primary">Completada</span>
+                          {% elif estado == 'cancelada' %}
+                            <span class="badge bg-secondary">Cancelada</span>
+                          {% elif estado == 'anulada' %}
+                            <span class="badge bg-danger">Anulada</span>
+                            {% if t.fecha_expiracion %}
+                              <small class="text-muted">Expirada</small>
+                            {% endif %}
+                          {% else %}
+                            <span class="badge bg-light text-dark">{{ t.estado }}</span>
+                          {% endif %}
+                          {% if t.stripe_status %}
+                            <span class="badge bg-info">Stripe: {{ t.stripe_status }}</span>
+                          {% endif %}
+                        </div>
                       </td>
                       <td>{{ t.fecha|date:"d/m/Y H:i" }}</td>
                     {% if estado_qs != 'completada' %}
@@ -311,6 +321,48 @@
       // tooltips
       const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
       tooltipTriggerList.map(el => new bootstrap.Tooltip(el));
+
+      const countdownEls = Array.from(document.querySelectorAll('.countdown[data-expiration]'));
+      if (countdownEls.length) {
+        const pad = (value) => String(value).padStart(2, '0');
+
+        const updateCountdowns = () => {
+          const now = Date.now();
+          let shouldRefresh = false;
+
+          countdownEls.forEach(el => {
+            const expiration = Date.parse(el.dataset.expiration || '');
+            if (Number.isNaN(expiration)) {
+              return;
+            }
+
+            const diff = expiration - now;
+            if (diff <= 0) {
+              el.classList.add('text-danger');
+              el.textContent = 'Expirada';
+              shouldRefresh = true;
+              return;
+            }
+
+            const minutes = Math.floor(diff / 60000);
+            const seconds = Math.floor((diff % 60000) / 1000);
+            const target = el.querySelector('.countdown-value');
+            if (target) {
+              target.textContent = `${pad(minutes)}:${pad(seconds)}`;
+            } else {
+              el.textContent = `${pad(minutes)}:${pad(seconds)}`;
+            }
+          });
+
+          if (shouldRefresh && !window.__txCountdownRefreshScheduled) {
+            window.__txCountdownRefreshScheduled = true;
+            setTimeout(() => window.location.reload(), 2000);
+          }
+        };
+
+        updateCountdowns();
+        setInterval(updateCountdowns, 1000);
+      }
     });
   </script>
 {% endblock %}

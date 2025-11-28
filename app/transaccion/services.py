@@ -1,6 +1,7 @@
 import logging
 import json
 import os
+from datetime import timedelta
 from decimal import Decimal, ROUND_DOWN
 
 import stripe
@@ -296,6 +297,11 @@ def crear_transaccion(
     """
     validate_limits(cliente, moneda, monto_operado, monto_pyg)
     with dj_tx.atomic():
+        fecha_expiracion = None
+        expiracion_min = getattr(settings, "TRANSACCION_EXPIRACION_MINUTOS", 0)
+        if expiracion_min:
+            fecha_expiracion = timezone.now() + timedelta(minutes=expiracion_min)
+
         t = Transaccion.objects.create(
             cliente=cliente,
             moneda=moneda,
@@ -308,6 +314,7 @@ def crear_transaccion(
             tauser=tauser,
             medio_cobro=medio_cobro,
             estado=EstadoTransaccionEnum.PENDIENTE,
+            fecha_expiracion=fecha_expiracion,
         )
         # En compra: siempre reservar moneda internacional
         # En venta: solo reservar PYG si el medio de cobro es efectivo
@@ -361,6 +368,27 @@ def reservar_stock_tauser_para_transaccion(tauser, transaccion, monto, moneda):
             break
     if monto_restante > 0:
         raise ValidationError(f"Stock insuficiente para reservar denominaciones para el monto {monto} {moneda}.")
+
+
+def _liberar_reservas_tauser(transaccion: Transaccion):
+    """Devuelve al stock del tauser las reservas asociadas a la transacción."""
+    if not getattr(transaccion, "tauser_id", None):
+        return
+
+    from tauser.models import ReservaDenominacionTauser, TauserStock
+
+    reservas = ReservaDenominacionTauser.objects.filter(transaccion=transaccion)
+    if not reservas.exists():
+        return
+
+    for reserva in reservas:
+        stock, _ = TauserStock.objects.get_or_create(
+            tauser=reserva.tauser,
+            denominacion=reserva.denominacion,
+        )
+        stock.quantity += reserva.cantidad
+        stock.save(update_fields=["quantity"])
+    reservas.delete()
 
 
 # =========================
@@ -560,21 +588,45 @@ def cancelar_transaccion(transaccion: Transaccion):
     if transaccion.estado != EstadoTransaccionEnum.PENDIENTE:
         raise ValidationError("Solo transacciones pendientes pueden cancelarse.")
 
-    # Liberar stock reservado si corresponde
-    if hasattr(transaccion, 'tauser') and transaccion.tauser:
-        from tauser.models import ReservaDenominacionTauser, TauserStock
-        reservas = ReservaDenominacionTauser.objects.filter(transaccion=transaccion)
-        for reserva in reservas:
-            # Sumar la cantidad reservada al stock
-            stock, _ = TauserStock.objects.get_or_create(tauser=reserva.tauser, denominacion=reserva.denominacion)
-            stock.quantity += reserva.cantidad
-            stock.save(update_fields=['quantity'])
-        # Eliminar las reservas
-        reservas.delete()
+    _liberar_reservas_tauser(transaccion)
 
     transaccion.estado = EstadoTransaccionEnum.CANCELADA
     transaccion.save(update_fields=["estado"])
     return transaccion
+
+
+def expirar_transaccion(transaccion: Transaccion) -> bool:
+    """Marca una transacción como anulada por expiración si sigue pendiente."""
+    if transaccion.estado != EstadoTransaccionEnum.PENDIENTE:
+        return False
+
+    _liberar_reservas_tauser(transaccion)
+    transaccion.estado = EstadoTransaccionEnum.ANULADA
+    transaccion.save(update_fields=["estado"])
+    return True
+
+
+def expirar_transacciones_pendientes(base_queryset=None) -> int:
+    """Expira las transacciones pendientes cuyo plazo venció."""
+    qs = base_queryset if base_queryset is not None else Transaccion.objects.all()
+    ahora = timezone.now()
+    expiradas = 0
+
+    with dj_tx.atomic():
+        pendientes = (
+            qs.filter(
+                estado=EstadoTransaccionEnum.PENDIENTE,
+                fecha_expiracion__isnull=False,
+                fecha_expiracion__lte=ahora,
+            )
+            .select_for_update()
+        )
+
+        for transaccion in pendientes:
+            if expirar_transaccion(transaccion):
+                expiradas += 1
+
+    return expiradas
 
 
 # =========================
