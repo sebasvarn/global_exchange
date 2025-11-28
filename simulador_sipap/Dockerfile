@@ -22,15 +22,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# --- Copiar código fuente ---
 COPY . .
 
-COPY entrypoint.sh .
-RUN chmod +x entrypoint.sh
+# Crear carpeta static si no existe
+RUN mkdir -p /app/static
+
+# Marcar entrypoint como ejecutable
+RUN chmod +x /app/entrypoint.sh
 
 EXPOSE 8080
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=5 \
-    CMD curl -f http://localhost:8080/health || exit 1
+HEALTHCHECK --interval=20s --timeout=10s --start-period=25s --retries=5 \
+    CMD curl -fsS http://localhost:8080/health || exit 1
 
 ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
