@@ -91,10 +91,11 @@ class MonedaForm(forms.ModelForm):
 
     def clean_codigo(self):
         """
-        Valida que el código de la moneda sea único.
+        Valida que el código de la moneda sea único y cumple con las restricciones del sistema.
 
-        :raises ValidationError: si ya existe otra moneda con el mismo código
-        :return: código en mayúsculas
+        :returns: Código de moneda validado y normalizado.
+        :rtype: str
+        :raises ValidationError: Si el código ya existe.
         """
         codigo = self.cleaned_data['codigo'].upper()
         if self.instance.pk:
@@ -109,11 +110,11 @@ class MonedaForm(forms.ModelForm):
 
     def clean(self):
         """
-        Validaciones generales del formulario.
+        Realiza validaciones generales del formulario de moneda, como restricciones de moneda base.
 
-        - Solo 'PYG' puede ser moneda base.
-        :raises ValidationError: si se intenta asignar otra moneda como base
-        :return: cleaned_data
+        :returns: Datos validados del formulario.
+        :rtype: dict
+        :raises ValidationError: Si alguna validación general falla.
         """
         cleaned_data = super().clean()
         codigo = cleaned_data.get('codigo', '').upper()
@@ -161,11 +162,11 @@ class TasaCambioForm(forms.ModelForm):
 
     def clean(self):
         """
-        Validaciones generales del formulario.
+        Realiza validaciones generales del formulario de tasa de cambio.
 
-        - La tasa de venta no puede ser menor que la de compra.
-        :raises ValidationError: si venta < compra
-        :return: cleaned_data
+        :returns: Datos validados del formulario.
+        :rtype: dict
+        :raises ValidationError: Si la tasa de venta es menor que la de compra.
         """
         cleaned = super().clean()
         compra = cleaned.get('compra')

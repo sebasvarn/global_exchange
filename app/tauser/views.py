@@ -16,6 +16,10 @@ import os
 import json
 from django.db import models
 def movimientos_tauser(request, tauser_id):
+    """
+    Muestra los movimientos de stock de un Tauser, permitiendo filtrar por moneda, tipo y fechas.
+    Calcula sumas de entradas y salidas, y muestra información de usuario y cliente asociada a cada movimiento.
+    """
     tausers = Tauser.objects.all().order_by('nombre')
     tauser_id_selected = request.GET.get('tauser') or tauser_id
     tauser = get_object_or_404(Tauser, id=tauser_id_selected)
@@ -75,8 +79,7 @@ def movimientos_tauser(request, tauser_id):
 
 def ver_stock_tauser(request, tauser_id):
     """
-    Muestra el stock detallado de un Tauser,
-    filtrando por moneda si se especifica en el querystring.
+    Muestra el stock detallado de un Tauser, filtrando por moneda si se especifica en el querystring.
     """
     tauser = get_object_or_404(Tauser, id=tauser_id)
     monedas = Moneda.objects.all()
@@ -105,8 +108,8 @@ def ver_stock_tauser(request, tauser_id):
 
 def asignar_stock_tauser(request):
     """
-    Permite asignar o actualizar el stock de divisas del Tauser,
-    basado en las denominaciones definidas en denominaciones.json.
+    Permite asignar o actualizar el stock de divisas del Tauser, basado en las denominaciones definidas en denominaciones.json.
+    Procesa el formulario para agregar o quitar cantidades de cada denominación.
     """
     denominaciones_json_path = os.path.join(os.path.dirname(__file__), 'denominaciones.json')
     with open(denominaciones_json_path, 'r') as f:
@@ -186,8 +189,8 @@ def asignar_stock_tauser(request):
 
 def tramitar_transacciones(request):
     """
-    Vista para tramitar transacciones de un cliente activo.
-    Permite consultar datos de una transacción por código de verificación.
+    Permite tramitar transacciones de clientes activos mediante código de verificación.
+    Incluye validación MFA, consulta, validación de stock, confirmación, conclusión de venta, generación de factura y cancelación.
     """
 
     tausers_activos = Tauser.objects.filter(estado="activo").order_by('nombre')
@@ -595,6 +598,10 @@ def tramitar_transacciones(request):
 
 
 def nuevo_tauser(request):
+    """
+    Permite crear un nuevo Tauser mediante un formulario.
+    Muestra mensaje de éxito al guardar correctamente.
+    """
 
     mensaje = None
     if request.method == 'POST':
@@ -613,6 +620,9 @@ def nuevo_tauser(request):
 
 
 def lista_tausers(request):
+    """
+    Lista todos los Tausers, permitiendo filtrar por estado y fechas de alta.
+    """
     estados = Tauser.ESTADOS
     estado = request.GET.get('estado', '')
     fecha_inicio = request.GET.get('fecha_inicio', '')
@@ -634,6 +644,10 @@ def lista_tausers(request):
     })
 
 def editar_estado_tauser(request, tauser_id):
+    """
+    Permite editar el estado de un Tauser seleccionado.
+    Guarda el nuevo estado si es válido y redirige a la lista de Tausers.
+    """
     tauser = get_object_or_404(Tauser, id=tauser_id)
     if request.method == 'POST':
         nuevo_estado = request.POST.get('estado')

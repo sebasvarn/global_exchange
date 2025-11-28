@@ -11,6 +11,20 @@ from datetime import datetime
 logger = logging.getLogger("facturacion")
 
 class ServicioFacturacion:
+    """
+    Servicio para la gestión de facturación electrónica.
+
+    Esta clase centraliza la lógica para:
+    - Generar facturas electrónicas a partir de transacciones.
+    - Consultar el estado de las facturas en el sistema externo (SIFEN/SQL Proxy).
+    - Descargar archivos PDF/XML de facturas aprobadas.
+    - Cancelar/inutilizar facturas electrónicas.
+    - Regenerar facturas en caso de reemplazo.
+    - Mapear y transformar datos de clientes, transacciones y facturas al formato requerido por el sistema fiscal.
+
+    Utiliza la configuración activa de facturación y se comunica con servicios externos definidos en dicha configuración.
+    Maneja errores y logs para trazabilidad de los procesos de facturación.
+    """
     def __init__(self):
         self.config = ConfiguracionFacturacion.objects.filter(activo=True).first()
         if not self.config:

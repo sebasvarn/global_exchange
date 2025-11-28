@@ -2,6 +2,7 @@
 Pruebas unitarias de transacciones
 """
 from decimal import Decimal
+from unittest.mock import patch
 from django.test import TestCase, Client
 from django.core.exceptions import ValidationError
 from django.urls import reverse
@@ -31,7 +32,7 @@ class TransaccionModelTest(TestCase):
     """
     def setUp(self):
         self.cliente = Cliente.objects.create(nombre="Cliente Test", tipo="MIN")
-        self.moneda = Moneda.objects.create(codigo="USD", nombre="Dólar")
+        self.moneda, _ = Moneda.objects.get_or_create(codigo="USD", defaults={"nombre": "Dólar"})
         self.payment = PaymentMethod.objects.create(
             cliente=self.cliente,
             payment_type=PaymentTypeEnum.CUENTA_BANCARIA.value,
@@ -64,7 +65,7 @@ class LimitValidationTest(TestCase):
     """
     def setUp(self):
         self.cliente = Cliente.objects.create(nombre="Cliente Limite", tipo="MIN")
-        self.moneda = Moneda.objects.create(codigo="USD", nombre="Dólar")
+        self.moneda, _ = Moneda.objects.get_or_create(codigo="USD", defaults={"nombre": "Dólar"})
 
     def test_excede_limite_pyg(self):
         LimitePYG.objects.create(cliente=self.cliente, max_por_operacion=Decimal("1000"))
@@ -104,7 +105,7 @@ class ServiceFunctionsTest(TestCase):
     """
     def setUp(self):
         self.cliente = Cliente.objects.create(nombre="Cliente Servicios", tipo="MIN")
-        self.moneda = Moneda.objects.create(codigo="USD", nombre="Dólar")
+        self.moneda, _ = Moneda.objects.get_or_create(codigo="USD", defaults={"nombre": "Dólar"})
         self.payment = PaymentMethod.objects.create(
             cliente=self.cliente,
             payment_type=PaymentTypeEnum.CUENTA_BANCARIA.value,
@@ -128,7 +129,8 @@ class ServiceFunctionsTest(TestCase):
         self.transaccion.refresh_from_db()
         self.assertEqual(self.transaccion.estado, EstadoTransaccionEnum.CANCELADA)
 
-    def test_confirmar_transaccion_crea_movimiento(self):
+    @patch('transaccion.services.procesar_pago_via_sipap', return_value=(True, 'OK', None))
+    def test_confirmar_transaccion_crea_movimiento(self, mock_sipap):
         confirmar_transaccion(self.transaccion)
         mov = Movimiento.objects.get(transaccion=self.transaccion)
         self.assertEqual(mov.tipo, TipoMovimientoEnum.DEBITO)
@@ -141,7 +143,7 @@ class TransaccionFormTest(TestCase):
     """
     def setUp(self):
         self.cliente = Cliente.objects.create(nombre="Cliente Form", tipo="MIN")
-        self.moneda = Moneda.objects.create(codigo="USD", nombre="Dólar")
+        self.moneda, _ = Moneda.objects.get_or_create(codigo="USD", defaults={"nombre": "Dólar"})
         self.payment = PaymentMethod.objects.create(
             cliente=self.cliente,
             payment_type=PaymentTypeEnum.CUENTA_BANCARIA.value,
@@ -178,7 +180,7 @@ class TransaccionViewsTest(TestCase):
     def setUp(self):
         self.client_http = Client()
         self.cliente = Cliente.objects.create(nombre="Cliente Vista", tipo="MIN")
-        self.moneda = Moneda.objects.create(codigo="USD", nombre="Dólar")
+        self.moneda, _ = Moneda.objects.get_or_create(codigo="USD", defaults={"nombre": "Dólar"})
         self.payment = PaymentMethod.objects.create(
             cliente=self.cliente,
             payment_type=PaymentTypeEnum.CUENTA_BANCARIA.value,

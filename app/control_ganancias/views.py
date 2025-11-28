@@ -12,6 +12,24 @@ from collections import Counter
 from clientes.models import Cliente
 
 def dashboard(request):
+	"""
+	Vista principal del dashboard de control de ganancias.
+    
+	Esta vista procesa y filtra las transacciones por estado y rango de fechas (máximo 1 año),
+	calculando métricas y datos estadísticos para el dashboard, incluyendo:
+	- Ganancia total, por fecha, por moneda y por método de pago.
+	- Distribución de transacciones por tipo y por segmento de cliente.
+	- Conteo y montos de transacciones completadas y pagadas.
+	- Spread promedio aplicado.
+	- Detalle de transacciones para visualización en tabla.
+    
+	Los datos se envían al template para su visualización en gráficos y tablas.
+    
+	:param request: Objeto HttpRequest de Django.
+	:type request: HttpRequest
+	:return: Página renderizada con los datos del dashboard de control de ganancias.
+	:rtype: HttpResponse
+	"""
 	# Filtro por rango de fechas (máx 1 año)
 	today = timezone.now().date()
 	default_start = today - timedelta(days=30)
