@@ -10,6 +10,18 @@
     background-color: #6f42c1 !important;
     color: white !important;
   }
+  .factura-btn {
+    background-color: #17a2b8;
+    border-color: #17a2b8;
+    color: white;
+  }
+  .factura-btn:hover {
+    background-color: #138496;
+    border-color: #117a8b;
+  }
+  .factura-status-badge {
+    font-size: 0.75em;
+  }
 </style>
 {% endblock %}
 
@@ -50,56 +62,56 @@
         <div class="card-body">
 
           {# ---- Pills de estado (SIN split) ---- #}
-<ul class="nav nav-pills mb-3 flex-wrap">
-  <li class="nav-item me-2 mb-2">
-    <a class="nav-link {% if estado_qs == 'todas' %}active{% endif %}"
-       href="?estado=todas{% if cliente_id %}&cliente={{ cliente_id }}{% endif %}{% if request.GET.order %}&order={{ request.GET.order }}{% endif %}{% if request.GET.dir %}&dir={{ request.GET.dir }}{% endif %}">
-      Todas
-      <span class="badge bg-secondary ms-2">{{ counts.todas|default_if_none:0 }}</span>
-    </a>
-  </li>
+          <ul class="nav nav-pills mb-3 flex-wrap">
+            <li class="nav-item me-2 mb-2">
+              <a class="nav-link {% if estado_qs == 'todas' %}active{% endif %}"
+                href="?estado=todas{% if cliente_id %}&cliente={{ cliente_id }}{% endif %}{% if request.GET.order %}&order={{ request.GET.order }}{% endif %}{% if request.GET.dir %}&dir={{ request.GET.dir }}{% endif %}">
+                Todas
+                <span class="badge bg-secondary ms-2">{{ counts.todas|default_if_none:0 }}</span>
+              </a>
+            </li>
 
 
-  <li class="nav-item me-2 mb-2">
-    <a class="nav-link {% if estado_qs == 'pendiente' %}active{% endif %}"
-       href="?estado=pendiente{% if cliente_id %}&cliente={{ cliente_id }}{% endif %}{% if request.GET.order %}&order={{ request.GET.order }}{% endif %}{% if request.GET.dir %}&dir={{ request.GET.dir }}{% endif %}">
-      Pendientes
-      <span class="badge bg-warning text-dark ms-2">{{ counts.pendiente|default_if_none:0 }}</span>
-    </a>
-  </li>
+            <li class="nav-item me-2 mb-2">
+              <a class="nav-link {% if estado_qs == 'pendiente' %}active{% endif %}"
+                href="?estado=pendiente{% if cliente_id %}&cliente={{ cliente_id }}{% endif %}{% if request.GET.order %}&order={{ request.GET.order }}{% endif %}{% if request.GET.dir %}&dir={{ request.GET.dir }}{% endif %}">
+                Pendientes
+                <span class="badge bg-warning text-dark ms-2">{{ counts.pendiente|default_if_none:0 }}</span>
+              </a>
+            </li>
 
-  <li class="nav-item me-2 mb-2">
-    <a class="nav-link {% if estado_qs == 'completada' %}active{% endif %}"
-       href="?estado=completada{% if cliente_id %}&cliente={{ cliente_id }}{% endif %}{% if request.GET.order %}&order={{ request.GET.order }}{% endif %}{% if request.GET.dir %}&dir={{ request.GET.dir }}{% endif %}">
-      Completadas
-      <span class="badge bg-primary ms-2">{{ counts.completada|default_if_none:0 }}</span>
-    </a>
-  </li>
+            <li class="nav-item me-2 mb-2">
+              <a class="nav-link {% if estado_qs == 'completada' %}active{% endif %}"
+                href="?estado=completada{% if cliente_id %}&cliente={{ cliente_id }}{% endif %}{% if request.GET.order %}&order={{ request.GET.order }}{% endif %}{% if request.GET.dir %}&dir={{ request.GET.dir }}{% endif %}">
+                Completadas
+                <span class="badge bg-primary ms-2">{{ counts.completada|default_if_none:0 }}</span>
+              </a>
+            </li>
 
-  <li class="nav-item me-2 mb-2">
-    <a class="nav-link {% if estado_qs == 'pagada' %}active{% endif %}"
-       href="?estado=pagada{% if cliente_id %}&cliente={{ cliente_id }}{% endif %}{% if request.GET.order %}&order={{ request.GET.order }}{% endif %}{% if request.GET.dir %}&dir={{ request.GET.dir }}{% endif %}">
-      Pagadas
-      <span class="badge bg-success ms-2">{{ counts.pagada|default_if_none:0 }}</span>
-    </a>
-  </li>
+            <li class="nav-item me-2 mb-2">
+              <a class="nav-link {% if estado_qs == 'pagada' %}active{% endif %}"
+                href="?estado=pagada{% if cliente_id %}&cliente={{ cliente_id }}{% endif %}{% if request.GET.order %}&order={{ request.GET.order }}{% endif %}{% if request.GET.dir %}&dir={{ request.GET.dir }}{% endif %}">
+                Pagadas
+                <span class="badge bg-success ms-2">{{ counts.pagada|default_if_none:0 }}</span>
+              </a>
+            </li>
 
-  <li class="nav-item me-2 mb-2">
-    <a class="nav-link {% if estado_qs == 'cancelada' %}active{% endif %}"
-       href="?estado=cancelada{% if cliente_id %}&cliente={{ cliente_id }}{% endif %}{% if request.GET.order %}&order={{ request.GET.order }}{% endif %}{% if request.GET.dir %}&dir={{ request.GET.dir }}{% endif %}">
-      Canceladas
-      <span class="badge bg-secondary ms-2">{{ counts.cancelada|default_if_none:0 }}</span>
-    </a>
-  </li>
+            <li class="nav-item me-2 mb-2">
+              <a class="nav-link {% if estado_qs == 'cancelada' %}active{% endif %}"
+                href="?estado=cancelada{% if cliente_id %}&cliente={{ cliente_id }}{% endif %}{% if request.GET.order %}&order={{ request.GET.order }}{% endif %}{% if request.GET.dir %}&dir={{ request.GET.dir }}{% endif %}">
+                Canceladas
+                <span class="badge bg-secondary ms-2">{{ counts.cancelada|default_if_none:0 }}</span>
+              </a>
+            </li>
 
-  <li class="nav-item me-2 mb-2">
-    <a class="nav-link {% if estado_qs == 'anulada' %}active{% endif %}"
-       href="?estado=anulada{% if cliente_id %}&cliente={{ cliente_id }}{% endif %}{% if request.GET.order %}&order={{ request.GET.order }}{% endif %}{% if request.GET.dir %}&dir={{ request.GET.dir }}{% endif %}">
-      Anuladas
-      <span class="badge bg-danger ms-2">{{ counts.anulada|default_if_none:0 }}</span>
-    </a>
-  </li>
-</ul>
+            <li class="nav-item me-2 mb-2">
+              <a class="nav-link {% if estado_qs == 'anulada' %}active{% endif %}"
+                href="?estado=anulada{% if cliente_id %}&cliente={{ cliente_id }}{% endif %}{% if request.GET.order %}&order={{ request.GET.order }}{% endif %}{% if request.GET.dir %}&dir={{ request.GET.dir }}{% endif %}">
+                Anuladas
+                <span class="badge bg-danger ms-2">{{ counts.anulada|default_if_none:0 }}</span>
+              </a>
+            </li>
+          </ul>
 
 
           {% if transacciones %}
@@ -131,6 +143,7 @@
                         {% endif %}
                       </a>
                     </th>
+                    <th class="text-center">Factura</th>
                     {% if estado_qs != 'completada' %}
                       <th class="text-center">Acciones</th>
                     {% endif %}
@@ -252,6 +265,27 @@
                         </div>
                       </td>
                       <td>{{ t.fecha|date:"d/m/Y H:i" }}</td>
+                      
+                      <!-- Columna de Factura -->
+                      <td class="text-center">
+                        <button class="btn btn-sm factura-btn" 
+                                onclick="abrirModalFactura({{ t.id }})"
+                                title="Gestionar Factura Electrónica">
+                          <i class="bi bi-receipt"></i> Factura
+                        </button>
+                        {% if t.factura_electronica %}
+                          <div class="mt-1">
+                            <span class="badge factura-status-badge 
+                                {% if t.factura_electronica.estado_sifen == 'APROBADO' %}bg-success
+                                {% elif t.factura_electronica.estado_sifen == 'PROCESANDO' %}bg-warning text-dark
+                                {% elif t.factura_electronica.estado_sifen == 'ERROR' %}bg-danger
+                                {% else %}bg-secondary{% endif %}">
+                              {{ t.factura_electronica.estado_sifen|default:"PENDIENTE" }}
+                            </span>
+                          </div>
+                        {% endif %}
+                      </td>
+
                     {% if estado_qs != 'completada' %}
                       <td class="text-center">
                         <div class="btn-group" role="group">
@@ -311,10 +345,135 @@
 
     </div>
   </div>
+</div>
+
+<!-- Modal para gestión de Factura -->
+<div class="modal fade" id="facturaModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Factura Electrónica - Transacción <span id="modalTransaccionId"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="facturaModalBody">
+        <!-- Contenido dinámico -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" class="btn btn-primary" id="btnGenerarFactura" onclick="generarFactura()" style="display: none;">
+          <i class="bi bi-plus-circle"></i> Generar Factura
+        </button>
+        <button type="button" class="btn btn-success" id="btnDescargarPDF" onclick="descargarFactura('pdf')" style="display: none;">
+          <i class="bi bi-download"></i> Descargar PDF
+        </button>
+        <button type="button" class="btn btn-info" id="btnDescargarXML" onclick="descargarFactura('xml')" style="display: none;">
+          <i class="bi bi-download"></i> Descargar XML
+        </button>
+        <button type="button" class="btn btn-warning" id="btnConsultarEstado" onclick="consultarEstadoFactura()" style="display: none;">
+          <i class="bi bi-arrow-clockwise"></i> Consultar Estado
+        </button>
+      </div>
     </div>
   </div>
+</div>
 
+<!-- Modal para Datos Fiscales (añadir después del modal de factura existente) -->
+<div class="modal fade" id="datosFiscalesModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-warning">
+        <h5 class="modal-title">Datos para Factura Electrónica</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info">
+          <i class="bi bi-info-circle"></i> Complete los datos fiscales del cliente para generar la factura.
+        </div>
+        
+        <form id="formDatosFiscales">
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Nombre / Razón Social *</label>
+              <input type="text" class="form-control" id="fact_nombre" name="fact_nombre" required>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">RUC</label>
+              <input type="text" class="form-control" id="fact_ruc" name="fact_ruc" placeholder="Opcional si usa Cédula">
+            </div>
+          </div>
+          
+          <div class="row">
+            <div class="col-md-3 mb-3">
+              <label class="form-label">DV</label>
+              <input type="text" class="form-control" id="fact_dv" name="fact_dv" maxlength="2">
+            </div>
+            <div class="col-md-9 mb-3">
+              <label class="form-label">Cédula</label>
+              <input type="text" class="form-control" id="fact_cedula" name="fact_cedula" placeholder="Opcional si usa RUC">
+            </div>
+          </div>
+          
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Email</label>
+              <input type="email" class="form-control" id="fact_email" name="fact_email">
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label">Teléfono</label>
+              <input type="text" class="form-control" id="fact_telefono" name="fact_telefono">
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Dirección</label>
+            <input type="text" class="form-control" id="fact_direccion" name="fact_direccion">
+          </div>
+          
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="confirmarDatos" required>
+            <label class="form-check-label" for="confirmarDatos">
+              Confirmo que los datos fiscales son correctos
+            </label>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-success" id="btnConfirmarGenerarFactura">
+          <i class="bi bi-check-lg"></i> Generar Factura
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 
+<script>
+let transaccionActualId = null;
+const datosFiscalesModal = new bootstrap.Modal(document.getElementById('datosFiscalesModal'));
+
+function abrirModalFactura(transaccionId) {
+  transaccionActualId = transaccionId;
+  document.getElementById('modalTransaccionId').textContent = '#' + transaccionId;
+  
+  // Mostrar loading
+  document.getElementById('facturaModalBody').innerHTML = `
+    <div class="text-center">
+      <div class="spinner-border" role="status">
+        <span class="visually-hidden">Cargando...</span>
+      </div>
+      <p class="mt-2">Cargando información de factura...</p>
+    </div>
+  `;
+  
+  // Ocultar todos los botones inicialmente de forma segura
+  ocultarTodosBotones();
+  
+  const modal = new bootstrap.Modal(document.getElementById('facturaModal'));
+  modal.show();
+  
+  // Cargar información de la factura
+  cargarInfoFactura(transaccionId);
+}
 
   <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -363,6 +522,692 @@
         updateCountdowns();
         setInterval(updateCountdowns, 1000);
       }
+function ocultarTodosBotones() {
+  // Ocultar botones de forma segura, verificando que existan
+  const botones = [
+    'btnGenerarFactura',
+    'btnDescargarPDF', 
+    'btnDescargarXML',
+    'btnConsultarEstado',
+    'btnCancelarFactura'
+  ];
+  
+  botones.forEach(botonId => {
+    const boton = document.getElementById(botonId);
+    if (boton) {
+      boton.style.display = 'none';
+    }
+  });
+}
+
+function cargarInfoFactura(transaccionId) {
+  const url = `{% url 'facturacion:info_factura_transaccion' 0 %}`.replace('/0/', `/${transaccionId}/`);
+  
+  fetch(url)
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Error en la respuesta del servidor');
+      }
+      return response.json();
+    })
+    .then(data => {
+      if (data.success) {
+        mostrarInfoFactura(data);
+      } else {
+        mostrarSinFactura(data);
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      document.getElementById('facturaModalBody').innerHTML = `
+        <div class="alert alert-danger">
+          <i class="bi bi-x-circle"></i> Error al cargar información: ${error.message}
+        </div>
+      `;
     });
-  </script>
+}
+
+function mostrarInfoFactura(data) {
+  const factura = data.factura;
+  
+  // Determinar color y estado real
+  let estadoColor, estadoDisplay, tieneError, esRechazado;
+  
+  // PRIMERO verificar si hay error en error_sifen (caso más importante)
+  if (factura.error_sifen && factura.error_sifen.includes('NUMDOC_APROBADO')) {
+    estadoColor = 'danger';
+    estadoDisplay = 'RECHAZADO - NÚMERO DUPLICADO';
+    tieneError = true;
+    esRechazado = true;
+  } 
+  // Verificar si el estado es "Verificar datos (Rech.Apr.)" que indica rechazo
+  else if (factura.estado && factura.estado.includes('Rech.Apr.')) {
+    estadoColor = 'danger';
+    estadoDisplay = 'RECHAZADO';
+    tieneError = true;
+    esRechazado = true;
+  }
+  // Luego verificar estados normales
+  else if (factura.estado_sifen === 'Aprobado' || factura.estado_sifen === 'APROBADO') {
+    estadoColor = 'success';
+    estadoDisplay = 'APROBADO';
+    tieneError = false;
+  } else if (factura.estado_sifen === 'PROCESANDO' || factura.estado_sifen === '1') {
+    estadoColor = 'warning';
+    estadoDisplay = 'PROCESANDO';
+    tieneError = false;
+  } else if (factura.estado_sifen === 'ERROR' || (factura.error_sifen && factura.error_sifen !== '3')) {
+    estadoColor = 'danger';
+    estadoDisplay = 'ERROR';
+    tieneError = true;
+  } else {
+    estadoColor = 'secondary';
+    estadoDisplay = factura.estado_sifen || factura.estado || 'PENDIENTE';
+    tieneError = false;
+  }
+  
+  const tieneErrorNumeroDuplicado = esRechazado || 
+    (factura.error_sifen && factura.error_sifen.includes('NUMDOC_APROBADO'));
+  
+  let contenidoExtra = '';
+  if (tieneErrorNumeroDuplicado) {
+    const mensajeError = factura.error_sifen || 'Número de documento ya utilizado';
+    contenidoExtra = `
+      <div class="alert alert-danger mt-3">
+        <i class="bi bi-exclamation-triangle"></i>
+        <strong>Error de número duplicado en SIFEN:</strong><br>
+        ${mensajeError}
+        <div class="mt-2">
+          <button type="button" class="btn btn-warning btn-sm" onclick="cancelarYRegenerarFactura()">
+            <i class="bi bi-arrow-repeat"></i> Cancelar y Regenerar Factura
+          </button>
+          <small class="d-block text-muted mt-1">
+            Este número de factura ya fue utilizado previamente. Se generará automáticamente un nuevo número.
+          </small>
+        </div>
+      </div>
+    `;
+  } else if (factura.error_sifen && factura.error_sifen !== '3' && factura.error_sifen !== '') {
+    contenidoExtra = `
+      <div class="alert alert-warning mt-3">
+        <i class="bi bi-exclamation-triangle"></i>
+        <strong>Error en SIFEN:</strong> ${factura.error_sifen}
+      </div>
+    `;
+  }
+  
+  // Mostrar información del estado detallado si existe y no es el valor por defecto
+  let contenidoEstadoDetallado = '';
+  if (factura.desc_sifen && factura.desc_sifen !== '2' && factura.desc_sifen !== '') {
+    contenidoEstadoDetallado = `
+      <div class="mt-2">
+        <strong>Estado detallado:</strong> ${factura.desc_sifen}
+      </div>
+    `;
+  }
+
+  // Botones de cancelación
+  let botonesCancelar = '';
+  if (estadoDisplay === 'APROBADO' || estadoDisplay === 'PROCESANDO') {
+    botonesCancelar = `
+      <div class="mt-3 border-top pt-3">
+        <h6>Acciones Avanzadas</h6>
+        <button type="button" class="btn btn-outline-danger btn-sm" onclick="cancelarFactura()">
+          <i class="bi bi-x-circle"></i> Cancelar/Inutilizar Factura
+        </button>
+        <small class="d-block text-muted mt-1">
+          Esta acción cancelará la factura en el sistema SIFEN. Use solo si es necesario.
+        </small>
+      </div>
+    `;
+  }
+  
+  document.getElementById('facturaModalBody').innerHTML = `
+    <div class="row">
+      <div class="col-md-6">
+        <h6>Información de la Factura</h6>
+        <p><strong>Número:</strong> ${factura.numero_factura || 'N/A'}</p>
+        <p><strong>CDC:</strong> ${factura.cdc || 'N/A'}</p>
+        <p><strong>Estado SIFEN:</strong> 
+          <span class="badge bg-${estadoColor}">${estadoDisplay}</span>
+        </p>
+        ${factura.estado && factura.estado !== 'Confirmado' ? `
+        <p><strong>Estado interno:</strong> ${factura.estado}</p>
+        ` : ''}
+        ${contenidoEstadoDetallado}
+      </div>
+      <div class="col-md-6">
+        <h6>Detalles</h6>
+        <p><strong>Fecha Emisión:</strong> ${factura.fecha_emision || 'N/A'}</p>
+        <p><strong>Receptor:</strong> ${factura.nombre_receptor || 'N/A'}</p>
+        <p><strong>RUC Receptor:</strong> ${factura.ruc_receptor || 'N/A'}</p>
+      </div>
+    </div>
+    ${factura.descripcion_estado ? `
+    <div class="mt-3">
+      <h6>Descripción del Estado</h6>
+      <div class="alert alert-info">
+        ${factura.descripcion_estado}
+      </div>
+    </div>
+    ` : ''}
+    ${contenidoExtra}
+    ${botonesCancelar}
+  `;
+  
+  // LÓGICA PARA BOTONES DEL MODAL - de forma segura
+  ocultarTodosBotones();
+  
+  // SIEMPRE mostrar consulta de estado
+  mostrarBotonSiExiste('btnConsultarEstado');
+  
+  // Botones de descarga según el estado
+  if (estadoDisplay === 'APROBADO') {
+    mostrarBotonSiExiste('btnDescargarPDF');
+    mostrarBotonSiExiste('btnDescargarXML');
+  } else if (!tieneError) {
+    // En otros estados sin error, mostrar PDF si está disponible
+    mostrarBotonSiExiste('btnDescargarPDF');
+  }
+  
+  // Si hay CDC válido, mostrar descargas
+  if (factura.cdc && factura.cdc !== '0') {
+    mostrarBotonSiExiste('btnDescargarPDF');
+    mostrarBotonSiExiste('btnDescargarXML');
+  }
+  
+  // Mostrar botón de cancelar en el footer para estados apropiados
+  if (estadoDisplay === 'APROBADO' || estadoDisplay === 'PROCESANDO') {
+    mostrarBotonSiExiste('btnCancelarFactura');
+  }
+  
+  // Si no hay factura, mostrar botón de generación
+  if (!data.factura || !data.factura.numero_factura) {
+    mostrarBotonSiExiste('btnGenerarFactura');
+  }
+}
+
+// Función auxiliar para mostrar botones de forma segura
+function mostrarBotonSiExiste(botonId) {
+  const boton = document.getElementById(botonId);
+  if (boton) {
+    boton.style.display = 'inline-block';
+  }
+}
+
+function mostrarSinFactura(data) {
+  document.getElementById('facturaModalBody').innerHTML = `
+    <div class="alert alert-info">
+      <i class="bi bi-info-circle"></i> Esta transacción no tiene factura electrónica generada.
+    </div>
+    <div class="mt-3">
+      <p>Puede generar una factura electrónica para esta transacción.</p>
+    </div>
+  `;
+  
+  mostrarBotonSiExiste('btnGenerarFactura');
+}
+
+// Función para abrir modal de datos fiscales
+function solicitarDatosFiscales() {
+  // Limpiar formulario
+  document.getElementById('formDatosFiscales').reset();
+  document.getElementById('confirmarDatos').checked = false;
+  
+  // Ocultar modal de factura y mostrar modal de datos fiscales
+  const facturaModal = bootstrap.Modal.getInstance(document.getElementById('facturaModal'));
+  if (facturaModal) {
+    facturaModal.hide();
+  }
+  
+  datosFiscalesModal.show();
+}
+
+// Función para generar factura con datos fiscales
+function generarFacturaConDatos() {
+  if (!document.getElementById('confirmarDatos').checked) {
+    alert('Debe confirmar que los datos fiscales son correctos antes de generar la factura.');
+    return;
+  }
+
+  if (!document.getElementById('fact_nombre').value.trim()) {
+    alert('El campo Nombre / Razón Social es obligatorio.');
+    return;
+  }
+
+  const datosFiscales = {
+    nombre: document.getElementById('fact_nombre').value.trim(),
+    ruc: document.getElementById('fact_ruc').value.trim(),
+    dv: document.getElementById('fact_dv').value.trim(),
+    cedula: document.getElementById('fact_cedula').value.trim(),
+    email: document.getElementById('fact_email').value.trim(),
+    telefono: document.getElementById('fact_telefono').value.trim(),
+    direccion: document.getElementById('fact_direccion').value.trim()
+  };
+
+  // Mostrar loading en el modal de factura
+  datosFiscalesModal.hide();
+  const facturaModal = new bootstrap.Modal(document.getElementById('facturaModal'));
+  facturaModal.show();
+  
+  document.getElementById('facturaModalBody').innerHTML = `
+    <div class="text-center">
+      <div class="spinner-border" role="status">
+        <span class="visually-hidden">Generando factura...</span>
+      </div>
+      <p class="mt-2">Generando factura electrónica...</p>
+    </div>
+  `;
+  
+  ocultarTodosBotones();
+  
+  const url = `{% url 'facturacion:generar_factura_transaccion' 0 %}`.replace('/0/', `/${transaccionActualId}/`);
+  
+  fetch(url, {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': getCookie('csrftoken'),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      datos_fiscales: datosFiscales
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+  if (data.success) {
+    let contenidoExito = '';
+    
+    if (data.cdc && data.cdc !== '0') {
+      contenidoExito = `
+        <p><strong>CDC:</strong> <code class="bg-light p-1 rounded">${data.cdc}</code></p>
+        <p><strong>Estado:</strong> <span class="badge bg-success">GENERADA</span></p>
+        <div class="alert alert-success mt-2">
+          <i class="bi bi-check-circle"></i> Factura generada con CDC asignado.
+        </div>
+      `;
+    } else {
+      contenidoExito = `
+        <p><strong>CDC:</strong> <span class="text-muted">Pendiente de asignación por SIFEN</span></p>
+        <p><strong>Estado:</strong> <span class="badge bg-warning">PROCESANDO</span></p>
+        <div class="alert alert-info mt-2">
+          <i class="bi bi-info-circle"></i> 
+          La factura está siendo procesada por el sistema SIFEN. 
+          El CDC se asignará automáticamente cuando sea aprobada.
+        </div>
+      `;
+    }
+    
+    document.getElementById('facturaModalBody').innerHTML = `
+      <div class="alert alert-success">
+        <i class="bi bi-check-circle"></i> Factura generada exitosamente!
+      </div>
+      <div class="row">
+        <div class="col-md-6">
+          <p><strong>Número de Factura:</strong> ${data.numero_factura || 'N/A'}</p>
+          ${contenidoExito}
+        </div>
+      </div>
+    `;
+    
+    // Siempre mostrar consulta después de generar
+    mostrarBotonSiExiste('btnConsultarEstado');
+    mostrarBotonSiExiste('btnDescargarPDF');
+    } else {
+      document.getElementById('facturaModalBody').innerHTML = `
+        <div class="alert alert-danger">
+          <i class="bi bi-x-circle"></i> Error al generar factura: ${data.error || 'Error desconocido'}
+        </div>
+        <button type="button" class="btn btn-primary mt-2" onclick="solicitarDatosFiscales()">
+          Reintentar
+        </button>
+      `;
+    }
+  })
+  .catch(error => {
+    document.getElementById('facturaModalBody').innerHTML = `
+      <div class="alert alert-danger">
+        <i class="bi bi-x-circle"></i> Error: ${error.message}
+      </div>
+      <button type="button" class="btn btn-primary mt-2" onclick="solicitarDatosFiscales()">
+        Reintentar
+      </button>
+    `;
+  });
+}
+
+// Modificar la función generarFactura original para que abra el modal de datos fiscales
+function generarFactura() {
+  solicitarDatosFiscales();
+}
+
+// Asignar evento al botón de confirmar en el modal de datos fiscales
+document.addEventListener('DOMContentLoaded', function() {
+  const btnConfirmar = document.getElementById('btnConfirmarGenerarFactura');
+  if (btnConfirmar) {
+    btnConfirmar.addEventListener('click', generarFacturaConDatos);
+  }
+});
+
+function descargarFactura(formato) {
+  // Primero obtener información de la factura para tener el número
+  const infoUrl = `{% url 'facturacion:info_factura_transaccion' 0 %}`.replace('/0/', `/${transaccionActualId}/`);
+  
+  fetch(infoUrl)
+    .then(response => response.json())
+    .then(data => {
+      if (data.success && data.factura.numero_factura) {
+        const numeroFactura = data.factura.numero_factura;
+        const url = `{% url 'facturacion:descargar_factura' 'NUMERO_FACTURA' 'pdf' %}`
+          .replace('NUMERO_FACTURA', numeroFactura)
+          .replace('/pdf/', `/${formato}/`);
+        window.open(url, '_blank');
+      } else {
+        alert('No se pudo obtener el número de factura para descargar');
+      }
+    })
+    .catch(error => {
+      console.error('Error al obtener número de factura:', error);
+      alert('Error al obtener información de la factura');
+    });
+}
+
+function consultarEstadoFactura() {
+  document.getElementById('facturaModalBody').innerHTML = `
+    <div class="text-center">
+      <div class="spinner-border" role="status">
+        <span class="visually-hidden">Consultando estado...</span>
+      </div>
+      <p class="mt-2">Consultando estado de la factura...</p>
+    </div>
+  `;
+  
+  const url = `{% url 'facturacion:consultar_estado_factura_transaccion' 0 %}`.replace('/0/', `/${transaccionActualId}/`);
+  
+  fetch(url)
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        // Recargar la información para mostrar CDC y estado actualizados
+        cargarInfoFactura(transaccionActualId);
+        
+        // Mostrar mensaje de éxito con mejor formato
+        setTimeout(() => {
+          const estado = data.estado || 'DESCONOCIDO';
+          let estadoColor, icono, mensaje;
+          
+          if (estado === 'APROBADO' || estado === 'Aprobado') {
+            estadoColor = 'success';
+            icono = 'bi-check-circle';
+            mensaje = `Factura <strong>APROBADA</strong> por SIFEN`;
+          } else if (estado === 'PROCESANDO') {
+            estadoColor = 'warning';
+            icono = 'bi-clock';
+            mensaje = `Factura en <strong>PROCESAMIENTO</strong> por SIFEN`;
+          } else if (estado === 'ERROR' || estado === 'RECHAZADO') {
+            estadoColor = 'danger';
+            icono = 'bi-exclamation-triangle';
+            mensaje = `<strong>ERROR</strong> en el procesamiento`;
+          } else {
+            estadoColor = 'info';
+            icono = 'bi-info-circle';
+            mensaje = `Estado actual: <strong>${estado}</strong>`;
+          }
+          
+          let contenidoExtra = '';
+          if (data.cdc && data.cdc !== '0') {
+            contenidoExtra = `<br><strong>CDC:</strong> <code class="bg-light p-1 rounded">${data.cdc}</code>`;
+          }
+          if (data.descripcion) {
+            contenidoExtra += `<br><strong>Detalles:</strong> ${data.descripcion}`;
+          }
+          
+          document.getElementById('facturaModalBody').innerHTML += `
+            <div class="alert alert-${estadoColor} mt-3">
+              <i class="bi ${icono}"></i> 
+              ${mensaje}
+              ${contenidoExtra}
+            </div>
+          `;
+        }, 500);
+      } else {
+        document.getElementById('facturaModalBody').innerHTML = `
+          <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle"></i> ${data.error}
+          </div>
+          <button type="button" class="btn btn-primary mt-2" onclick="consultarEstadoFactura()">
+            <i class="bi bi-arrow-clockwise"></i> Reintentar
+          </button>
+        `;
+      }
+    })
+    .catch(error => {
+      document.getElementById('facturaModalBody').innerHTML = `
+        <div class="alert alert-danger">
+          <i class="bi bi-x-circle"></i> Error al consultar estado: ${error.message || error}
+        </div>
+        <button type="button" class="btn btn-primary mt-2" onclick="consultarEstadoFactura()">
+          <i class="bi bi-arrow-clockwise"></i> Reintentar
+        </button>
+      `;
+    });
+}
+
+// FUNCIONES DE CANCELAR Y REGENERAR FACTURA
+
+// Función para cancelar factura
+function cancelarFactura() {
+  if (!confirm('¿Está seguro de que desea cancelar esta factura? Esta acción no se puede deshacer.')) {
+    return;
+  }
+
+  document.getElementById('facturaModalBody').innerHTML = `
+    <div class="text-center">
+      <div class="spinner-border" role="status">
+        <span class="visually-hidden">Cancelando factura...</span>
+      </div>
+      <p class="mt-2">Cancelando factura...</p>
+    </div>
+  `;
+
+  const url = `{% url 'facturacion:cancelar_factura_transaccion' 0 %}`.replace('/0/', `/${transaccionActualId}/`);
+  
+  fetch(url, {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': getCookie('csrftoken'),
+      'Content-Type': 'application/json', // AGREGAR ESTE HEADER
+    },
+    body: JSON.stringify({}) // ENVIAR OBJETO VACÍO PERO CON JSON
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      document.getElementById('facturaModalBody').innerHTML = `
+        <div class="alert alert-success">
+          <i class="bi bi-check-circle"></i> Factura cancelada exitosamente
+        </div>
+        <div class="mt-3">
+          <p><strong>Estado actual:</strong> <span class="badge bg-secondary">INUTILIZADO</span></p>
+          <p>${data.message || 'La factura ha sido cancelada/inutilizada en el sistema SIFEN.'}</p>
+        </div>
+        <div class="mt-3">
+          <button type="button" class="btn btn-primary" onclick="regenerarFactura()">
+            <i class="bi bi-arrow-repeat"></i> Regenerar Factura
+          </button>
+        </div>
+      `;
+      
+      // Ocultar botones de descarga después de cancelar
+      ocultarTodosBotones();
+      mostrarBotonSiExiste('btnConsultarEstado');
+      
+    } else {
+      document.getElementById('facturaModalBody').innerHTML = `
+        <div class="alert alert-danger">
+          <i class="bi bi-x-circle"></i> Error al cancelar factura: ${data.error || 'Error desconocido'}
+        </div>
+        <button type="button" class="btn btn-primary mt-2" onclick="cargarInfoFactura(transaccionActualId)">
+          <i class="bi bi-arrow-clockwise"></i> Reintentar
+        </button>
+      `;
+    }
+  })
+  .catch(error => {
+    document.getElementById('facturaModalBody').innerHTML = `
+      <div class="alert alert-danger">
+        <i class="bi bi-x-circle"></i> Error: ${error.message}
+      </div>
+      <button type="button" class="btn btn-primary mt-2" onclick="cargarInfoFactura(transaccionActualId)">
+        <i class="bi bi-arrow-clockwise"></i> Reintentar
+      </button>
+    `;
+  });
+}
+
+// Función para regenerar factura
+function regenerarFactura() {
+  document.getElementById('facturaModalBody').innerHTML = `
+    <div class="text-center">
+      <div class="spinner-border" role="status">
+        <span class="visually-hidden">Regenerando factura...</span>
+      </div>
+      <p class="mt-2">Regenerando factura...</p>
+    </div>
+  `;
+
+  const url = `{% url 'facturacion:regenerar_factura_transaccion' 0 %}`.replace('/0/', `/${transaccionActualId}/`);
+  
+  fetch(url, {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': getCookie('csrftoken'),
+      'Content-Type': 'application/json', // ✅ AGREGAR ESTE HEADER
+    },
+    body: JSON.stringify({}) // ✅ ENVIAR OBJETO VACÍO PERO CON JSON
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      const nuevaFactura = data.nueva_factura;
+      document.getElementById('facturaModalBody').innerHTML = `
+        <div class="alert alert-success">
+          <i class="bi bi-check-circle"></i> Factura regenerada exitosamente
+        </div>
+        <div class="row">
+          <div class="col-md-6">
+            <p><strong>Nueva Factura:</strong> ${nuevaFactura.numero_factura}</p>
+            <p><strong>CDC:</strong> <code class="bg-light p-1 rounded">${nuevaFactura.cdc || 'Pendiente'}</code></p>
+            <p><strong>Estado:</strong> <span class="badge bg-warning">PROCESANDO</span></p>
+          </div>
+        </div>
+        <div class="alert alert-info mt-3">
+          <i class="bi bi-info-circle"></i> 
+          La nueva factura está siendo procesada por el sistema SIFEN.
+          Puede consultar el estado en unos momentos.
+        </div>
+      `;
+      
+      // Mostrar botones relevantes
+      ocultarTodosBotones();
+      mostrarBotonSiExiste('btnConsultarEstado');
+      
+      // Recargar la información después de un breve delay
+      setTimeout(() => {
+        cargarInfoFactura(transaccionActualId);
+      }, 3000);
+      
+    } else {
+      document.getElementById('facturaModalBody').innerHTML = `
+        <div class="alert alert-danger">
+          <i class="bi bi-x-circle"></i> Error al regenerar factura: ${data.error || 'Error desconocido'}
+        </div>
+        <button type="button" class="btn btn-primary mt-2" onclick="cargarInfoFactura(transaccionActualId)">
+          <i class="bi bi-arrow-clockwise"></i> Reintentar
+        </button>
+      `;
+    }
+  })
+  .catch(error => {
+    document.getElementById('facturaModalBody').innerHTML = `
+      <div class="alert alert-danger">
+        <i class="bi bi-x-circle"></i> Error: ${error.message}
+      </div>
+      <button type="button" class="btn btn-primary mt-2" onclick="cargarInfoFactura(transaccionActualId)">
+        <i class="bi bi-arrow-clockwise"></i> Reintentar
+      </button>
+    `;
+  });
+}
+
+// Función para cancelar y regenerar automáticamente (para errores de número duplicado)
+function cancelarYRegenerarFactura() {
+  if (!confirm('Se detectó un error de número duplicado. ¿Desea cancelar la factura actual y generar una nueva automáticamente?')) {
+    return;
+  }
+
+  document.getElementById('facturaModalBody').innerHTML = `
+    <div class="text-center">
+      <div class="spinner-border" role="status">
+        <span class="visually-hidden">Procesando...</span>
+      </div>
+      <p class="mt-2">Cancelando factura anterior y generando nueva...</p>
+    </div>
+  `;
+
+  // Primero cancelar la factura actual
+  const cancelarUrl = `{% url 'facturacion:cancelar_factura_transaccion' 0 %}`.replace('/0/', `/${transaccionActualId}/`);
+  
+  fetch(cancelarUrl, {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': getCookie('csrftoken'),
+      'Content-Type': 'application/json', // ✅ AGREGAR ESTE HEADER
+    },
+    body: JSON.stringify({}) // ✅ ENVIAR OBJETO VACÍO PERO CON JSON
+  })
+  .then(response => response.json())
+  .then(cancelarData => {
+    if (cancelarData.success) {
+      // Luego regenerar la factura
+      regenerarFactura();
+    } else {
+      throw new Error(cancelarData.error || 'Error al cancelar factura');
+    }
+  })
+  .catch(error => {
+    document.getElementById('facturaModalBody').innerHTML = `
+      <div class="alert alert-danger">
+        <i class="bi bi-x-circle"></i> Error en el proceso: ${error.message}
+      </div>
+      <button type="button" class="btn btn-primary mt-2" onclick="cargarInfoFactura(transaccionActualId)">
+        <i class="bi bi-arrow-clockwise"></i> Reintentar
+      </button>
+    `;
+  });
+}
+// Función auxiliar para obtener el token CSRF
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+</script>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // tooltips
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(el => new bootstrap.Tooltip(el));
+  });
+</script>
 {% endblock %}

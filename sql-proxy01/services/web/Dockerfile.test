@@ -1,0 +1,80 @@
+###########
+# BUILDER #
+###########
+
+# pull official base image
+## FROM python:3.11.3-slim-buster AS builder
+
+# set work directory
+## WORKDIR /usr/src/app-test
+
+# set environment variables
+## ENV PYTHONDONTWRITEBYTECODE 1
+## ENV PYTHONUNBUFFERED 1
+
+# install system dependencies
+## RUN apt-get update && \
+##     apt-get install -y --no-install-recommends gcc
+
+# lint
+## RUN pip install --upgrade pip
+## RUN pip install flake8==6.0.0
+## COPY . /usr/src/app-test/
+#RUN python3 -m flake8 --ignore=E501,F401 .
+
+# install python dependencies
+## COPY ./requirements.txt .
+## RUN pip wheel --no-cache-dir --no-deps --wheel-dir /usr/src/app-test/wheels -r requirements.txt
+
+
+#########
+# FINAL #
+#########
+
+# pull official base image
+FROM python:3.11.3-slim-bullseye
+ENV TZ="America/Asuncion"
+# create directory for the app user
+RUN mkdir -p /home/app
+RUN mkdir -p /kude
+
+# create the app user
+RUN addgroup --system app && adduser --system --group app
+
+# create the appropriate directories
+ENV HOME=/home/app
+ENV APP_HOME=/home/app/web-test
+RUN mkdir $APP_HOME
+WORKDIR $APP_HOME
+
+# install dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends netcat
+## COPY --from=builder /usr/src/app-test/wheels /wheels
+## COPY --from=builder /usr/src/app-test/requirements.txt .
+
+COPY ./requirements.txt $APP_HOME
+
+RUN pip install --upgrade pip
+#RUN pip install --no-cache /wheels/*
+RUN pip install --no-cache-dir -r requirements.txt
+
+# copy entrypoint-test.sh
+COPY ./entrypoint.test.sh $APP_HOME
+RUN chmod +x entrypoint.test.sh
+
+# copy fs_proxy
+COPY . $APP_HOME
+
+# Install procps to get the top command
+USER root
+RUN apt-get update && apt-get install -y procps
+
+# chown all the files to the app user
+RUN chown -R app:app $APP_HOME
+RUN chown -R app:app /kude
+
+# change to the app user
+USER app
+
+# run entrypoint.test.sh
+ENTRYPOINT ["/home/app/web-test/entrypoint.test.sh"]

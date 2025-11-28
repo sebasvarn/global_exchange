@@ -70,4 +70,7 @@ urlpatterns = [
 
     # --- Pagos (procesamiento vía pasarela) ---
     path('pagos/', include(('pagos.urls', 'pagos'), namespace='pagos')),
+
+    # --- Facturación Electrónica ---
+    path('facturacion/', include(('facturacion.urls', 'pagos'), namespace='facturacion')),
 ]
