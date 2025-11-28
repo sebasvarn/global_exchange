@@ -3,15 +3,17 @@ from transaccion.services import calcular_transaccion
 from monedas.models import TasaCambio 
 
 #no se usa actualmente creo
-"""
+
 def obtener_datos_transaccion(transaccion_id):
-    """"""
-    Dado el id de una transacción, retorna un diccionario con:
-    - tipo: el tipo de la transacción
-    - moneda: el código de la moneda
-    - tasa: la tasa aplicada
-    Además, verifica si la tasa aplicada es diferente a la tasa activa actual y muestra un mensaje si hay cambio.
-    """"""
+    """
+    Dado el id de una transacción, retorna un diccionario con los datos clave de la transacción.
+
+    Args:
+        transaccion_id (int): ID de la transacción.
+
+    Returns:
+        dict | None: Diccionario con tipo, moneda, tasa aplicada y tasa recalculada, o None si no existe.
+    """
     try:
         transaccion = Transaccion.objects.select_related('moneda').get(pk=transaccion_id)
     except Transaccion.DoesNotExist:
@@ -36,4 +38,3 @@ def obtener_datos_transaccion(transaccion_id):
     }
 
     return datos
-"""""

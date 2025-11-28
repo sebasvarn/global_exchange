@@ -26,15 +26,6 @@ class ClienteForm(forms.ModelForm):
     """
 
     class Meta:
-        """
-        Configuración del formulario ClienteForm.
-
-        Attributes:
-            model (Model): Modelo Cliente al que está asociado el formulario.
-            fields (list): Campos a incluir en el formulario.
-            widgets (dict): Widgets personalizados para la visualización de campos.
-            labels (dict): Etiquetas legibles para los campos del formulario.
-        """
         model = Cliente
         fields = ["nombre", "tipo", "usuarios"]
         widgets = {
@@ -59,14 +50,6 @@ class AsignarUsuariosAClienteForm(forms.ModelForm):
     """
 
     class Meta:
-        """
-        Configuración del formulario AsignarUsuariosAClienteForm.
-
-        Attributes:
-            model (Model): Modelo Cliente al que está asociado el formulario.
-            fields (list): Campos a incluir en el formulario.
-            widgets (dict): Widgets personalizados para la visualización de campos.
-        """
         model = Cliente
         fields = ["usuarios"]
         widgets = {
@@ -93,15 +76,6 @@ class TasaComisionForm(forms.ModelForm):
     """
 
     class Meta:
-        """
-        Configuración del formulario TasaComisionForm.
-
-        Attributes:
-            model (Model): Modelo TasaComision al que está asociado el formulario.
-            fields (list): Campos a incluir en el formulario.
-            widgets (dict): Widgets personalizados para cada campo.
-            labels (dict): Etiquetas legibles para los campos del formulario.
-        """
         model = TasaComision
         fields = ["tipo_cliente", "porcentaje", "vigente_desde", "vigente_hasta", "estado"]
         widgets = {
@@ -150,6 +124,13 @@ class LimiteClienteTipoForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        """
+        Inicializa el formulario LimiteClienteTipoForm y ajusta los campos para mostrar valores formateados.
+
+        Args:
+            *args: Argumentos posicionales.
+            **kwargs: Argumentos con nombre.
+        """
         super().__init__(*args, **kwargs)
         self.fields['tipo_cliente'].disabled = True
         # Mostrar los valores como enteros con puntos de miles (sin decimales)

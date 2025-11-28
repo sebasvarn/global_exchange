@@ -4,10 +4,12 @@ Vistas (FBV) de la app 'monedas'.
 Incluye operaciones CRUD y gestión de tasas de cambio.
 
 Endpoints JSON:
+
 - cotizaciones_json: devuelve todas las cotizaciones de monedas.
 - tasas_comisiones_json: devuelve tasas de descuento vigentes por tipo de cliente.
 
 CRUD Moneda:
+
 - monedas_list
 - moneda_create
 - moneda_edit
@@ -15,6 +17,7 @@ CRUD Moneda:
 - monedas_inactivas
 
 CRUD TasaCambio:
+
 - tasas_list
 - tasa_create
 - tasa_edit
@@ -40,9 +43,11 @@ from django.views.decorators.http import require_GET
 def evolucion_tasas_json(request):
     """
     Devuelve la evolución diaria de la tasa de una moneda (última cotización de cada día) en formato JSON.
+
     Parámetros GET:
-        - moneda: código de moneda (ej: USD)
-        - dias: cantidad de días hacia atrás (opcional, default=365)
+
+    - moneda: código de moneda (ej: USD)
+    - dias: cantidad de días hacia atrás (opcional, default=365)
     """
     codigo = request.GET.get('moneda')
     desde_str = request.GET.get('desde')

@@ -48,9 +48,23 @@ def _send_otp_by_email(user, raw_code, purpose, expires_at, destination):
 
 def generate_otp(user, purpose, method=None, destination=None, length=6, ttl_seconds=None, context=None, max_attempts=None):
     """
-    Genera y persiste un OTP para un usuario.
-    Aplica rate limiting para prevenir abuso de reenvíos.
-    Envía el código por el método configurado (email o terminal para SMS).
+    Genera y persiste un OTP para un usuario, aplicando rate limiting y enviando el código por el método configurado.
+
+    Args:
+        user (User): Usuario para el que se genera el OTP.
+        purpose (str): Propósito del OTP (ej: 'login', 'transacción').
+        method (str, optional): Método de envío ('email', 'sms').
+        destination (str, optional): Destino del OTP (email o teléfono).
+        length (int, optional): Longitud del código OTP.
+        ttl_seconds (int, optional): Tiempo de vida del OTP en segundos.
+        context (dict, optional): Contexto adicional para el OTP.
+        max_attempts (int, optional): Máximo de intentos permitidos.
+
+    Returns:
+        MfaOtp: Instancia creada del OTP.
+
+    Raises:
+        ValidationError: Si se supera el límite de reenvíos o el usuario está bloqueado.
     """
     # --- Rate Limiting para Reenvíos ---
     resend_limit = getattr(settings, 'MFA_RESEND_LIMIT', 3)
@@ -150,7 +164,18 @@ def generate_otp(user, purpose, method=None, destination=None, length=6, ttl_sec
 def verify_otp(user, purpose, raw_code, context_match=None):
     """
     Verifica el código OTP más reciente para un usuario y propósito.
-    Retorna (True, otp) si es válido; en caso contrario lanza ValidationError con detalle.
+
+    Args:
+        user (User): Usuario que verifica el OTP.
+        purpose (str): Propósito del OTP.
+        raw_code (str): Código OTP ingresado por el usuario.
+        context_match (dict, optional): Contexto a validar contra el OTP guardado.
+
+    Returns:
+        tuple: (True, otp) si es válido.
+
+    Raises:
+        ValidationError: Si el OTP no es válido, está expirado, o no corresponde al contexto.
     """
     otps = MfaOtp.objects.filter(user=user, purpose=purpose, used=False).order_by('-created_at')
     if not otps.exists():

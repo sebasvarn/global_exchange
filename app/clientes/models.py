@@ -130,15 +130,6 @@ class TasaComision(models.Model):
     actualizado_en = models.DateTimeField(auto_now=True)
 
     class Meta:
-        """
-        Configuración de metadatos del modelo TasaComision.
-
-        Attributes:
-            verbose_name (str): Nombre legible en singular.
-            verbose_name_plural (str): Nombre legible en plural.
-            indexes (list): Índices para optimizar consultas.
-            ordering (list): Orden por defecto en las consultas.
-        """
         verbose_name = "Tasa de descuento"
         verbose_name_plural = "Tasas de descuento"
         indexes = [

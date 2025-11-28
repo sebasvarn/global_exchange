@@ -67,9 +67,11 @@ class MedioAcreditacion(models.Model):
 
     class Meta:
         """
-        Configuración adicional del modelo:
-        - verbose_name y verbose_name_plural para mostrar nombres legibles en el admin.
-        - ordering por id ascendente.
+        Configuración adicional del modelo MedioAcreditacion.
+
+        :var verbose_name: Nombre legible en singular para el admin.
+        :var verbose_name_plural: Nombre legible en plural para el admin.
+        :var ordering: Orden por defecto de los registros.
         """
         verbose_name = "Medio de Acreditación"
         verbose_name_plural = "Medios de Acreditación"

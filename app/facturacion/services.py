@@ -11,6 +11,12 @@ from datetime import datetime
 logger = logging.getLogger("facturacion")
 
 class ServicioFacturacion:
+    """
+    Servicio para la gestión de facturación electrónica.
+
+    Provee métodos para generar, consultar, descargar, cancelar y regenerar facturas electrónicas
+    asociadas a transacciones, integrando con el SQL Proxy y el modelo FacturaElectronica.
+    """
     def __init__(self):
         self.config = ConfiguracionFacturacion.objects.filter(activo=True).first()
         if not self.config:

@@ -1,12 +1,12 @@
 """
 Forms de la aplicación 'monedas'.
 
-Contiene formularios para la gestión de Moneda y TasaCambio:
+Contiene formularios para la gestión de Moneda y TasaCambio.
 
-- MonedaForm: creación y edición de monedas, con validaciones de código único
-  y restricción de moneda base (solo 'PYG').
-- TasaCambioForm: creación y edición de tasas de cambio, validando que
-  venta >= compra y limitando la selección a monedas activas no base.
+Listas de formularios:
+
+- MonedaForm: creación y edición de monedas, con validaciones de código único y restricción de moneda base (solo 'PYG').
+- TasaCambioForm: creación y edición de tasas de cambio, validando que venta >= compra y limitando la selección a monedas activas no base.
 
 Los widgets utilizan clases de Bootstrap para una interfaz consistente.
 """
@@ -49,6 +49,7 @@ class MonedaForm(forms.ModelForm):
     Formulario para crear o editar monedas.
 
     Validaciones principales:
+
     - Código de moneda único, considerando monedas inactivas.
     - Solo 'PYG' puede ser moneda base del sistema.
     """
@@ -93,8 +94,11 @@ class MonedaForm(forms.ModelForm):
         """
         Valida que el código de la moneda sea único.
 
-        :raises ValidationError: si ya existe otra moneda con el mismo código
-        :return: código en mayúsculas
+        Raises:
+            ValidationError: si ya existe otra moneda con el mismo código.
+
+        Returns:
+            str: código en mayúsculas.
         """
         codigo = self.cleaned_data['codigo'].upper()
         if self.instance.pk:
@@ -112,8 +116,12 @@ class MonedaForm(forms.ModelForm):
         Validaciones generales del formulario.
 
         - Solo 'PYG' puede ser moneda base.
-        :raises ValidationError: si se intenta asignar otra moneda como base
-        :return: cleaned_data
+
+        Raises:
+            ValidationError: si se intenta asignar otra moneda como base.
+
+        Returns:
+            dict: cleaned_data.
         """
         cleaned_data = super().clean()
         codigo = cleaned_data.get('codigo', '').upper()

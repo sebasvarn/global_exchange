@@ -12,6 +12,18 @@ from collections import Counter
 from clientes.models import Cliente
 
 def dashboard(request):
+	"""
+	Vista de dashboard de control de ganancias.
+
+	Muestra estadísticas y gráficos de ganancias, transacciones y clientes en un rango de fechas.
+	Permite filtrar por fechas y agrupa información relevante para el análisis financiero.
+
+	Args:
+		request (HttpRequest): Solicitud HTTP de Django, puede incluir parámetros GET 'start_date' y 'end_date'.
+
+	Returns:
+		HttpResponse: Renderiza la plantilla 'control_ganancias/dashboard.html' con el contexto de datos para los gráficos y tablas.
+	"""
 	# Filtro por rango de fechas (máx 1 año)
 	today = timezone.now().date()
 	default_start = today - timedelta(days=30)

@@ -121,10 +121,14 @@ def medioacreditacion_update(request, pk):
 def medios_por_cliente_api(request):
     """
     API endpoint que devuelve los medios de acreditación asociados a un cliente en formato JSON.
+
     Usado para cargar dinámicamente las cuentas de cobro en el formulario de VENTA.
-    
-    Recibe ?cliente_id=<id> por GET.
-    Retorna JSON con lista de medios: [{"id": x, "tipo": "...", "descripcion": "..."}]
+
+    Args:
+        request (HttpRequest): Solicitud HTTP GET, requiere parámetro 'cliente_id'.
+
+    Returns:
+        JsonResponse: Lista de medios de acreditación del cliente, o error si no existe.
     """
     cliente_id = request.GET.get("cliente_id")
     if not cliente_id:
