@@ -1,0 +1,36 @@
+# docker-compose.dev.yml
+version: '3.8'
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - static_volume:/app/staticfiles
+    environment:
+      - DJANGO_SETTINGS_MODULE=global_exchange.settings.dev
+      - PYTHONPATH=/app
+    env_file:
+      - .env.dev
+    depends_on:
+      - db
+    command: python manage.py runserver 0.0.0.0:8000
+
+  db:
+    image: postgres:15
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=db_globalex
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=masterkey
+    ports:
+      - "5432:5432"
+
+volumes:
+  postgres_data:
+  static_volume:

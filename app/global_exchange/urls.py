@@ -23,10 +23,14 @@ from django.urls import path, include, re_path
 from django.views.static import serve
 from django.conf import settings
 from django.views.generic import RedirectView
+from .views import health
 import os
 
 #: Lista principal de URLs del proyecto.
 urlpatterns = [
+    path("health/", health, name="health"),
+    path("health", health, name="health"),
+    
     # --- Control de Ganancias ---
     path('control_ganancias/', include('control_ganancias.urls')),
     # --- Administración ---
@@ -70,4 +74,7 @@ urlpatterns = [
 
     # --- Pagos (procesamiento vía pasarela) ---
     path('pagos/', include(('pagos.urls', 'pagos'), namespace='pagos')),
+
+    # --- Facturación Electrónica ---
+    path('facturacion/', include(('facturacion.urls', 'pagos'), namespace='facturacion')),
 ]

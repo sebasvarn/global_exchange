@@ -1,0 +1,40 @@
+# Dockerfile.prod
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# Instalar dependencias del sistema
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libpq-dev \
+    netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/*
+
+# Instalar dependencias de Python
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+# Crear directorios necesarios
+RUN mkdir -p logs staticfiles
+
+# Copiar entrypoint
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
+
+# Colectar archivos estáticos
+RUN python manage.py collectstatic --noinput --settings=global_exchange.settings.prod
+
+# Crear usuario no root
+RUN groupadd -r django && useradd -r -g django django
+RUN chown -R django:django /app
+USER django
+
+EXPOSE 8000
+
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "global_exchange.wsgi:application"]

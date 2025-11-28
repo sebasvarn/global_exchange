@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  web:
+    build:
+      context: ./services/web
+      dockerfile: Dockerfile.test
+    command: gunicorn --bind 0.0.0.0:5000 manage:app --log-level debug --workers 3 --threads 4 --access-logfile /home/app/web-test/logs/access.log --error-logfile /home/app/web-test/logs/error.log
+    volumes:
+      - ./volumes/web/logs:/home/app/web-test/logs
+      - ./volumes/web/kude:/kude
+    expose:
+      - 5000
+    env_file:
+      - ./.env.test
+    depends_on:
+      - db
+  web-sched:
+    build:
+      context: ./services/web-sched
+      dockerfile: Dockerfile.test
+    command: flask run --host=0.0.0.0 --port=5001 --no-debugger --no-reload --with-threads 
+    volumes:
+      - ./volumes/web-sched/logs:/home/app/sched-test/logs
+    expose:
+      - 5001
+    env_file:
+      - ./.env-sched.test
+    depends_on:
+      - web
+  db:
+    image: postgres:17-bullseye
+    volumes:
+      - postgres_data_test:/var/lib/postgresql/data/
+    env_file:
+      - ./.env.test.db
+    ports:
+      - 45432:5432
+
+  nginx:
+    build: ./services/nginx
+    volumes:
+      - ./volumes/nginx/logs:/var/log/nginx
+      - ./volumes/web/kude:/kude
+    ports:
+      - 40080:80
+      - 40088:88
+    depends_on:
+      - web
+      - web-sched
+    env_file:
+      - ./.env.test
+volumes:
+  postgres_data_test:

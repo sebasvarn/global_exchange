@@ -1,3 +1,4 @@
+from django.http import JsonResponse
 from django.shortcuts import render, redirect
 from decimal import Decimal
 import os
@@ -80,3 +81,7 @@ def landing_page(request):
     }
 
     return render(request, "landing.html", context)
+
+
+def health(request):
+    return JsonResponse({"status": "ok"})

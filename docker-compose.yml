@@ -1,0 +1,157 @@
+version: '3.8'
+
+services:
+  # Base de datos principal de Global Exchange
+  db_globalexchange:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - postgres_data_globalexchange:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - globalexchange_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # SQL-Proxy Database
+  db_sqlproxy:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: fs_proxy_bd
+      POSTGRES_USER: fs_proxy_user
+      POSTGRES_PASSWORD: p123456
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - postgres_data_sqlproxy:/var/lib/postgresql/data
+    ports:
+      - "45432:5432"
+    networks:
+      - globalexchange_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fs_proxy_user -d fs_proxy_bd"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Aplicación SQL-Proxy
+  sql_proxy_web:
+    build:
+      context: ./sql-proxy01/services/web
+      dockerfile: Dockerfile.test
+    environment:
+      - DATABASE_URL=postgresql://fs_proxy_user:p123456@db_sqlproxy:5432/fs_proxy_bd
+      - HTTP_USERNAME=sqlproxy
+      - HTTP_PASSWORD=kude1234
+      - FLASK_APP=fs_proxy/__init__.py
+      - FLASK_DEBUG=1
+    volumes:
+      - ./sql-proxy01/volumes/web/kude:/kude
+      - ./sql-proxy01/volumes/web/logs:/home/app/web-test/logs
+    depends_on:
+      db_sqlproxy:
+        condition: service_healthy
+    networks:
+      - globalexchange_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Scheduler SQL-Proxy
+  sql_proxy_scheduler:
+    build:
+      context: ./sql-proxy01/services/web-sched
+      dockerfile: Dockerfile.test
+    environment:
+      - DATABASE_URL=postgresql://fs_proxy_user:p123456@db_sqlproxy:5432/fs_proxy_bd
+      - WORKER_SERVER=sql_proxy_web
+      - WORKER_PORT=5000
+      - FLASK_APP=scheduler/sched.py
+      - FLASK_DEBUG=0
+    depends_on:
+      sql_proxy_web:
+        condition: service_healthy
+    networks:
+      - globalexchange_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Aplicación Principal Django
+  django_app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    environment:
+      - DJANGO_SETTINGS_MODULE=global_exchange.settings.dev
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=db_globalexchange
+      - DB_PORT=5432
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
+      - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,django_app
+      - SITE_URL=http://localhost:8000
+      - CSRF_TRUSTED_ORIGINS=http://localhost,http://127.0.0.1
+      - SQL_PROXY_API_URL=http://sql_proxy_web:5000
+    volumes:
+      - ./app:/app
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    depends_on:
+      db_globalexchange:
+        condition: service_healthy
+    expose:
+      - "8000"
+    networks:
+      - globalexchange_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Nginx unificado
+  nginx:
+    build: ./sql-proxy01/services/nginx
+    ports:
+      - "80:80"
+      - "88:88"
+    volumes:
+      - ./sql-proxy01/volumes/web/kude:/kude
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    environment:
+      - HTTP_USERNAME=sqlproxy
+      - HTTP_PASSWORD=kude1234
+    depends_on:
+      - django_app
+      - sql_proxy_web
+      - sql_proxy_scheduler
+    restart: unless-stopped
+    networks:
+      - globalexchange_network
+
+volumes:
+  postgres_data_globalexchange:
+  postgres_data_sqlproxy:
+  static_volume:
+  media_volume:
+
+networks:
+  globalexchange_network:
+    driver: bridge
