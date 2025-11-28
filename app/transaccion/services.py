@@ -336,6 +336,7 @@ def reservar_stock_tauser_para_transaccion(tauser, transaccion, monto, moneda):
     # Obtener denominaciones ordenadas de mayor a menor
     denominaciones = Denominacion.objects.filter(moneda=moneda).order_by('-value')
     monto_restante = Decimal(monto)
+    from tauser.models import TauserStockMovimiento
     for denom in denominaciones:
         try:
             stock = TauserStock.objects.get(tauser=tauser, denominacion=denom)
@@ -346,7 +347,7 @@ def reservar_stock_tauser_para_transaccion(tauser, transaccion, monto, moneda):
         max_billetes = int(monto_restante // denom.value)
         usar = min(max_billetes, stock.quantity)
         if usar > 0:
-            # Descontar del stock
+            # Descontar del stock (reserva lógica, no movimiento definitivo)
             stock.quantity -= usar
             stock.save(update_fields=['quantity'])
             # Crear reserva
@@ -356,6 +357,7 @@ def reservar_stock_tauser_para_transaccion(tauser, transaccion, monto, moneda):
                 denominacion=denom,
                 cantidad=usar
             )
+            # NO crear movimiento de stock aquí, solo al completar la transacción
             monto_restante -= denom.value * usar
         if monto_restante <= 0:
             break

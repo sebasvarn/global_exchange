@@ -4,16 +4,73 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.utils import timezone
 from django.http import JsonResponse
 from facturacion.models import FacturaElectronica
-from commons.enums import EstadoTransaccionEnum
+from commons.enums import EstadoTransaccionEnum, TipoTransaccionEnum
 from mfa.services import generate_otp
-from monedas.models import TasaCambio
+from monedas.models import TasaCambio, Moneda
 from transaccion.models import Transaccion
 from transaccion.services import cancelar_transaccion, calcular_transaccion, confirmar_transaccion
 from .services import validar_stock_tauser_para_transaccion
 from .forms import TauserForm, TauserStockForm
-from .models import Tauser, TauserStock, Denominacion
-from monedas.models import Moneda
-import os, json
+from .models import Tauser, TauserStock, Denominacion, TauserStockMovimiento, ReservaDenominacionTauser
+import os
+import json
+from django.db import models
+def movimientos_tauser(request, tauser_id):
+    tausers = Tauser.objects.all().order_by('nombre')
+    tauser_id_selected = request.GET.get('tauser') or tauser_id
+    tauser = get_object_or_404(Tauser, id=tauser_id_selected)
+    movimientos = TauserStockMovimiento.objects.filter(tauser=tauser).select_related('denominacion', 'denominacion__moneda', 'transaccion').order_by('-fecha')
+    monedas = Moneda.objects.all()
+    moneda_codigo = request.GET.get('moneda', '')
+    tipo_movimiento = request.GET.get('tipo', '')
+    fecha_inicio = request.GET.get('fecha_inicio', '')
+    fecha_fin = request.GET.get('fecha_fin', '')
+    if moneda_codigo:
+        movimientos = movimientos.filter(denominacion__moneda__codigo=moneda_codigo)
+    if tipo_movimiento:
+        movimientos = movimientos.filter(tipo_movimiento=tipo_movimiento)
+    if fecha_inicio:
+        movimientos = movimientos.filter(fecha__date__gte=fecha_inicio)
+    if fecha_fin:
+        movimientos = movimientos.filter(fecha__date__lte=fecha_fin)
+
+    # Calcular sumas de entrada y salida para la moneda filtrada
+    suma_entrada_valor = 0.0
+    suma_salida_valor = 0.0
+    for mov in movimientos:
+        total_valor = float(mov.denominacion.value) * mov.cantidad
+        if mov.tipo_movimiento == 'entrada':
+            suma_entrada_valor += total_valor
+        elif mov.tipo_movimiento == 'salida':
+            suma_salida_valor += total_valor
+
+    # Prepara un diccionario con usuario y cliente para cada movimiento
+    movimientos_info = []
+    for mov in movimientos:
+        usuario = None
+        cliente = None
+        if mov.transaccion:
+            cliente = mov.transaccion.cliente
+            # Busca el primer usuario asociado al cliente (si existe)
+            usuario = cliente.usuarios.first() if hasattr(cliente, 'usuarios') else None
+        movimientos_info.append({
+            'mov': mov,
+            'usuario': usuario,
+            'cliente': cliente,
+        })
+    return render(request, 'movimientos_tauser.html', {
+        'tauser': tauser,
+        'tausers': tausers,
+        'movimientos_info': movimientos_info,
+        'monedas': monedas,
+        'moneda_codigo': moneda_codigo,
+        'tauser_id_selected': int(tauser_id_selected),
+        'tipo_movimiento': tipo_movimiento,
+        'fecha_inicio': fecha_inicio,
+        'fecha_fin': fecha_fin,
+        'suma_entrada_valor': suma_entrada_valor,
+        'suma_salida_valor': suma_salida_valor,
+    })
 
 
 def ver_stock_tauser(request, tauser_id):
@@ -76,25 +133,46 @@ def asignar_stock_tauser(request):
         if 'guardar' in request.POST and form.is_valid():
             tauser = form.cleaned_data['tauser']
             moneda = form.cleaned_data['moneda']
-
-            # Guardar o actualizar cada denominación
+            operacion = form.cleaned_data['operacion']
+            from .models import TauserStockMovimiento
+            hubo_error = False
             for d in denominaciones:
                 field_name = f"den_{d['type']}_{str(d['value']).replace('.', '_')}"
                 cantidad = form.cleaned_data.get(field_name, 0) or 0
-
+                if cantidad == 0:
+                    continue
                 denom_obj, _ = Denominacion.objects.get_or_create(
                     moneda=moneda,
                     value=d['value'],
                     type=d['type']
                 )
-
-                TauserStock.objects.update_or_create(
+                stock_obj, created = TauserStock.objects.get_or_create(
                     tauser=tauser,
                     denominacion=denom_obj,
-                    defaults={'quantity': cantidad}
+                    defaults={'quantity': 0}
                 )
-
-            messages.success(request, 'Stock actualizado correctamente.')
+                if operacion == 'agregar':
+                    stock_obj.quantity += cantidad
+                    tipo_mov = TauserStockMovimiento.ENTRADA
+                else:
+                    if cantidad > stock_obj.quantity:
+                        messages.error(
+                            request,
+                            f"No hay suficiente stock de {denom_obj} para descontar {cantidad}. Disponible: {stock_obj.quantity}."
+                        )
+                        hubo_error = True
+                        continue
+                    stock_obj.quantity -= cantidad
+                    tipo_mov = TauserStockMovimiento.SALIDA
+                stock_obj.save()
+                TauserStockMovimiento.objects.create(
+                    tauser=tauser,
+                    denominacion=denom_obj,
+                    cantidad=cantidad,
+                    tipo_movimiento=tipo_mov
+                )
+            if not hubo_error:
+                messages.success(request, 'Stock actualizado correctamente.')
             return redirect('tauser:asignar_stock_tauser')
 
     else:
@@ -154,16 +232,16 @@ def tramitar_transacciones(request):
                 error = f"No se encontró ninguna transacción con el código '{codigo_verificacion}'."
 
             if tx:
-                # --- PERMITIR VENTAS PENDIENTES DIRECTAMENTE ---
-                if tx.tipo == 'venta' and tx.estado == EstadoTransaccionEnum.PENDIENTE:
-                    pass
+                # Si es venta y pendiente, permitir siempre
+                if str(tx.tipo).lower() == 'venta' and tx.estado == EstadoTransaccionEnum.PENDIENTE:
+                    pass  # permitido
                 else:
                     # Validación TAUser asignado
                     if not tx.tauser:
                         error = "Por favor, seleccione un Tauser válido para esta transacción antes de continuar."
                     else:
-                        # Reglas de acceso
-                        if tx.tipo == 'compra':
+                        # Solo permitir acceso a pagadas, excepto efectivo en pendiente
+                        if str(tx.tipo).lower() == 'compra':
                             es_efectivo = tx.medio_pago and tx.medio_pago.payment_type == 'efectivo'
                         else:
                             es_efectivo = tx.medio_cobro and getattr(tx.medio_cobro, 'payment_type', None) == 'efectivo'
@@ -183,14 +261,14 @@ def tramitar_transacciones(request):
 
                 # Si todo OK
                 if not error:
-
-                    # Tasa recalculada
-                    tasa_obj = TasaCambio.objects.filter(
-                        moneda=tx.moneda,
-                        activa=True
-                    ).latest("fecha_creacion")
-
-                    tasa_actual = tasa_obj.venta if tx.tipo == "compra" else tasa_obj.compra
+                    # Buscar tasa actual según tipo de transacción
+                    tasa_obj = TasaCambio.objects.filter(moneda=tx.moneda, activa=True).latest("fecha_creacion")
+                    if str(tx.tipo).lower() == "compra":
+                        # Si la transacción es COMPRA, mostrar la tasa de VENTA
+                        tasa_actual = tasa_obj.venta
+                    else:
+                        # Si la transacción es VENTA, mostrar la tasa de COMPRA
+                        tasa_actual = tasa_obj.compra
 
                     # Construcción info transacción
                     if accion in ["buscar", "validar"]:
@@ -260,6 +338,50 @@ def tramitar_transacciones(request):
                             tx.estado = EstadoTransaccionEnum.COMPLETADA
                             tx.save()
 
+                            # Registrar movimiento de stock del tauser (igual que en concluir_venta, pero sin denominaciones del POST)
+                            tauser = tx.tauser
+                            if not tauser:
+                                raise Exception("No hay TAUser asignado a la transacción.")
+                            from .models import Denominacion, TauserStock, TauserStockMovimiento, ReservaDenominacionTauser
+                            from monedas.models import Moneda
+
+                            tipo_tx = str(tx.tipo).lower()
+                            medio_pago = getattr(tx, 'medio_pago', None)
+                            medio_cobro = getattr(tx, 'medio_cobro', None)
+                            pago_efectivo = getattr(medio_pago, 'payment_type', None) == 'efectivo'
+                            cobro_efectivo = getattr(medio_cobro, 'payment_type', None) == 'efectivo'
+
+                            # --- VENTA ---
+                            if tipo_tx == "venta":
+                                # SALIDA solo si el cobro es efectivo (entrega PYG)
+                                if cobro_efectivo:
+                                    moneda_pyg = Moneda.objects.get(codigo="PYG")
+                                    reservas = ReservaDenominacionTauser.objects.filter(transaccion=tx)
+                                    for reserva in reservas:
+                                        if reserva.denominacion.moneda == moneda_pyg:
+                                            TauserStockMovimiento.objects.create(
+                                                tauser=reserva.tauser,
+                                                denominacion=reserva.denominacion,
+                                                cantidad=reserva.cantidad,
+                                                tipo_movimiento=TauserStockMovimiento.SALIDA,
+                                                transaccion=tx
+                                            )
+                            # --- COMPRA ---
+                            elif tipo_tx == "compra":
+                                # SALIDA siempre (entrega moneda extranjera)
+                                reservas = ReservaDenominacionTauser.objects.filter(transaccion=tx)
+                                if not reservas.exists():
+                                    import logging
+                                    logging.warning(f"[TAUSER] No se encontraron reservas para registrar salida en compra. Transacción: {tx.id}")
+                                for reserva in reservas:
+                                    TauserStockMovimiento.objects.create(
+                                        tauser=reserva.tauser,
+                                        denominacion=reserva.denominacion,
+                                        cantidad=reserva.cantidad,
+                                        tipo_movimiento=TauserStockMovimiento.SALIDA,
+                                        transaccion=tx
+                                    )
+
                             # FACTURA
                             if generar_factura:
                                 from facturacion.services import ServicioFacturacion
@@ -299,35 +421,109 @@ def tramitar_transacciones(request):
                                         valor = float(valor_str.replace("_", "."))
                                         denominaciones[(tipo, valor)] = cantidad
 
-                            tauser = tx.tauser
-                            if not tauser:
-                                raise Exception("La transacción no tiene un TAUser asignado.")
+                            # 2. Calcular y guardar la ganancia antes de completar
+                            if tx.monto_operado is not None and tx.comision is not None:
+                                tx.ganancia = tx.monto_operado * tx.comision
+                                tx.save(update_fields=['ganancia'])
 
-                            moneda = tx.moneda if tx.tipo == "venta" else Moneda.objects.get(codigo="PYG")
-
-                            for (tipo, valor), cantidad in denominaciones.items():
-                                denom_obj, _ = Denominacion.objects.get_or_create(
-                                    moneda=moneda,
-                                    value=valor,
-                                    type=tipo
-                                )
-                                stock_obj, _ = TauserStock.objects.get_or_create(
-                                    tauser=tauser,
-                                    denominacion=denom_obj
-                                )
-                                stock_obj.quantity += cantidad
-                                stock_obj.save()
-
-                            # ===========================
-                            # 2. Confirmar transacción
-                            # ===========================
+                            # 3. Confirmar la transacción y pasar a COMPLETADA
                             confirmar_transaccion(tx)
-
                             tx.estado = EstadoTransaccionEnum.COMPLETADA
                             tx.save()
 
+
+                            # 4. Ahora sí, actualizar stock del tauser y registrar movimientos
+                            tauser = tx.tauser
+                            if not tauser:
+                                raise Exception("No hay TAUser asignado a la transacción.")
+                            from .models import Denominacion, TauserStock, TauserStockMovimiento, ReservaDenominacionTauser
+                            from monedas.models import Moneda
+
+                            tipo_tx = str(tx.tipo).lower()
+                            medio_pago = getattr(tx, 'medio_pago', None)
+                            medio_cobro = getattr(tx, 'medio_cobro', None)
+                            pago_efectivo = getattr(medio_pago, 'payment_type', None) == 'efectivo'
+                            cobro_efectivo = getattr(medio_cobro, 'payment_type', None) == 'efectivo'
+
+                            # --- VENTA ---
+                            if tipo_tx == "venta":
+                                # ENTRADA siempre (recibe moneda extranjera)
+                                moneda = tx.moneda
+                                for (tipo, valor), cantidad in denominaciones.items():
+                                    denom_obj, _ = Denominacion.objects.get_or_create(
+                                        moneda=moneda,
+                                        value=valor,
+                                        type=tipo
+                                    )
+                                    stock_obj, _ = TauserStock.objects.get_or_create(
+                                        tauser=tauser,
+                                        denominacion=denom_obj
+                                    )
+                                    stock_obj.quantity += cantidad
+                                    stock_obj.save()
+                                    if cantidad > 0:
+                                        TauserStockMovimiento.objects.create(
+                                            tauser=tauser,
+                                            denominacion=denom_obj,
+                                            cantidad=cantidad,
+                                            tipo_movimiento=TauserStockMovimiento.ENTRADA,
+                                            transaccion=tx
+                                        )
+                                # SALIDA solo si el cobro es efectivo (entrega PYG)
+                                if cobro_efectivo:
+                                    moneda_pyg = Moneda.objects.get(codigo="PYG")
+                                    reservas = ReservaDenominacionTauser.objects.filter(transaccion=tx)
+                                    for reserva in reservas:
+                                        if reserva.denominacion.moneda == moneda_pyg:
+                                            TauserStockMovimiento.objects.create(
+                                                tauser=reserva.tauser,
+                                                denominacion=reserva.denominacion,
+                                                cantidad=reserva.cantidad,
+                                                tipo_movimiento=TauserStockMovimiento.SALIDA,
+                                                transaccion=tx
+                                            )
+
+                            # --- COMPRA ---
+                            elif tipo_tx == "compra":
+                                # ENTRADA (recibe PYG) SIEMPRE, sin importar el método de pago
+                                moneda_pyg = Moneda.objects.get(codigo="PYG")
+                                for (tipo, valor), cantidad in denominaciones.items():
+                                    denom_obj, _ = Denominacion.objects.get_or_create(
+                                        moneda=moneda_pyg,
+                                        value=valor,
+                                        type=tipo
+                                    )
+                                    stock_obj, _ = TauserStock.objects.get_or_create(
+                                        tauser=tauser,
+                                        denominacion=denom_obj
+                                    )
+                                    stock_obj.quantity += cantidad
+                                    stock_obj.save()
+                                    if cantidad > 0:
+                                        TauserStockMovimiento.objects.create(
+                                            tauser=tauser,
+                                            denominacion=denom_obj,
+                                            cantidad=cantidad,
+                                            tipo_movimiento=TauserStockMovimiento.ENTRADA,
+                                            transaccion=tx
+                                        )
+                                # SALIDA siempre (entrega moneda extranjera)
+                                reservas = ReservaDenominacionTauser.objects.filter(transaccion=tx)
+                                if not reservas.exists():
+                                    # Depuración: si no hay reservas, dejar constancia
+                                    import logging
+                                    logging.warning(f"[TAUSER] No se encontraron reservas para registrar salida en compra. Transacción: {tx.id}")
+                                for reserva in reservas:
+                                    TauserStockMovimiento.objects.create(
+                                        tauser=reserva.tauser,
+                                        denominacion=reserva.denominacion,
+                                        cantidad=reserva.cantidad,
+                                        tipo_movimiento=TauserStockMovimiento.SALIDA,
+                                        transaccion=tx
+                                    )
+                                    
                             # ===========================
-                            # 3. Generar factura (NUEVO)
+                            # 5. Generar factura (NUEVO)
                             # ===========================
                             result_factura = None
                             if generar_factura:

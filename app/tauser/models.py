@@ -74,3 +74,27 @@ class ReservaDenominacionTauser(models.Model):
 
 	def __str__(self):
 		return f"Reserva {self.cantidad} x {self.denominacion} para tx {self.transaccion_id} en {self.tauser}"
+
+# Modelo para registrar movimientos de stock por Tauser
+class TauserStockMovimiento(models.Model):
+	ENTRADA = 'entrada'
+	SALIDA = 'salida'
+	TIPO_MOVIMIENTO_CHOICES = [
+		(ENTRADA, 'Entrada'),
+		(SALIDA, 'Salida'),
+	]
+
+	tauser = models.ForeignKey('Tauser', on_delete=models.CASCADE, related_name='movimientos_stock')
+	denominacion = models.ForeignKey('Denominacion', on_delete=models.CASCADE, related_name='movimientos_stock')
+	cantidad = models.IntegerField('Cantidad movida')
+	tipo_movimiento = models.CharField(max_length=10, choices=TIPO_MOVIMIENTO_CHOICES)
+	fecha = models.DateTimeField(auto_now_add=True)
+	transaccion = models.ForeignKey('transaccion.Transaccion', on_delete=models.SET_NULL, null=True, blank=True, related_name='movimientos_stock')
+
+	class Meta:
+		verbose_name = 'Movimiento de Stock de TAUser'
+		verbose_name_plural = 'Movimientos de Stock de TAUser'
+		ordering = ['-fecha']
+
+	def __str__(self):
+		return f"{self.get_tipo_movimiento_display()} {self.cantidad} x {self.denominacion} en {self.tauser} ({self.fecha:%Y-%m-%d %H:%M})"
