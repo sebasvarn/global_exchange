@@ -1,0 +1,29 @@
+asgiref==3.9.1
+sqlparse==0.5.3
+psycopg2-binary==2.9.10
+python-dotenv==1.1.1
+requests==2.32.5
+urllib3==2.5.0
+idna==3.10
+certifi==2025.8.3
+charset-normalizer==3.4.3
+httpx==0.28.1
+
+# --- Django ecosystem ---
+django-widget-tweaks==1.5.0
+django-browser-reload==1.18.0
+
+# --- FastAPI (para simulador de pasarela) ---
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+
+# --- Sphinx documentation stack ---
+Sphinx==8.2.3
+sphinx-autoapi==3.6.0
+sphinx-rtd-theme==3.0.2
+myst-parser==4.0.1
+sphinxcontrib-mermaid==1.0.0
+linkify-it-py==2.0.3
+
+stripe==14.0.1
