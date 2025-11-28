@@ -8,16 +8,15 @@ class MonedaModelTest(TestCase):
     """Pruebas unitarias para el modelo Moneda."""
 
     def setUp(self):
-        self.moneda_base = Moneda.objects.create(codigo='PYG', nombre='Guaraní', es_base=True)
-        self.moneda_usd = Moneda.objects.create(codigo='USD', nombre='Dólar')
+        self.moneda_base, _ = Moneda.objects.get_or_create(codigo='PYG', defaults={'nombre': 'Guaraní', 'es_base': True})
+        self.moneda_usd, _ = Moneda.objects.get_or_create(codigo='USD', defaults={'nombre': 'Dólar'})
 
     def test_str_method(self):
         self.assertIn('PYG', str(self.moneda_base))
         self.assertIn('USD', str(self.moneda_usd))
 
     def test_unique_base_moneda(self):
-        otra_base = Moneda(codigo='EUR', nombre='Euro', es_base=True)
-        otra_base.save()
+        otra_base, _ = Moneda.objects.get_or_create(codigo='EUR', defaults={'nombre': 'Euro', 'es_base': True})
         self.moneda_base.refresh_from_db()
         # Solo PYG puede ser base, EUR no será base
         self.assertTrue(self.moneda_base.es_base)
@@ -32,7 +31,7 @@ class TasaCambioModelTest(TestCase):
     """Pruebas unitarias para el modelo TasaCambio."""
 
     def setUp(self):
-        self.moneda_usd = Moneda.objects.create(codigo='USD', nombre='Dólar')
+        self.moneda_usd, _ = Moneda.objects.get_or_create(codigo='USD', defaults={'nombre': 'Dólar'})
         self.tasa1 = TasaCambio.objects.create(
             moneda=self.moneda_usd,
             compra=7000,
@@ -58,8 +57,8 @@ class MonedaViewsTest(TestCase):
         self.user = User.objects.create_user(email="test@monedas.com", password="testpass123", is_staff=True)
         self.client = Client()
         self.client.force_login(self.user)
-        self.moneda_base = Moneda.objects.create(codigo='PYG', nombre='Guaraní', es_base=True)
-        self.moneda_usd = Moneda.objects.create(codigo='USD', nombre='Dólar')
+        self.moneda_base, _ = Moneda.objects.get_or_create(codigo='PYG', defaults={'nombre': 'Guaraní', 'es_base': True})
+        self.moneda_usd, _ = Moneda.objects.get_or_create(codigo='USD', defaults={'nombre': 'Dólar'})
 
     def test_monedas_list_view(self):
         response = self.client.get(reverse('monedas:monedas_list'))
@@ -102,7 +101,10 @@ class TasaCambioViewsTest(TestCase):
         self.user = User.objects.create_user(email="test@tasas.com", password="testpass123", is_staff=True)
         self.client = Client()
         self.client.force_login(self.user)
-        self.moneda_usd = Moneda.objects.create(codigo='USD', nombre='Dólar')
+        self.moneda_usd, _ = Moneda.objects.get_or_create(codigo='USD', defaults={'nombre': 'Dólar'})
+        # Limpiar tasas previas para evitar acumulación
+        from .models import TasaCambio
+        TasaCambio.objects.filter(moneda=self.moneda_usd).delete()
         self.tasa = TasaCambio.objects.create(moneda=self.moneda_usd, compra=7000, venta=7200, activa=True)
 
     def test_tasas_list_view(self):

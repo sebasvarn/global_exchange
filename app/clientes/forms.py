@@ -150,6 +150,9 @@ class LimiteClienteTipoForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        """
+        Inicializa el formulario, configurando campos y valores iniciales según los argumentos recibidos.
+        """
         super().__init__(*args, **kwargs)
         self.fields['tipo_cliente'].disabled = True
         # Mostrar los valores como enteros con puntos de miles (sin decimales)

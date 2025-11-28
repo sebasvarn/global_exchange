@@ -67,9 +67,7 @@ class MedioAcreditacion(models.Model):
 
     class Meta:
         """
-        Configuración adicional del modelo:
-        - verbose_name y verbose_name_plural para mostrar nombres legibles en el admin.
-        - ordering por id ascendente.
+        Clase interna de Django para definir metadatos del modelo, como opciones de ordenamiento, nombres legibles y restricciones.
         """
         verbose_name = "Medio de Acreditación"
         verbose_name_plural = "Medios de Acreditación"
