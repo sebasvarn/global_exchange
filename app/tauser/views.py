@@ -1,6 +1,9 @@
+import uuid
 from django.contrib import messages
 from django.shortcuts import render, get_object_or_404, redirect
 from django.utils import timezone
+from django.http import JsonResponse
+from facturacion.models import FacturaElectronica
 from commons.enums import EstadoTransaccionEnum
 from mfa.services import generate_otp
 from monedas.models import TasaCambio
@@ -12,14 +15,29 @@ from .models import Tauser, TauserStock, Denominacion
 from monedas.models import Moneda
 import os, json
 
+
 def ver_stock_tauser(request, tauser_id):
+    """
+    Muestra el stock detallado de un Tauser,
+    filtrando por moneda si se especifica en el querystring.
+    """
     tauser = get_object_or_404(Tauser, id=tauser_id)
     monedas = Moneda.objects.all()
+
     moneda_codigo = request.GET.get('moneda', '')
-    stock_qs = TauserStock.objects.filter(tauser=tauser).select_related('denominacion__moneda')
+    stock_qs = TauserStock.objects.filter(
+        tauser=tauser
+    ).select_related('denominacion__moneda')
+
     if moneda_codigo:
         stock_qs = stock_qs.filter(denominacion__moneda__codigo=moneda_codigo)
-    stock = stock_qs.order_by('denominacion__moneda__codigo', '-denominacion__type', '-denominacion__value')
+
+    stock = stock_qs.order_by(
+        'denominacion__moneda__codigo',
+        '-denominacion__type',
+        '-denominacion__value'
+    )
+
     return render(request, 'ver_stock_tauser.html', {
         'tauser': tauser,
         'stock': stock,
@@ -27,45 +45,61 @@ def ver_stock_tauser(request, tauser_id):
         'moneda_codigo': moneda_codigo,
     })
 
+
 def asignar_stock_tauser(request):
-    # Leer denominaciones.json
+    """
+    Permite asignar o actualizar el stock de divisas del Tauser,
+    basado en las denominaciones definidas en denominaciones.json.
+    """
     denominaciones_json_path = os.path.join(os.path.dirname(__file__), 'denominaciones.json')
     with open(denominaciones_json_path, 'r') as f:
         denominaciones_data = json.load(f)
 
     denominaciones = []
     moneda_seleccionada = None
+
     if request.method == 'POST':
         moneda_id = request.POST.get('moneda')
+
         if moneda_id:
             try:
                 moneda_seleccionada = Moneda.objects.get(id=moneda_id)
-                denominaciones = [d for d in denominaciones_data if d['currency'] == moneda_seleccionada.codigo]
+                denominaciones = [
+                    d for d in denominaciones_data
+                    if d['currency'] == moneda_seleccionada.codigo
+                ]
             except Moneda.DoesNotExist:
                 denominaciones = []
+
         form = TauserStockForm(request.POST, denominaciones=denominaciones)
+
         if 'guardar' in request.POST and form.is_valid():
             tauser = form.cleaned_data['tauser']
             moneda = form.cleaned_data['moneda']
-            # Guardar cada denominación
+
+            # Guardar o actualizar cada denominación
             for d in denominaciones:
                 field_name = f"den_{d['type']}_{str(d['value']).replace('.', '_')}"
                 cantidad = form.cleaned_data.get(field_name, 0) or 0
-                # Buscar o crear Denominacion
+
                 denom_obj, _ = Denominacion.objects.get_or_create(
                     moneda=moneda,
                     value=d['value'],
                     type=d['type']
                 )
+
                 TauserStock.objects.update_or_create(
                     tauser=tauser,
                     denominacion=denom_obj,
                     defaults={'quantity': cantidad}
                 )
+
             messages.success(request, 'Stock actualizado correctamente.')
             return redirect('tauser:asignar_stock_tauser')
+
     else:
         form = TauserStockForm()
+
     return render(request, 'asignar_stock.html', {
         'form': form,
         'denominaciones': denominaciones,
@@ -89,8 +123,9 @@ def tramitar_transacciones(request):
 
     if request.method == "POST":
         accion = request.POST.get("accion", "buscar")
-    
-        # --- Verificación de MFA solo para la acción de búsqueda ---
+        generar_factura = request.POST.get("generar_factura", "no") == "si"  # NUEVO
+
+        # === MFA obligatorio para búsqueda ===
         if accion == "buscar":
             mfa_purpose = 'tauser_search_transaction'
             mfa_verified_session_key = f'mfa_verified_{mfa_purpose}'
@@ -103,78 +138,79 @@ def tramitar_transacciones(request):
                     "tausers": tausers_activos,
                     "tauser_seleccionado": tauser_seleccionado,
                 })
-            
-            # Limpiar la marca de sesión para que no se reutilice en futuras búsquedas
+
             del request.session[mfa_verified_session_key]
 
+        # Validación de código
         if not codigo_verificacion:
             error = "Debe ingresar el código de verificación de la transacción."
         else:
             try:
-                tx = Transaccion.objects.select_related("moneda", "cliente").get(codigo_verificacion=codigo_verificacion)
+                tx = Transaccion.objects.select_related("moneda", "cliente").get(
+                    codigo_verificacion=codigo_verificacion
+                )
             except Transaccion.DoesNotExist:
                 tx = None
                 error = f"No se encontró ninguna transacción con el código '{codigo_verificacion}'."
 
             if tx:
-                # Si es venta y pendiente, permitir siempre
+                # --- PERMITIR VENTAS PENDIENTES DIRECTAMENTE ---
                 if tx.tipo == 'venta' and tx.estado == EstadoTransaccionEnum.PENDIENTE:
-                    pass  # permitido
+                    pass
                 else:
-                    # Validación 1: Tauser asignado
+                    # Validación TAUser asignado
                     if not tx.tauser:
                         error = "Por favor, seleccione un Tauser válido para esta transacción antes de continuar."
-                    # Validación de acceso:
                     else:
-                        # Solo permitir acceso a pagadas, excepto efectivo en pendiente
+                        # Reglas de acceso
                         if tx.tipo == 'compra':
                             es_efectivo = tx.medio_pago and tx.medio_pago.payment_type == 'efectivo'
                         else:
                             es_efectivo = tx.medio_cobro and getattr(tx.medio_cobro, 'payment_type', None) == 'efectivo'
+
                         estado = tx.estado
+
                         if es_efectivo:
-                            if estado == EstadoTransaccionEnum.PENDIENTE:
-                                pass  # permitido
-                            elif estado == EstadoTransaccionEnum.PAGADA:
-                                pass  # permitido
+                            if estado in (EstadoTransaccionEnum.PENDIENTE, EstadoTransaccionEnum.PAGADA):
+                                pass
                             else:
                                 error = "Solo se pueden tramitar transacciones en efectivo si están pendientes o pagadas."
                         else:
                             if estado == EstadoTransaccionEnum.PAGADA:
-                                pass  # permitido
+                                pass
                             else:
                                 error = "Solo se pueden tramitar transacciones pagadas, excepto efectivo pendiente."
-                if not error:
-                    # Buscar tasa actual según tipo de transacción
-                    tasa_obj = TasaCambio.objects.filter(moneda=tx.moneda, activa=True).latest("fecha_creacion")
-                    if tx.tipo == "compra":
-                        # Si la transacción es COMPRA, mostrar la tasa de VENTA
-                        tasa_actual = tasa_obj.venta
-                    else:
-                        # Si la transacción es VENTA, mostrar la tasa de COMPRA
-                        tasa_actual = tasa_obj.compra
 
-                    if accion == "buscar" or accion == "validar":
-                        # Construir string legible para el medio de pago
-                        # Mostrar medio de pago legible o N/A
-                        medio_pago_str = 'N/A'
+                # Si todo OK
+                if not error:
+
+                    # Tasa recalculada
+                    tasa_obj = TasaCambio.objects.filter(
+                        moneda=tx.moneda,
+                        activa=True
+                    ).latest("fecha_creacion")
+
+                    tasa_actual = tasa_obj.venta if tx.tipo == "compra" else tasa_obj.compra
+
+                    # Construcción info transacción
+                    if accion in ["buscar", "validar"]:
+                        medio_pago_str = "N/A"
+
                         if tx.medio_pago:
                             pt = getattr(tx.medio_pago, 'payment_type', None)
                             if pt == 'efectivo':
-                                medio_pago_str = 'Efectivo'
+                                medio_pago_str = "Efectivo"
                             elif pt == 'tarjeta':
-                                medio_pago_str = 'Tarjeta de crédito'
+                                medio_pago_str = "Tarjeta de crédito"
                             elif pt == 'cuenta_bancaria':
-                                banco = getattr(tx.medio_pago, 'banco', '')
-                                numero = getattr(tx.medio_pago, 'numero_cuenta', '')
-                                medio_pago_str = f"Cuenta bancaria ({banco} - {numero})"
+                                medio_pago_str = f"Cuenta bancaria ({tx.medio_pago.banco} - {tx.medio_pago.numero_cuenta})"
                             elif pt == 'billetera':
-                                prov = getattr(tx.medio_pago, 'proveedor_billetera', '')
-                                email = getattr(tx.medio_pago, 'billetera_email_telefono', '')
-                                medio_pago_str = f"Billetera ({prov} - {email})"
+                                medio_pago_str = f"Billetera ({tx.medio_pago.proveedor_billetera} - {tx.medio_pago.billetera_email_telefono})"
                             else:
                                 medio_pago_str = str(tx.medio_pago)
+
                         medio_cobro_str = str(tx.medio_cobro) if tx.medio_cobro else 'N/A'
+
                         datos_transaccion = {
                             "codigo_verificacion": tx.codigo_verificacion,
                             "id": tx.id,
@@ -189,19 +225,20 @@ def tramitar_transacciones(request):
                             "medio_pago": medio_pago_str,
                             "medio_cobro": medio_cobro_str,
                             "fecha": tx.fecha.astimezone(timezone.get_current_timezone()),
-                            "fecha_actualizacion": tx.fecha_actualizacion.astimezone(timezone.get_current_timezone()) if hasattr(tx, 'fecha_actualizacion') and tx.fecha_actualizacion else None,
-                            "fecha_expiracion": tx.fecha_expiracion.astimezone(timezone.get_current_timezone()) if hasattr(tx, 'fecha_expiracion') and tx.fecha_expiracion else None,
-                            "fecha_pago": tx.fecha_pago.astimezone(timezone.get_current_timezone()) if hasattr(tx, 'fecha_pago') and tx.fecha_pago else None,
-                            "datos_metodo_pago": tx.datos_metodo_pago if hasattr(tx, 'datos_metodo_pago') else None,
+                            "fecha_actualizacion": getattr(tx, 'fecha_actualizacion', None),
+                            "fecha_expiracion": getattr(tx, 'fecha_expiracion', None),
+                            "fecha_pago": getattr(tx, 'fecha_pago', None),
+                            "datos_metodo_pago": getattr(tx, 'datos_metodo_pago', None),
                             "estado": tx.estado,
                         }
-                        # Incluir Tauser y su ubicación si existe
+
                         if tx.tauser:
                             datos_transaccion["tauser"] = {
                                 "nombre": tx.tauser.nombre,
                                 "ubicacion": tx.tauser.ubicacion,
                             }
 
+                        # Validar stock
                         if accion == "validar":
                             tauser_id = request.POST.get("tauser_id")
                             if not tauser_id:
@@ -219,36 +256,55 @@ def tramitar_transacciones(request):
 
                     elif accion == "confirmar":
                         try:
-                            # Cambiar el estado a 'completada' en vez de 'pagada'
+                            # Marcar como COMPLETADA
                             tx.estado = EstadoTransaccionEnum.COMPLETADA
                             tx.save()
-                            mensaje = f"Transacción #{tx.id} (código: {tx.codigo_verificacion}) completada correctamente."
+
+                            # FACTURA
+                            if generar_factura:
+                                from facturacion.services import ServicioFacturacion
+
+                                if hasattr(tx, 'factura_electronica'):
+                                    mensaje = f"Transacción #{tx.id} completada. Ya existe factura: {tx.factura_electronica.cdc}"
+                                else:
+                                    servicio = ServicioFacturacion()
+                                    resultado = servicio.generar_factura(tx)
+
+                                    if resultado['success']:
+                                        mensaje = f"Transacción #{tx.id} completada y factura generada exitosamente!"
+                                    else:
+                                        mensaje = f"Transacción #{tx.id} completada, pero hubo error en la factura: {resultado['error']}"
+                            else:
+                                mensaje = f"Transacción #{tx.id} (código: {tx.codigo_verificacion}) completada correctamente."
+
                         except Exception as e:
                             error = str(e)
+
                     elif accion == "concluir_venta":
-                        # Procesar denominaciones y concluir la venta
                         try:
-                            # 1. Parsear denominaciones del POST
+                            # ===========================
+                            # 1. Procesar denominaciones
+                            # ===========================
                             denominaciones = {}
+
                             for key, value in request.POST.items():
                                 if key.startswith("den_"):
                                     try:
                                         cantidad = int(value)
-                                    except (ValueError, TypeError):
+                                    except:
                                         cantidad = 0
+
                                     if cantidad > 0:
-                                        # key format: den_{type}_{value}
                                         _, tipo, valor_str = key.split("_", 2)
-                                        valor = float(valor_str.replace("_", ".")) if "_" in valor_str else float(valor_str)
+                                        valor = float(valor_str.replace("_", "."))
                                         denominaciones[(tipo, valor)] = cantidad
 
-                            # 2. Actualizar stock del tauser
                             tauser = tx.tauser
                             if not tauser:
-                                raise Exception("No hay TAUser asignado a la transacción.")
-                            from .models import Denominacion, TauserStock
-                            from monedas.models import Moneda
+                                raise Exception("La transacción no tiene un TAUser asignado.")
+
                             moneda = tx.moneda if tx.tipo == "venta" else Moneda.objects.get(codigo="PYG")
+
                             for (tipo, valor), cantidad in denominaciones.items():
                                 denom_obj, _ = Denominacion.objects.get_or_create(
                                     moneda=moneda,
@@ -259,46 +315,77 @@ def tramitar_transacciones(request):
                                     tauser=tauser,
                                     denominacion=denom_obj
                                 )
-                                stock_obj.quantity = stock_obj.quantity + cantidad
+                                stock_obj.quantity += cantidad
                                 stock_obj.save()
 
-                            # 3. Calcular y guardar la ganancia antes de completar
-                            if tx.monto_operado is not None and tx.comision is not None:
-                                tx.ganancia = tx.monto_operado * tx.comision
-                                tx.save(update_fields=['ganancia'])
-
+                            # ===========================
+                            # 2. Confirmar transacción
+                            # ===========================
                             confirmar_transaccion(tx)
-                            
-                            # 5. Completar la transacción
+
                             tx.estado = EstadoTransaccionEnum.COMPLETADA
                             tx.save()
-                            from django.http import JsonResponse
-                            return JsonResponse({"success": True})
+
+                            # ===========================
+                            # 3. Generar factura (NUEVO)
+                            # ===========================
+                            result_factura = None
+                            if generar_factura:
+                                from facturacion.services import ServicioFacturacion
+                                # =====================
+                                # CAPTURAR DATOS FISCALES
+                                # =====================
+
+                                tx.datos_fiscales = {
+                                    "nombre": request.POST.get("fact_nombre"),
+                                    "cedula": request.POST.get("fact_cedula"),
+                                    "ruc": request.POST.get("fact_ruc"),
+                                    "dv": request.POST.get("fact_dv"),
+                                    "email": request.POST.get("fact_email"),
+                                    "direccion": request.POST.get("fact_direccion"),
+                                }
+                                tx.save()
+
+                                from facturacion.services import ServicioFacturacion
+                                servicio = ServicioFacturacion()
+                                result_factura = servicio.generar_factura(tx)
+   
+
+                            return JsonResponse({
+                                "success": True,
+                                "factura": result_factura
+                            })
+
                         except Exception as e:
-                            from django.http import JsonResponse
                             return JsonResponse({"success": False, "error": str(e)})
 
+                    # ======================
+                    #   ACCIÓN: CANCELAR
+                    # ======================
                     elif accion == "cancelar":
                         try:
                             cancelar_transaccion(tx)
-                            mensaje = f"Transacción #{tx.id} (código: {tx.codigo_verificacion}) cancelada correctamente."
+                            mensaje = f"Transacción #{tx.id} cancelada correctamente."
                         except Exception as e:
                             error = str(e)
 
-    # Si es venta o compra en efectivo, pasar denominaciones de la moneda
+    # Cargar denominaciones para venta/compra en efectivo
     denominaciones_venta = []
     if datos_transaccion:
-        tipo = str(datos_transaccion.get("tipo", "")).lower()
+        tipo = datos_transaccion["tipo"].lower()
+
         denominaciones_json_path = os.path.join(os.path.dirname(__file__), 'denominaciones.json')
         with open(denominaciones_json_path, 'r') as f:
             denominaciones_data = json.load(f)
+
         if tipo == "compra" and datos_transaccion.get("medio_pago") == "Efectivo":
             denominaciones_venta = [d for d in denominaciones_data if d["currency"] == "PYG"]
             denominaciones_venta.sort(key=lambda x: float(x["value"]), reverse=True)
         elif tipo == "venta":
-            moneda_codigo = datos_transaccion["moneda"].codigo if hasattr(datos_transaccion["moneda"], "codigo") else str(datos_transaccion["moneda"])
+            moneda_codigo = datos_transaccion["moneda"].codigo
             denominaciones_venta = [d for d in denominaciones_data if d["currency"] == moneda_codigo]
-            denominaciones_venta.sort(key=lambda x: float(x["value"]), reverse=True)
+
+        denominaciones_venta.sort(key=lambda x: float(x["value"]), reverse=True)
 
     return render(request, "tramitar_transacciones.html", {
         "datos_transaccion": datos_transaccion,

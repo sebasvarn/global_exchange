@@ -29,3 +29,7 @@ simulador_sipap/.env
 #logs
 django.log
 simulador_sipap/sipap.log
+logs/
+
+#factura
+app/facturas/pdf/
