@@ -205,24 +205,9 @@ def tramitar_transacciones(request):
     if request.method == "POST":
         accion = request.POST.get("accion", "buscar")
         generar_factura = request.POST.get("generar_factura", "no") == "si"  # NUEVO
+        cambio_cotizacion_aceptado = request.POST.get("cambio_cotizacion_aceptado") == "si"
 
-        # === MFA obligatorio para búsqueda ===
-        if accion == "buscar":
-            mfa_purpose = 'tauser_search_transaction'
-            mfa_verified_session_key = f'mfa_verified_{mfa_purpose}'
-
-            if not request.session.get(mfa_verified_session_key):
-                error = "Se requiere verificación de seguridad para realizar esta acción."
-                return render(request, "tramitar_transacciones.html", {
-                    "error": error,
-                    "codigo_verificacion": codigo_verificacion,
-                    "tausers": tausers_activos,
-                    "tauser_seleccionado": tauser_seleccionado,
-                })
-
-            del request.session[mfa_verified_session_key]
-
-        # Validación de código
+        # Validación de código primero (antes de MFA)
         if not codigo_verificacion:
             error = "Debe ingresar el código de verificación de la transacción."
         else:
@@ -233,6 +218,64 @@ def tramitar_transacciones(request):
             except Transaccion.DoesNotExist:
                 tx = None
                 error = f"No se encontró ninguna transacción con el código '{codigo_verificacion}'."
+
+            if tx:
+                # Obtener clave de sesión para este código de verificación
+                session_key_cotizacion = f'cotizacion_aceptada_{codigo_verificacion}'
+                cotizacion_ya_aceptada = request.session.get(session_key_cotizacion, False)
+                
+                # Verificar cambio de cotización ANTES de solicitar MFA (solo si está pendiente y no fue aceptado previamente)
+                if accion == "buscar" and not cambio_cotizacion_aceptado and not cotizacion_ya_aceptada and tx.estado == EstadoTransaccionEnum.PENDIENTE:
+                    verificacion = tx.verificar_cambio_cotizacion()
+                    if verificacion['ha_cambiado']:
+                        # Guardar en sesión para mostrar en el template
+                        request.session['verificacion_cotizacion_temp'] = {
+                            'codigo': codigo_verificacion,
+                            'ha_cambiado': True,
+                            'monto_pyg_original': str(verificacion['monto_pyg_original']),
+                            'monto_pyg_nuevo': str(verificacion['monto_pyg_nuevo']),
+                            'tasa_original': str(verificacion['tasa_original']),
+                            'tasa_nueva': str(verificacion['tasa_nueva']),
+                            'diferencia_pyg': str(verificacion['diferencia_pyg']),
+                            'diferencia_porcentaje': str(verificacion['diferencia_porcentaje']),
+                        }
+                        # Retornar para mostrar el modal de confirmación
+                        return render(request, "tramitar_transacciones.html", {
+                            "codigo_verificacion": codigo_verificacion,
+                            "tausers": tausers_activos,
+                            "tauser_seleccionado": tauser_seleccionado,
+                            "verificacion_cotizacion_previa": request.session['verificacion_cotizacion_temp'],
+                            "mostrar_modal_cotizacion": True,
+                        })
+                
+                # Si el usuario aceptó el cambio, actualizar la transacción con los nuevos valores
+                if accion == "buscar" and cambio_cotizacion_aceptado and not cotizacion_ya_aceptada:
+                    verificacion = tx.verificar_cambio_cotizacion()
+                    if verificacion['ha_cambiado']:
+                        calculo_nuevo = verificacion['calculo_completo']
+                        tx.tasa_aplicada = calculo_nuevo['tasa_aplicada']
+                        tx.comision = calculo_nuevo['comision']
+                        tx.monto_pyg = calculo_nuevo['monto_pyg']
+                        tx.save(update_fields=['tasa_aplicada', 'comision', 'monto_pyg'])
+                        # Marcar en sesión que ya se aceptó el cambio para este código
+                        request.session[session_key_cotizacion] = True
+
+                # === MFA obligatorio para búsqueda (después de aceptar cambio de cotización) ===
+                if accion == "buscar":
+                    mfa_purpose = 'tauser_search_transaction'
+                    mfa_verified_session_key = f'mfa_verified_{mfa_purpose}'
+
+                    if not request.session.get(mfa_verified_session_key):
+                        return render(request, "tramitar_transacciones.html", {
+                            "codigo_verificacion": codigo_verificacion,
+                            "tausers": tausers_activos,
+                            "tauser_seleccionado": tauser_seleccionado,
+                        })
+                    # Limpiar la verificación después de usarla
+                    del request.session[mfa_verified_session_key]
+                    # Limpiar verificación temporal de la sesión
+                    if 'verificacion_cotizacion_temp' in request.session:
+                        del request.session['verificacion_cotizacion_temp']
 
             if tx:
                 # Si es venta y pendiente, permitir siempre
@@ -272,6 +315,21 @@ def tramitar_transacciones(request):
                     else:
                         # Si la transacción es VENTA, mostrar la tasa de COMPRA
                         tasa_actual = tasa_obj.compra
+
+                    # Verificar cambio de cotización
+                    verificacion_cotizacion = None
+                    if accion in ["buscar", "validar"]:
+                        verificacion = tx.verificar_cambio_cotizacion()
+                        if verificacion['ha_cambiado']:
+                            verificacion_cotizacion = {
+                                'ha_cambiado': True,
+                                'monto_pyg_original': verificacion['monto_pyg_original'],
+                                'monto_pyg_nuevo': verificacion['monto_pyg_nuevo'],
+                                'tasa_original': verificacion['tasa_original'],
+                                'tasa_nueva': verificacion['tasa_nueva'],
+                                'diferencia_pyg': verificacion['diferencia_pyg'],
+                                'diferencia_porcentaje': verificacion['diferencia_porcentaje'],
+                            }
 
                     # Construcción info transacción
                     if accion in ["buscar", "validar"]:
@@ -336,77 +394,211 @@ def tramitar_transacciones(request):
                                     error = resultado['mensaje']
 
                     elif accion == "confirmar":
-                        try:
-                            # Marcar como COMPLETADA
-                            tx.estado = EstadoTransaccionEnum.COMPLETADA
-                            tx.save()
-
-                            # Registrar movimiento de stock del tauser (igual que en concluir_venta, pero sin denominaciones del POST)
-                            tauser = tx.tauser
-                            if not tauser:
-                                raise Exception("No hay TAUser asignado a la transacción.")
-                            from .models import Denominacion, TauserStock, TauserStockMovimiento, ReservaDenominacionTauser
-                            from monedas.models import Moneda
-
-                            tipo_tx = str(tx.tipo).lower()
-                            medio_pago = getattr(tx, 'medio_pago', None)
-                            medio_cobro = getattr(tx, 'medio_cobro', None)
-                            pago_efectivo = getattr(medio_pago, 'payment_type', None) == 'efectivo'
-                            cobro_efectivo = getattr(medio_cobro, 'payment_type', None) == 'efectivo'
-
-                            # --- VENTA ---
-                            if tipo_tx == "venta":
-                                # SALIDA solo si el cobro es efectivo (entrega PYG)
-                                if cobro_efectivo:
-                                    moneda_pyg = Moneda.objects.get(codigo="PYG")
-                                    reservas = ReservaDenominacionTauser.objects.filter(transaccion=tx)
-                                    for reserva in reservas:
-                                        if reserva.denominacion.moneda == moneda_pyg:
-                                            TauserStockMovimiento.objects.create(
-                                                tauser=reserva.tauser,
-                                                denominacion=reserva.denominacion,
-                                                cantidad=reserva.cantidad,
-                                                tipo_movimiento=TauserStockMovimiento.SALIDA,
-                                                transaccion=tx
-                                            )
-                            # --- COMPRA ---
-                            elif tipo_tx == "compra":
-                                # SALIDA siempre (entrega moneda extranjera)
-                                reservas = ReservaDenominacionTauser.objects.filter(transaccion=tx)
-                                if not reservas.exists():
-                                    import logging
-                                    logging.warning(f"[TAUSER] No se encontraron reservas para registrar salida en compra. Transacción: {tx.id}")
-                                for reserva in reservas:
-                                    TauserStockMovimiento.objects.create(
-                                        tauser=reserva.tauser,
-                                        denominacion=reserva.denominacion,
-                                        cantidad=reserva.cantidad,
-                                        tipo_movimiento=TauserStockMovimiento.SALIDA,
-                                        transaccion=tx
-                                    )
-
-                            # FACTURA
-                            if generar_factura:
-                                from facturacion.services import ServicioFacturacion
-
-                                if hasattr(tx, 'factura_electronica'):
-                                    mensaje = f"Transacción #{tx.id} completada. Ya existe factura: {tx.factura_electronica.cdc}"
-                                else:
-                                    servicio = ServicioFacturacion()
-                                    resultado = servicio.generar_factura(tx)
-
-                                    if resultado['success']:
-                                        mensaje = f"Transacción #{tx.id} completada y factura generada exitosamente!"
+                        # Verificar si la cotización cambió antes de confirmar
+                        verificacion = tx.verificar_cambio_cotizacion()
+                        if verificacion['ha_cambiado']:
+                            # Solicitar confirmación del usuario sobre el cambio
+                            confirmar_cambio = request.POST.get("confirmar_cambio_cotizacion")
+                            if confirmar_cambio != "si":
+                                # Mostrar alerta de cambio y solicitar confirmación
+                                error = f"La cotización ha cambiado. Monto original: {verificacion['monto_pyg_original']} PYG, Nuevo monto: {verificacion['monto_pyg_nuevo']} PYG. Diferencia: {verificacion['diferencia_pyg']} PYG ({verificacion['diferencia_porcentaje']:.2f}%). Para continuar, debe aceptar el cambio."
+                                verificacion_cotizacion = {
+                                    'ha_cambiado': True,
+                                    'monto_pyg_original': verificacion['monto_pyg_original'],
+                                    'monto_pyg_nuevo': verificacion['monto_pyg_nuevo'],
+                                    'tasa_original': verificacion['tasa_original'],
+                                    'tasa_nueva': verificacion['tasa_nueva'],
+                                    'diferencia_pyg': verificacion['diferencia_pyg'],
+                                    'diferencia_porcentaje': verificacion['diferencia_porcentaje'],
+                                    'requiere_confirmacion': True,
+                                }
+                                # Reconstruir datos_transaccion para mostrar en el template
+                                medio_pago_str = "N/A"
+                                if tx.medio_pago:
+                                    pt = getattr(tx.medio_pago, 'payment_type', None)
+                                    if pt == 'efectivo':
+                                        medio_pago_str = "Efectivo"
+                                    elif pt == 'tarjeta':
+                                        medio_pago_str = "Tarjeta de crédito"
+                                    elif pt == 'cuenta_bancaria':
+                                        medio_pago_str = f"Cuenta bancaria ({tx.medio_pago.banco} - {tx.medio_pago.numero_cuenta})"
+                                    elif pt == 'billetera':
+                                        medio_pago_str = f"Billetera ({tx.medio_pago.proveedor_billetera} - {tx.medio_pago.billetera_email_telefono})"
                                     else:
-                                        mensaje = f"Transacción #{tx.id} completada, pero hubo error en la factura: {resultado['error']}"
-                            else:
-                                mensaje = f"Transacción #{tx.id} (código: {tx.codigo_verificacion}) completada correctamente."
+                                        medio_pago_str = str(tx.medio_pago)
 
-                        except Exception as e:
-                            error = str(e)
+                                medio_cobro_str = str(tx.medio_cobro) if tx.medio_cobro else 'N/A'
+
+                                datos_transaccion = {
+                                    "codigo_verificacion": tx.codigo_verificacion,
+                                    "id": tx.id,
+                                    "cliente": tx.cliente,
+                                    "tipo": tx.get_tipo_display(),
+                                    "moneda": tx.moneda,
+                                    "tasa": tx.tasa_aplicada,
+                                    "tasa_recalculada": tasa_actual,
+                                    "monto_operado": tx.monto_operado,
+                                    "monto_pyg": tx.monto_pyg,
+                                    "comision": tx.comision,
+                                    "medio_pago": medio_pago_str,
+                                    "medio_cobro": medio_cobro_str,
+                                    "fecha": tx.fecha.astimezone(timezone.get_current_timezone()),
+                                    "fecha_actualizacion": getattr(tx, 'fecha_actualizacion', None),
+                                    "fecha_expiracion": getattr(tx, 'fecha_expiracion', None),
+                                    "fecha_pago": getattr(tx, 'fecha_pago', None),
+                                    "datos_metodo_pago": getattr(tx, 'datos_metodo_pago', None),
+                                    "estado": tx.estado,
+                                }
+                                if tx.tauser:
+                                    datos_transaccion["tauser"] = {
+                                        "nombre": tx.tauser.nombre,
+                                        "ubicacion": tx.tauser.ubicacion,
+                                    }
+                        
+                        if not error:
+                            try:
+                                # Si se aceptó el cambio, actualizar la transacción con los nuevos valores
+                                if verificacion['ha_cambiado'] and request.POST.get("confirmar_cambio_cotizacion") == "si":
+                                    calculo_nuevo = verificacion['calculo_completo']
+                                    tx.tasa_aplicada = calculo_nuevo['tasa_aplicada']
+                                    tx.comision = calculo_nuevo['comision']
+                                    tx.monto_pyg = calculo_nuevo['monto_pyg']
+                                
+                                # Marcar como COMPLETADA
+                                tx.estado = EstadoTransaccionEnum.COMPLETADA
+                                tx.save()
+
+                                # Registrar movimiento de stock del tauser (igual que en concluir_venta, pero sin denominaciones del POST)
+                                tauser = tx.tauser
+                                if not tauser:
+                                    raise Exception("No hay TAUser asignado a la transacción.")
+                                from .models import Denominacion, TauserStock, TauserStockMovimiento, ReservaDenominacionTauser
+                                from monedas.models import Moneda
+
+                                tipo_tx = str(tx.tipo).lower()
+                                medio_pago = getattr(tx, 'medio_pago', None)
+                                medio_cobro = getattr(tx, 'medio_cobro', None)
+                                pago_efectivo = getattr(medio_pago, 'payment_type', None) == 'efectivo'
+                                cobro_efectivo = getattr(medio_cobro, 'payment_type', None) == 'efectivo'
+
+                                # Variable para mensajes adicionales
+                                mensaje_adicional = ""
+
+                                # --- VENTA ---
+                                if tipo_tx == "venta":
+                                    # OMITIDO: procesamiento SIPAP para transferencias/billetera
+                                    # Si NO es efectivo (transferencia/billetera), omitir SIPAP temporalmente
+                                    # if not cobro_efectivo:
+                                    #     from transaccion.services import procesar_pago_via_sipap
+                                    #     try:
+                                    #         success, mensaje_sipap, pago_obj = procesar_pago_via_sipap(tx)
+                                    #         if not success:
+                                    #             raise Exception(f"Error al procesar transferencia SIPAP: {mensaje_sipap}")
+                                    #         mensaje_adicional = " Transferencia SIPAP procesada exitosamente."
+                                    #     except Exception as e:
+                                    #         raise Exception(f"Error al procesar transferencia SIPAP: {str(e)}")
+                                    
+                                    # Marcar como COMPLETADA
+                                    tx.estado = EstadoTransaccionEnum.COMPLETADA
+                                    tx.save()
+                                    
+                                    # SALIDA solo si el cobro es efectivo (entrega PYG)
+                                    if cobro_efectivo:
+                                        moneda_pyg = Moneda.objects.get(codigo="PYG")
+                                        reservas = ReservaDenominacionTauser.objects.filter(transaccion=tx)
+                                        for reserva in reservas:
+                                            if reserva.denominacion.moneda == moneda_pyg:
+                                                TauserStockMovimiento.objects.create(
+                                                    tauser=reserva.tauser,
+                                                    denominacion=reserva.denominacion,
+                                                    cantidad=reserva.cantidad,
+                                                    tipo_movimiento=TauserStockMovimiento.SALIDA,
+                                                    transaccion=tx
+                                                )
+                                # --- COMPRA ---
+                                elif tipo_tx == "compra":
+                                    # SALIDA siempre (entrega moneda extranjera)
+                                    reservas = ReservaDenominacionTauser.objects.filter(transaccion=tx)
+                                    if not reservas.exists():
+                                        import logging
+                                        logging.warning(f"[TAUSER] No se encontraron reservas para registrar salida en compra. Transacción: {tx.id}")
+                                    for reserva in reservas:
+                                        TauserStockMovimiento.objects.create(
+                                            tauser=reserva.tauser,
+                                            denominacion=reserva.denominacion,
+                                            cantidad=reserva.cantidad,
+                                            tipo_movimiento=TauserStockMovimiento.SALIDA,
+                                            transaccion=tx
+                                        )
+
+                                # FACTURA
+                                if generar_factura:
+                                    from facturacion.services import ServicioFacturacion
+
+                                    if hasattr(tx, 'factura_electronica'):
+                                        mensaje = f"Transacción #{tx.id} completada. Ya existe factura: {tx.factura_electronica.cdc}{mensaje_adicional}"
+                                    else:
+                                        servicio = ServicioFacturacion()
+                                        resultado = servicio.generar_factura(tx)
+
+                                        if resultado['success']:
+                                            mensaje = f"Transacción #{tx.id} completada y factura generada exitosamente!{mensaje_adicional}"
+                                        else:
+                                            mensaje = f"Transacción #{tx.id} completada, pero hubo error en la factura: {resultado['error']}{mensaje_adicional}"
+                                else:
+                                    mensaje = f"Transacción #{tx.id} (código: {tx.codigo_verificacion}) completada correctamente.{mensaje_adicional}"
+                                
+                                # Limpiar bandera de cotización aceptada de la sesión
+                                session_key_cotizacion = f'cotizacion_aceptada_{codigo_verificacion}'
+                                if session_key_cotizacion in request.session:
+                                    del request.session[session_key_cotizacion]
+                                
+                                # Retornar JSON si es una petición AJAX
+                                if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.content_type == 'application/x-www-form-urlencoded':
+                                    return JsonResponse({
+                                        "success": True,
+                                        "mensaje": mensaje
+                                    })
+
+                            except Exception as e:
+                                error = str(e)
+                                # Retornar JSON de error si es AJAX
+                                if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.content_type == 'application/x-www-form-urlencoded':
+                                    return JsonResponse({
+                                        "success": False,
+                                        "error": error
+                                    })
 
                     elif accion == "concluir_venta":
+                        # Verificar si la cotización cambió antes de concluir la venta
+                        verificacion = tx.verificar_cambio_cotizacion()
+                        if verificacion['ha_cambiado']:
+                            confirmar_cambio = request.POST.get("confirmar_cambio_cotizacion")
+                            if confirmar_cambio != "si":
+                                # Retornar error JSON solicitando confirmación
+                                return JsonResponse({
+                                    "success": False,
+                                    "cambio_cotizacion": True,
+                                    "error": f"La cotización ha cambiado. Monto original: {verificacion['monto_pyg_original']} PYG, Nuevo monto: {verificacion['monto_pyg_nuevo']} PYG. Diferencia: {verificacion['diferencia_pyg']} PYG ({verificacion['diferencia_porcentaje']:.2f}%).",
+                                    "verificacion": {
+                                        'monto_pyg_original': str(verificacion['monto_pyg_original']),
+                                        'monto_pyg_nuevo': str(verificacion['monto_pyg_nuevo']),
+                                        'tasa_original': str(verificacion['tasa_original']),
+                                        'tasa_nueva': str(verificacion['tasa_nueva']),
+                                        'diferencia_pyg': str(verificacion['diferencia_pyg']),
+                                        'diferencia_porcentaje': str(verificacion['diferencia_porcentaje']),
+                                    }
+                                })
+                        
                         try:
+                            # Si se aceptó el cambio, actualizar la transacción con los nuevos valores
+                            if verificacion['ha_cambiado'] and request.POST.get("confirmar_cambio_cotizacion") == "si":
+                                calculo_nuevo = verificacion['calculo_completo']
+                                tx.tasa_aplicada = calculo_nuevo['tasa_aplicada']
+                                tx.comision = calculo_nuevo['comision']
+                                tx.monto_pyg = calculo_nuevo['monto_pyg']
+                                tx.save()
+                            
                             # ===========================
                             # 1. Procesar denominaciones
                             # ===========================
@@ -434,8 +626,7 @@ def tramitar_transacciones(request):
                             tx.estado = EstadoTransaccionEnum.COMPLETADA
                             tx.save()
 
-
-                            # 4. Ahora sí, actualizar stock del tauser y registrar movimientos
+                            # 5. Ahora sí, actualizar stock del tauser y registrar movimientos
                             tauser = tx.tauser
                             if not tauser:
                                 raise Exception("No hay TAUser asignado a la transacción.")
@@ -549,6 +740,10 @@ def tramitar_transacciones(request):
                                 servicio = ServicioFacturacion()
                                 result_factura = servicio.generar_factura(tx)
    
+                            # Limpiar bandera de cotización aceptada de la sesión
+                            session_key_cotizacion = f'cotizacion_aceptada_{codigo_verificacion}'
+                            if session_key_cotizacion in request.session:
+                                del request.session[session_key_cotizacion]
 
                             return JsonResponse({
                                 "success": True,
@@ -594,6 +789,7 @@ def tramitar_transacciones(request):
         "tausers": tausers_activos,
         "tauser_seleccionado": tauser_seleccionado,
         "denominaciones_venta": denominaciones_venta,
+        "verificacion_cotizacion": verificacion_cotizacion if 'verificacion_cotizacion' in locals() else None,
     })
 
 

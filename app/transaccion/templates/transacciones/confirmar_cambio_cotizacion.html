@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Confirmar Cambio de Cotización - Global Exchange{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-warning text-dark">
+                    <h4 class="mb-0">
+                        <i class="fas fa-exclamation-triangle"></i> 
+                        Cambio en la Cotización Detectado
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info" role="alert">
+                        <strong>Importante:</strong> La cotización de la moneda ha cambiado desde que se creó esta transacción.
+                        Por favor, revise los nuevos valores antes de proceder con el pago.
+                    </div>
+
+                    <h5 class="mb-3">Detalles de la Transacción</h5>
+                    
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-subtitle mb-2 text-muted">Información General</h6>
+                                    <p class="mb-1">
+                                        <strong>Transacción:</strong> #{{ transaccion.id }}
+                                    </p>
+                                    <p class="mb-1">
+                                        <strong>Tipo:</strong> {{ transaccion.get_tipo_display }}
+                                    </p>
+                                    <p class="mb-1">
+                                        <strong>Moneda:</strong> {{ transaccion.moneda.codigo }}
+                                    </p>
+                                    <p class="mb-0">
+                                        <strong>Monto Operado:</strong> {{ transaccion.monto_operado }} {{ transaccion.moneda.codigo }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="card-subtitle mb-2 text-muted">Cliente</h6>
+                                    <p class="mb-1">
+                                        <strong>Nombre:</strong> {{ transaccion.cliente.nombre }}
+                                    </p>
+                                    <p class="mb-0">
+                                        <strong>Documento:</strong> {{ transaccion.cliente.documento }}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h5 class="mb-3">Comparación de Valores</h5>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Concepto</th>
+                                    <th class="text-end">Valor Original</th>
+                                    <th class="text-end">Valor Nuevo</th>
+                                    <th class="text-end">Diferencia</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Tasa de Cambio</strong></td>
+                                    <td class="text-end">{{ verificacion.tasa_original }} PYG</td>
+                                    <td class="text-end">{{ verificacion.tasa_nueva }} PYG</td>
+                                    <td class="text-end">
+                                        {% with diferencia=verificacion.tasa_nueva|add:"-"|add:verificacion.tasa_original %}
+                                            <span class="{% if diferencia > 0 %}text-danger{% else %}text-success{% endif %}">
+                                                {{ diferencia|floatformat:2 }} PYG
+                                            </span>
+                                        {% endwith %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Monto Total en PYG</strong></td>
+                                    <td class="text-end">{{ verificacion.monto_pyg_original|floatformat:0 }} PYG</td>
+                                    <td class="text-end">{{ verificacion.monto_pyg_nuevo|floatformat:0 }} PYG</td>
+                                    <td class="text-end">
+                                        <span class="{% if verificacion.diferencia_pyg > 0 %}text-danger{% else %}text-success{% endif %}">
+                                            {{ verificacion.diferencia_pyg|floatformat:0 }} PYG
+                                            ({{ verificacion.diferencia_porcentaje|floatformat:2 }}%)
+                                        </span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {% if verificacion.diferencia_pyg > 0 %}
+                        <div class="alert alert-danger" role="alert">
+                            <i class="fas fa-arrow-up"></i>
+                            <strong>Aumento:</strong> El monto total ha aumentado en 
+                            <strong>{{ verificacion.diferencia_pyg|floatformat:0 }} PYG</strong> 
+                            ({{ verificacion.diferencia_porcentaje|floatformat:2 }}%)
+                        </div>
+                    {% else %}
+                        <div class="alert alert-success" role="alert">
+                            <i class="fas fa-arrow-down"></i>
+                            <strong>Disminución:</strong> El monto total ha disminuido en 
+                            <strong>{{ verificacion.diferencia_pyg|floatformat:0|slice:"1:" }} PYG</strong> 
+                            ({{ verificacion.diferencia_porcentaje|floatformat:2|slice:"1:" }}%)
+                        </div>
+                    {% endif %}
+
+                    <hr class="my-4">
+
+                    <h5 class="mb-3">¿Qué desea hacer?</h5>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <button type="submit" name="accion" value="aceptar" class="btn btn-success btn-lg w-100">
+                                    <i class="fas fa-check-circle"></i>
+                                    Aceptar y Continuar
+                                    <br>
+                                    <small class="d-block mt-2">
+                                        Se cancelará la transacción actual y se creará una nueva con el valor actualizado
+                                    </small>
+                                </button>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <button type="submit" name="accion" value="cancelar" class="btn btn-danger btn-lg w-100">
+                                    <i class="fas fa-times-circle"></i>
+                                    Cancelar Transacción
+                                    <br>
+                                    <small class="d-block mt-2">
+                                        La transacción será cancelada y no se procesará el pago
+                                    </small>
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+
+                    <div class="text-center mt-3">
+                        <a href="{% url 'transacciones:transacciones_list' %}" class="btn btn-link">
+                            <i class="fas fa-arrow-left"></i> Volver al listado de transacciones
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="card-footer text-muted text-center">
+                    <small>
+                        <i class="fas fa-info-circle"></i>
+                        Esta verificación se realiza para protegerlo de cambios inesperados en las cotizaciones.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card {
+    border-radius: 10px;
+}
+
+.card-header {
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+}
+
+.btn-lg {
+    padding: 1rem;
+    font-size: 1.1rem;
+}
+
+.btn-lg small {
+    font-size: 0.75rem;
+    line-height: 1.3;
+}
+
+.table {
+    margin-bottom: 0;
+}
+
+.table tbody tr:last-child {
+    font-weight: 600;
+    background-color: #f8f9fa;
+}
+</style>
+{% endblock %}

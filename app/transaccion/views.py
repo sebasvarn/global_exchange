@@ -750,6 +750,23 @@ def iniciar_pago_tarjeta(request, pk):
         messages.info(request, "Este tipo de transacción no se paga por tarjeta.")
         return redirect("transacciones:transacciones_list")
 
+    # Verificar si la cotización cambió antes de proceder al pago (solo si está pendiente)
+    # Ya validamos arriba que está pendiente, pero por claridad lo dejamos explícito
+    verificacion = tx.verificar_cambio_cotizacion()
+    if verificacion['ha_cambiado']:
+        # Guardar los datos de verificación en la sesión para mostrar en la página de confirmación
+        request.session['verificacion_cotizacion'] = {
+            'transaccion_id': tx.id,
+            'monto_pyg_original': str(verificacion['monto_pyg_original']),
+            'monto_pyg_nuevo': str(verificacion['monto_pyg_nuevo']),
+            'tasa_original': str(verificacion['tasa_original']),
+            'tasa_nueva': str(verificacion['tasa_nueva']),
+            'diferencia_pyg': str(verificacion['diferencia_pyg']),
+            'diferencia_porcentaje': str(verificacion['diferencia_porcentaje']),
+        }
+        # Redirigir a una vista de confirmación de cambio de cotización
+        return redirect("transacciones:confirmar_cambio_cotizacion", pk=pk)
+
     try:
         # Guardar el user_id autenticado en la sesión antes de redirigir a Stripe
         if request.user.is_authenticated:
@@ -950,6 +967,24 @@ def mostrar_comprobante_sipap(request, pk):
         messages.warning(request, "Esta transacción no utiliza un método de pago SIPAP.")
         return redirect('transacciones:transacciones_list')
     
+    # Verificar si la cotización cambió antes de mostrar el comprobante (solo si está pendiente)
+    # Ya validamos arriba que está pendiente, pero por claridad lo dejamos explícito
+    verificacion = transaccion.verificar_cambio_cotizacion()
+    print( verificacion)
+    if verificacion['ha_cambiado']:
+        # Guardar los datos de verificación en la sesión
+        request.session['verificacion_cotizacion'] = {
+            'transaccion_id': transaccion.id,
+            'monto_pyg_original': str(verificacion['monto_pyg_original']),
+            'monto_pyg_nuevo': str(verificacion['monto_pyg_nuevo']),
+            'tasa_original': str(verificacion['tasa_original']),
+            'tasa_nueva': str(verificacion['tasa_nueva']),
+            'diferencia_pyg': str(verificacion['diferencia_pyg']),
+            'diferencia_porcentaje': str(verificacion['diferencia_porcentaje']),
+        }
+        # Redirigir a la vista de confirmación de cambio de cotización
+        return redirect("transacciones:confirmar_cambio_cotizacion_sipap", pk=pk)
+    
     # Preparar contexto para el template
     context = {
         'transaccion': transaccion,
@@ -961,5 +996,226 @@ def mostrar_comprobante_sipap(request, pk):
     }
     
     return render(request, "transacciones/transaccion_confirmada.html", context)
+
+
+@require_http_methods(["GET", "POST"])
+def confirmar_cambio_cotizacion(request, pk):
+    """
+    Vista para confirmar si el usuario desea proceder con el pago a pesar del cambio de cotización.
+    Si acepta, cancela la transacción anterior y crea una nueva con los nuevos valores.
+    """
+    # Filtrar por clientes del usuario autenticado
+    if request.user.is_authenticated:
+        tx = get_object_or_404(
+            Transaccion.objects.filter(cliente__usuarios=request.user), 
+            pk=pk
+        )
+    else:
+        tx = get_object_or_404(Transaccion, pk=pk)
+    
+    # Verificar que la transacción esté pendiente
+    if tx.estado != EstadoTransaccionEnum.PENDIENTE:
+        messages.warning(request, "Esta transacción ya no está en estado pendiente.")
+        return redirect('transacciones:transacciones_list')
+    
+    # Obtener los datos de verificación de la sesión
+    verificacion_data = request.session.get('verificacion_cotizacion')
+    if not verificacion_data or verificacion_data.get('transaccion_id') != tx.id:
+        # Si no hay datos en sesión, recalcular
+        verificacion = tx.verificar_cambio_cotizacion()
+        if not verificacion['ha_cambiado']:
+            # Si ya no hay cambio, proceder directamente al pago
+            messages.info(request, "La cotización se ha estabilizado. Procediendo al pago.")
+            return redirect("transacciones:iniciar_pago_tarjeta", pk=pk)
+        
+        verificacion_data = {
+            'transaccion_id': tx.id,
+            'monto_pyg_original': str(verificacion['monto_pyg_original']),
+            'monto_pyg_nuevo': str(verificacion['monto_pyg_nuevo']),
+            'tasa_original': str(verificacion['tasa_original']),
+            'tasa_nueva': str(verificacion['tasa_nueva']),
+            'diferencia_pyg': str(verificacion['diferencia_pyg']),
+            'diferencia_porcentaje': str(verificacion['diferencia_porcentaje']),
+        }
+    
+    if request.method == "POST":
+        accion = request.POST.get("accion")
+        
+        if accion == "aceptar":
+            # El usuario acepta el cambio: cancelar la transacción anterior y crear una nueva
+            try:
+                with transaction.atomic():
+                    # Recalcular con la cotización actual
+                    verificacion = tx.verificar_cambio_cotizacion()
+                    calculo_nuevo = verificacion['calculo_completo']
+                    
+                    # Cancelar la transacción anterior
+                    cancelar_transaccion(tx)
+                    
+                    # Crear nueva transacción con los valores actualizados
+                    nueva_tx = crear_transaccion(
+                        cliente=tx.cliente,
+                        tipo=tx.tipo,
+                        moneda=tx.moneda,
+                        monto_operado=tx.monto_operado,
+                        tasa_aplicada=calculo_nuevo['tasa_aplicada'],
+                        comision=calculo_nuevo['comision'],
+                        monto_pyg=calculo_nuevo['monto_pyg'],
+                        medio_pago=tx.medio_pago,
+                        tauser=tx.tauser,
+                        medio_cobro=tx.medio_cobro,
+                    )
+                    
+                    # Limpiar datos de verificación de la sesión
+                    if 'verificacion_cotizacion' in request.session:
+                        del request.session['verificacion_cotizacion']
+                    
+                    messages.success(
+                        request, 
+                        f"Nueva transacción creada (#{nueva_tx.id}) con la cotización actualizada. La transacción anterior (#{tx.id}) fue cancelada."
+                    )
+                    
+                    # Redirigir al pago de la nueva transacción
+                    return redirect("transacciones:iniciar_pago_tarjeta", pk=nueva_tx.id)
+                    
+            except Exception as e:
+                logger.exception(f"Error al recrear transacción: {e}")
+                messages.error(request, f"Error al actualizar la transacción: {e}")
+                return redirect("transacciones:transacciones_list")
+        
+        elif accion == "cancelar":
+            # El usuario no acepta el cambio: cancelar todo
+            try:
+                cancelar_transaccion(tx)
+                messages.info(request, f"Transacción #{tx.id} cancelada por cambio de cotización.")
+            except Exception as e:
+                logger.exception(f"Error al cancelar transacción: {e}")
+                messages.error(request, f"Error al cancelar la transacción: {e}")
+            
+            # Limpiar datos de verificación de la sesión
+            if 'verificacion_cotizacion' in request.session:
+                del request.session['verificacion_cotizacion']
+            
+            return redirect("transacciones:transacciones_list")
+    
+    # GET: Mostrar la página de confirmación
+    context = {
+        'transaccion': tx,
+        'verificacion': verificacion_data,
+    }
+    
+    return render(request, "transacciones/confirmar_cambio_cotizacion.html", context)
+
+
+@require_http_methods(["GET", "POST"])
+def confirmar_cambio_cotizacion_sipap(request, pk):
+    """
+    Vista para confirmar si el usuario desea proceder con el pago SIPAP a pesar del cambio de cotización.
+    Si acepta, cancela la transacción anterior y crea una nueva con los nuevos valores.
+    """
+    # Filtrar por clientes del usuario autenticado
+    if request.user.is_authenticated:
+        tx = get_object_or_404(
+            Transaccion.objects.filter(cliente__usuarios=request.user), 
+            pk=pk
+        )
+    else:
+        tx = get_object_or_404(Transaccion, pk=pk)
+    
+    # Verificar que la transacción esté pendiente
+    if tx.estado != EstadoTransaccionEnum.PENDIENTE:
+        messages.warning(request, "Esta transacción ya no está en estado pendiente.")
+        return redirect('transacciones:transacciones_list')
+    
+    # Obtener los datos de verificación de la sesión
+    verificacion_data = request.session.get('verificacion_cotizacion')
+    if not verificacion_data or verificacion_data.get('transaccion_id') != tx.id:
+        # Si no hay datos en sesión, recalcular
+        verificacion = tx.verificar_cambio_cotizacion()
+        if not verificacion['ha_cambiado']:
+            # Si ya no hay cambio, proceder directamente al comprobante SIPAP
+            messages.info(request, "La cotización se ha estabilizado. Mostrando comprobante de pago.")
+            return redirect("transacciones:mostrar_comprobante_sipap", pk=pk)
+        
+        verificacion_data = {
+            'transaccion_id': tx.id,
+            'monto_pyg_original': str(verificacion['monto_pyg_original']),
+            'monto_pyg_nuevo': str(verificacion['monto_pyg_nuevo']),
+            'tasa_original': str(verificacion['tasa_original']),
+            'tasa_nueva': str(verificacion['tasa_nueva']),
+            'diferencia_pyg': str(verificacion['diferencia_pyg']),
+            'diferencia_porcentaje': str(verificacion['diferencia_porcentaje']),
+        }
+    
+    if request.method == "POST":
+        accion = request.POST.get("accion")
+        
+        if accion == "aceptar":
+            # El usuario acepta el cambio: cancelar la transacción anterior y crear una nueva
+            try:
+                with transaction.atomic():
+                    # Recalcular con la cotización actual
+                    verificacion = tx.verificar_cambio_cotizacion()
+                    calculo_nuevo = verificacion['calculo_completo']
+                    
+                    # Cancelar la transacción anterior
+                    cancelar_transaccion(tx)
+                    
+                    # Crear nueva transacción con los valores actualizados
+                    nueva_tx = crear_transaccion(
+                        cliente=tx.cliente,
+                        tipo=tx.tipo,
+                        moneda=tx.moneda,
+                        monto_operado=tx.monto_operado,
+                        tasa_aplicada=calculo_nuevo['tasa_aplicada'],
+                        comision=calculo_nuevo['comision'],
+                        monto_pyg=calculo_nuevo['monto_pyg'],
+                        medio_pago=tx.medio_pago,
+                        tauser=tx.tauser,
+                        medio_cobro=tx.medio_cobro,
+                    )
+                    
+                    # Limpiar datos de verificación de la sesión
+                    if 'verificacion_cotizacion' in request.session:
+                        del request.session['verificacion_cotizacion']
+                    
+                    messages.success(
+                        request, 
+                        f"Nueva transacción creada (#{nueva_tx.id}) con la cotización actualizada. La transacción anterior (#{tx.id}) fue cancelada."
+                    )
+                    
+                    # Redirigir al comprobante SIPAP de la nueva transacción
+                    return redirect("transacciones:mostrar_comprobante_sipap", pk=nueva_tx.id)
+                    
+            except Exception as e:
+                logger.exception(f"Error al recrear transacción: {e}")
+                messages.error(request, f"Error al actualizar la transacción: {e}")
+                return redirect("transacciones:transacciones_list")
+        
+        elif accion == "cancelar":
+            # El usuario no acepta el cambio: cancelar todo
+            try:
+                cancelar_transaccion(tx)
+                messages.info(request, f"Transacción #{tx.id} cancelada por cambio de cotización.")
+            except Exception as e:
+                logger.exception(f"Error al cancelar transacción: {e}")
+                messages.error(request, f"Error al cancelar la transacción: {e}")
+            
+            # Limpiar datos de verificación de la sesión
+            if 'verificacion_cotizacion' in request.session:
+                del request.session['verificacion_cotizacion']
+            
+            return redirect("transacciones:transacciones_list")
+    
+    # GET: Mostrar la página de confirmación
+    context = {
+        'transaccion': tx,
+        'verificacion': verificacion_data,
+        'es_sipap': True,  # Flag para indicar que es un pago SIPAP
+    }
+    
+    return render(request, "transacciones/confirmar_cambio_cotizacion.html", context)
+
+
 
 

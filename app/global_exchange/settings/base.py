@@ -107,7 +107,7 @@ for static_dir in glob(str(BASE_DIR / "app" / "*" / "static")):
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Tiempo (min) que permanece vigente una transacción pendiente antes de expirar
-TRANSACCION_EXPIRACION_MINUTOS = int(os.getenv("TRANSACCION_EXPIRACION_MINUTOS", "1"))
+TRANSACCION_EXPIRACION_MINUTOS = int(os.getenv("TRANSACCION_EXPIRACION_MINUTOS", "15"))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

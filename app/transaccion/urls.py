@@ -26,6 +26,8 @@ urlpatterns = [
 
     path("<int:pk>/pago/simplesipap/", views.marcar_pagada_simple, name="pago_simplesipap"),
     path("<int:pk>/comprobante-sipap/", views.mostrar_comprobante_sipap, name="mostrar_comprobante_sipap"),
+    path("<int:pk>/confirmar-cambio-cotizacion/", views.confirmar_cambio_cotizacion, name="confirmar_cambio_cotizacion"),
+    path("<int:pk>/confirmar-cambio-cotizacion-sipap/", views.confirmar_cambio_cotizacion_sipap, name="confirmar_cambio_cotizacion_sipap"),
 
 
 ]

@@ -147,6 +147,54 @@ class Transaccion(models.Model):
             return None
         delta = self.fecha_expiracion - timezone.now()
         return max(0, int(delta.total_seconds() / 60))
+    
+    def verificar_cambio_cotizacion(self):
+        """
+        Verifica si la cotización ha cambiado desde que se creó la transacción.
+        Retorna un diccionario con:
+        - ha_cambiado (bool): True si cambió la cotización
+        - monto_pyg_original (Decimal): Monto PYG original
+        - monto_pyg_nuevo (Decimal): Monto PYG recalculado
+        - tasa_original (Decimal): Tasa aplicada originalmente
+        - tasa_nueva (Decimal): Tasa actual
+        - diferencia_pyg (Decimal): Diferencia en PYG
+        - diferencia_porcentaje (Decimal): Diferencia porcentual
+        """
+        from transaccion.services import calcular_transaccion
+        from decimal import Decimal
+        
+        # Recalcular con la cotización actual
+        calculo_nuevo = calcular_transaccion(
+            cliente=self.cliente,
+            tipo=self.tipo,
+            moneda=self.moneda,
+            monto_operado=self.monto_operado,
+            medio_pago=self.medio_pago,
+        )
+        
+        monto_pyg_original = Decimal(str(self.monto_pyg))
+        monto_pyg_nuevo = Decimal(str(calculo_nuevo['monto_pyg']))
+        tasa_original = Decimal(str(self.tasa_aplicada))
+        tasa_nueva = Decimal(str(calculo_nuevo['tasa_aplicada']))
+        
+        diferencia_pyg = monto_pyg_nuevo - monto_pyg_original
+        diferencia_porcentaje = Decimal('0')
+        if monto_pyg_original > 0:
+            diferencia_porcentaje = (diferencia_pyg / monto_pyg_original) * Decimal('100')
+        
+        # Considerar que hay cambio si la diferencia es mayor a 1 PYG (para evitar diferencias por redondeo)
+        ha_cambiado = abs(diferencia_pyg) > Decimal('1')
+        
+        return {
+            'ha_cambiado': ha_cambiado,
+            'monto_pyg_original': monto_pyg_original,
+            'monto_pyg_nuevo': monto_pyg_nuevo,
+            'tasa_original': tasa_original,
+            'tasa_nueva': tasa_nueva,
+            'diferencia_pyg': diferencia_pyg,
+            'diferencia_porcentaje': diferencia_porcentaje,
+            'calculo_completo': calculo_nuevo,
+        }
 
 
 class Movimiento(models.Model):

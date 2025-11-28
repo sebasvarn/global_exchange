@@ -5,3 +5,4 @@ requests==2.32.3
 SQLAlchemy==2.0.31
 gunicorn==23.0.0
 Flask-CORS==4.0.0
+python-dotenv==1.0.0

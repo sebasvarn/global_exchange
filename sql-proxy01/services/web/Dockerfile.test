@@ -69,6 +69,11 @@ COPY . $APP_HOME
 USER root
 RUN apt-get update && apt-get install -y procps
 
+# Create logs directory with proper permissions
+RUN mkdir -p $APP_HOME/logs
+RUN chown -R app:app $APP_HOME/logs
+RUN chmod -R 755 $APP_HOME/logs
+
 # chown all the files to the app user
 RUN chown -R app:app $APP_HOME
 RUN chown -R app:app /kude

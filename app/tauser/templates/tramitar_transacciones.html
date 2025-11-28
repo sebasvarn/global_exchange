@@ -50,6 +50,7 @@
 
 <form method="post" class="mb-4" id="searchTransactionForm">
   {% csrf_token %}
+  <input type="hidden" name="accion" value="buscar">
   <div class="input-group mb-3">
     <input type="text" name="codigo_verificacion" id="codigo_verificacion" class="form-control text-uppercase"
            placeholder="Ingrese el código de verificación (ej: A3B7K9)"
@@ -63,6 +64,73 @@
 
 {% if error %}
   <div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+{% if mensaje %}
+  <div class="alert alert-success">{{ mensaje }}</div>
+{% endif %}
+
+{% if verificacion_cotizacion_previa and mostrar_modal_cotizacion %}
+<!-- Modal de Cambio de Cotización -->
+<div class="modal fade show" id="modalCambioCotizacion" tabindex="-1" aria-hidden="false" style="display: block; background: rgba(0,0,0,0.5);">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-warning text-dark">
+        <h5 class="modal-title">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          ¡Cambio en la Cotización Detectado!
+        </h5>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info">
+          <strong>Importante:</strong> La cotización ha cambiado desde que se creó esta transacción.
+          Por favor, revise los nuevos valores antes de continuar.
+        </div>
+
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <div class="card bg-light">
+              <div class="card-body">
+                <h6 class="text-muted">Valores Originales</h6>
+                <p class="mb-1"><strong>Tasa:</strong> {{ verificacion_cotizacion_previa.tasa_original|floatformat:2 }} PYG</p>
+                <p class="mb-0"><strong>Monto:</strong> ₲{{ verificacion_cotizacion_previa.monto_pyg_original|floatformat:0 }}</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="card bg-light">
+              <div class="card-body">
+                <h6 class="text-muted">Valores Nuevos</h6>
+                <p class="mb-1"><strong>Tasa:</strong> {{ verificacion_cotizacion_previa.tasa_nueva|floatformat:2 }} PYG</p>
+                <p class="mb-0"><strong>Monto:</strong> ₲{{ verificacion_cotizacion_previa.monto_pyg_nuevo|floatformat:0 }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="alert {% if verificacion_cotizacion_previa.diferencia_pyg > 0 %}alert-danger{% else %}alert-success{% endif %}">
+          <strong>Diferencia:</strong>
+          <span class="fw-bold">
+            {{ verificacion_cotizacion_previa.diferencia_pyg|floatformat:0 }} PYG
+            ({{ verificacion_cotizacion_previa.diferencia_porcentaje|floatformat:2 }}%)
+          </span>
+        </div>
+
+        <p class="text-center mb-0">
+          <strong>¿Desea continuar con el nuevo monto?</strong>
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-danger" onclick="window.location.reload()">
+          <i class="bi bi-x-circle"></i> Cancelar
+        </button>
+        <button type="button" class="btn btn-success" id="btnAceptarCambioCotizacion">
+          <i class="bi bi-check-circle"></i> Aceptar y Continuar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endif %}
 
 {% if datos_transaccion %}
@@ -160,37 +228,9 @@
           </div>
         {% endif %}
       {% endif %}
-    {% elif datos_transaccion.estado == "pendiente" or datos_transaccion.estado == "pagada" %}
-      <div class="text-center mt-4">
-        <button type="button" id="btnRealizarTransaccion" class="btn btn-success">
-          Realizar transacción
-        </button>
-      </div>
-
-    {% elif datos_transaccion.estado == "completada" %}
-      <div class="text-center mt-4">
-        <span class="badge bg-primary fs-5">Completada</span>
-      </div>
-
-      <div class="d-flex justify-content-center gap-3 mt-4">
-        <form method="post" class="d-inline">
-          {% csrf_token %}
-          <input type="hidden" name="codigo_verificacion" value="{{ datos_transaccion.codigo_verificacion }}">
-          <button type="submit" name="accion" value="confirmar" class="btn btn-success">
-            Confirmar Pago
-          </button>
-        </form>
-        <form method="post" class="d-inline">
-          {% csrf_token %}
-          <input type="hidden" name="codigo_verificacion" value="{{ datos_transaccion.codigo_verificacion }}">
-          <button type="submit" name="accion" value="cancelar" class="btn btn-danger">
-            Cancelar
-          </button>
-        </form>
-      </div>
-    {% endif %}
   </div>
 </div>
+{% endif %}
 
 
 <div class="modal fade" id="mfaModal" tabindex="-1" aria-labelledby="mfaModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
@@ -388,6 +428,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     let timerInterval;
 
+    console.log('[DEBUG] Script cargado - tramitar_transacciones.html');
+    console.log('[DEBUG] searchBtn:', searchBtn);
+    console.log('[DEBUG] searchForm:', searchForm);
+    console.log('[DEBUG] mfaModal:', mfaModal);
+
     // Movimiento automático entre inputs
     otpInputs.forEach((input, index) => {
         input.addEventListener("input", () => {
@@ -463,54 +508,66 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (searchBtn) {
+        console.log('[DEBUG] Agregando event listener al botón buscar');
         searchBtn.addEventListener("click", () => {
+            console.log('[DEBUG] Click en botón buscar detectado');
             const val = document.getElementById("codigo_verificacion").value.trim();
+            console.log('[DEBUG] Código ingresado:', val);
+            
             if (!val) {
                 alert("Ingrese un código de verificación.");
                 return;
             }
 
+            console.log('[DEBUG] Abriendo modal MFA...');
+            // Solicitar OTP primero
             otpInputs.forEach(i => i.value = "");
             mfaError.classList.add("d-none");
-
             requestOtp("tauser_search_transaction");
             mfaModal.show();
         });
+    } else {
+        console.error('[DEBUG] ERROR: No se encontró el botón searchBtn');
     }
 
-    resendBtn.addEventListener("click", () => {
-        requestOtp("tauser_search_transaction");
-    });
-
-    document.getElementById("verifyOtpBtn").addEventListener("click", () => {
-
-        const code = document.getElementById("mfaCode").value;
-
-        fetch("{% url 'mfa:api_verify_tauser_otp' %}", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "X-CSRFToken": "{{ csrf_token }}"
-            },
-            body: JSON.stringify({
-                code: code,
-                purpose: "tauser_search_transaction"
-            })
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (data.ok) {
-                searchForm.submit();
-            } else {
-                mfaError.textContent = data.error || "Código incorrecto.";
-                mfaError.classList.remove("d-none");
-            }
-        })
-        .catch(() => {
-            mfaError.textContent = "Error al verificar.";
-            mfaError.classList.remove("d-none");
+    if (resendBtn) {
+        resendBtn.addEventListener("click", () => {
+            requestOtp("tauser_search_transaction");
         });
-    });
+    }
+
+    const verifyOtpBtn = document.getElementById("verifyOtpBtn");
+    if (verifyOtpBtn) {
+        verifyOtpBtn.addEventListener("click", () => {
+
+            const code = document.getElementById("mfaCode").value;
+
+            fetch("{% url 'mfa:api_verify_tauser_otp' %}", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": "{{ csrf_token }}"
+                },
+                body: JSON.stringify({
+                    code: code,
+                    purpose: "tauser_search_transaction"
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.ok) {
+                    searchForm.submit();
+                } else {
+                    mfaError.textContent = data.error || "Código incorrecto.";
+                    mfaError.classList.remove("d-none");
+                }
+            })
+            .catch(() => {
+                mfaError.textContent = "Error al verificar.";
+                mfaError.classList.remove("d-none");
+            });
+        });
+    }
 
 
     /* ============================================================================
@@ -585,50 +642,106 @@ document.addEventListener("DOMContentLoaded", () => {
            ENVÍO FINAL DE TRANSACCIÓN
         ======================================================= */
         async function enviarTransaccion(conFactura) {
+            try {
+                modalProcesando.show();
 
-            modalProcesando.show();
+                const csrftoken = document.cookie.split("; ")
+                    .find(row => row.startsWith("csrftoken="))
+                    ?.split("=")[1];
 
-            const csrftoken = document.cookie.split("; ")
-                .find(row => row.startsWith("csrftoken="))
-                ?.split("=")[1];
+                const codigo = document.getElementById("codigo_verificacion").value.trim();
 
-            const codigo = document.getElementById("codigo_verificacion").value.trim();
+                const data = new URLSearchParams();
+                data.append("codigo_verificacion", codigo);
+                data.append("accion", "concluir_venta");
 
-            const data = new URLSearchParams();
-            data.append("codigo_verificacion", codigo);
-            data.append("accion", "concluir_venta");
+                inputs.forEach(i => data.append(i.name, i.value));
 
-            inputs.forEach(i => data.append(i.name, i.value));
+                data.append("generar_factura", conFactura ? "si" : "no");
 
-            data.append("generar_factura", conFactura ? "si" : "no");
+                if (conFactura) {
+                    data.append("fact_nombre", document.getElementById("fact_nombre").value);
+                    data.append("fact_cedula", document.getElementById("fact_cedula").value);
+                    data.append("fact_ruc", document.getElementById("fact_ruc").value);
+                    data.append("fact_dv", document.getElementById("fact_dv").value);
+                    data.append("fact_email", document.getElementById("fact_email").value);
+                    data.append("fact_direccion", document.getElementById("fact_direccion").value);
+                }
 
-            if (conFactura) {
-                data.append("fact_nombre", document.getElementById("fact_nombre").value);
-                data.append("fact_cedula", document.getElementById("fact_cedula").value);
-                data.append("fact_ruc", document.getElementById("fact_ruc").value);
-                data.append("fact_dv", document.getElementById("fact_dv").value);
-                data.append("fact_email", document.getElementById("fact_email").value);
-                data.append("fact_direccion", document.getElementById("fact_direccion").value);
-            }
+                const response = await fetch(window.location.href, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded",
+                        "X-CSRFToken": csrftoken
+                    },
+                    body: data
+                });
 
-            const response = await fetch(window.location.href, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    "X-CSRFToken": csrftoken
-                },
-                body: data
-            });
-
-            const result = await response.json();
+                const result = await response.json();
 
             modalProcesando.hide();
 
             if (result.success) {
+                // Construir mensaje de éxito
+                let mensajeExito = 'Transacción completada exitosamente.';
+                if (result.mensaje_sipap && result.mensaje_sipap.trim()) {
+                    mensajeExito += '\n' + result.mensaje_sipap;
+                }
+                
+                // Actualizar el texto del modal de éxito
+                const modalExitoBody = document.querySelector('#modalExito .modal-body p');
+                if (modalExitoBody) {
+                    modalExitoBody.textContent = mensajeExito;
+                }
+                
                 modalExito.show();
                 document.getElementById("btnCerrarExito").onclick = () => location.reload();
+            } else if (result.cambio_cotizacion) {
+                // Mostrar alerta de cambio de cotización
+                const verificacion = result.verificacion;
+                const mensaje = `
+                    La cotización ha cambiado:\n
+                    Monto Original: ₲${parseFloat(verificacion.monto_pyg_original).toLocaleString('es-PY')}\n
+                    Monto Nuevo: ₲${parseFloat(verificacion.monto_pyg_nuevo).toLocaleString('es-PY')}\n
+                    Diferencia: ₲${parseFloat(verificacion.diferencia_pyg).toLocaleString('es-PY')} (${verificacion.diferencia_porcentaje}%)\n\n
+                    ¿Desea continuar con el nuevo monto?
+                `;
+                
+                if (confirm(mensaje)) {
+                    // Reenviar con confirmación
+                    data.append("confirmar_cambio_cotizacion", "si");
+                    
+                    modalProcesando.show();
+                    const response2 = await fetch(window.location.href, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/x-www-form-urlencoded",
+                            "X-CSRFToken": csrftoken
+                        },
+                        body: data
+                    });
+
+                    const result2 = await response2.json();
+                    modalProcesando.hide();
+
+                    if (result2.success) {
+                        modalExito.show();
+                        document.getElementById("btnCerrarExito").onclick = () => location.reload();
+                    } else {
+                        errorDiv.textContent = result2.error || "Ocurrió un error.";
+                        errorDiv.classList.remove("d-none");
+                    }
+                } else {
+                    errorDiv.textContent = "Operación cancelada por el usuario.";
+                    errorDiv.classList.remove("d-none");
+                }
             } else {
                 errorDiv.textContent = result.error || "Ocurrió un error.";
+                errorDiv.classList.remove("d-none");
+            }
+            } catch (error) {
+                modalProcesando.hide();
+                errorDiv.textContent = "Error de red al procesar la transacción: " + error.message;
                 errorDiv.classList.remove("d-none");
             }
         }
@@ -640,6 +753,73 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnRealizar = document.getElementById("btnRealizarTransaccion");
     if (btnRealizar) {
         btnRealizar.onclick = () => modalConfirmar.show();
+        
+        // Conectar botones del modal de confirmación para transacciones sin denominaciones
+        document.getElementById("btnConfirmarConFactura").onclick = () => {
+            modalConfirmar.hide();
+            modalDatosFactura.show();
+        };
+
+        document.getElementById("btnConfirmarSinFactura").onclick = () => {
+            modalConfirmar.hide();
+            enviarTransaccionSimple(false);
+        };
+
+        document.getElementById("btnEnviarDatosFactura").onclick = () => {
+            modalDatosFactura.hide();
+            enviarTransaccionSimple(true);
+        };
+    }
+
+    /* =======================================================
+       ENVÍO TRANSACCIÓN SIMPLE (sin denominaciones)
+    ======================================================= */
+    async function enviarTransaccionSimple(conFactura) {
+        modalProcesando.show();
+
+        const csrftoken = document.cookie.split("; ")
+            .find(row => row.startsWith("csrftoken="))
+            ?.split("=")[1];
+
+        const codigo = document.getElementById("codigo_verificacion").value.trim();
+
+        const data = new URLSearchParams();
+        data.append("codigo_verificacion", codigo);
+        data.append("accion", "confirmar");
+        data.append("generar_factura", conFactura ? "si" : "no");
+
+        if (conFactura) {
+            data.append("fact_nombre", document.getElementById("fact_nombre").value);
+            data.append("fact_cedula", document.getElementById("fact_cedula").value);
+            data.append("fact_ruc", document.getElementById("fact_ruc").value);
+            data.append("fact_dv", document.getElementById("fact_dv").value);
+            data.append("fact_email", document.getElementById("fact_email").value);
+            data.append("fact_direccion", document.getElementById("fact_direccion").value);
+        }
+
+        try {
+            const response = await fetch(window.location.href, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "X-CSRFToken": csrftoken
+                },
+                body: data
+            });
+
+            const result = await response.json();
+            modalProcesando.hide();
+
+            if (result.success) {
+                modalExito.show();
+                document.getElementById("btnCerrarExito").onclick = () => location.reload();
+            } else {
+                alert(result.error || "Ocurrió un error al procesar la transacción.");
+            }
+        } catch (error) {
+            modalProcesando.hide();
+            alert("Error de red al procesar la transacción.");
+        }
     }
 });
 </script>

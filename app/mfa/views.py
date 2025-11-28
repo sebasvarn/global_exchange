@@ -118,6 +118,8 @@ def verify_tauser_transaction_otp(request):
         code = data.get('code')
         purpose = data.get('purpose')
 
+        logger.info(f"[MFA VERIFY] Verificando OTP para purpose: {purpose}, code: {code}")
+
         if not code or not purpose:
             return JsonResponse({'ok': False, 'error': 'Faltan parámetros.'}, status=400)
 
@@ -125,15 +127,21 @@ def verify_tauser_transaction_otp(request):
         
         if is_valid:
             # Marcar el propósito de MFA como verificado en la sesión
-            request.session[f'mfa_verified_{purpose}'] = True
+            session_key = f'mfa_verified_{purpose}'
+            request.session[session_key] = True
+            request.session.modified = True  # Forzar guardado de sesión
+            logger.info(f"[MFA VERIFY] OTP válido. Session key establecida: {session_key}")
+            logger.info(f"[MFA VERIFY] Session keys después de establecer: {list(request.session.keys())}")
             return JsonResponse({'ok': True, 'message': "Verificación exitosa."})
         else:
             # This case is handled by verify_otp_service raising an exception, but as a fallback:
+            logger.warning(f"[MFA VERIFY] OTP inválido")
             return JsonResponse({'ok': False, 'error': 'Código de verificación inválido.'}, status=400)
 
     except ValidationError as e:
+        logger.error(f"[MFA VERIFY] ValidationError: {str(e)}")
         return JsonResponse({'ok': False, 'error': str(e)}, status=400)
     except Exception as e:
-        logger.error(f"Error en verify_tauser_transaction_otp: {e}")
+        logger.error(f"[MFA VERIFY] Error en verify_tauser_transaction_otp: {e}")
         return JsonResponse({'ok': False, 'error': 'Ocurrió un error inesperado.'}, status=500)
 

@@ -119,19 +119,11 @@
                             <div class="card mb-2">
                                 <div class="card-body p-2">
                                     <small class="text-muted d-block mb-2">Tasa de Cambio</small>
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <span>Precio Base:</span>
-                                        <strong id="precio-base-display" class="text-primary">-</strong>
-                                    </div>
                                     <div class="d-flex justify-content-between align-items-center" id="descuento-row" style="display: none !important;">
                                         <span class="text-success">
-                                            <i class="bi bi-tag-fill"></i> Descuento (<span id="descuento-pct-display">0</span>%):
+                                            <i class="bi bi-tag-fill"></i> Suma (<span id="descuento-pct-display">0</span>%):
                                         </span>
                                         <strong class="text-success" id="descuento-valor-display">-</strong>
-                                    </div>
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <span>Comisión Moneda:</span>
-                                        <strong id="comision-moneda-display" class="text-warning">-</strong>
                                     </div>
                                     <hr class="my-2">
                                     <div class="d-flex justify-content-between align-items-center">
@@ -140,8 +132,6 @@
                                     </div>
                                 </div>
                             </div>
-
-                            <!-- Comisiones Adicionales ocultas por requerimiento -->
 
                             <div class="card bg-danger text-white">
                                 <div class="card-body p-2">
@@ -295,12 +285,27 @@ document.addEventListener('DOMContentLoaded', function() {
             tauserValido = false;
             tauserStatusMessage.innerHTML = '';
         }
+        
+        // Si ya hay un tauser seleccionado y el método es transferencia, marcarlo como válido
+        if (tauserSelect.value && metodoSeleccionado === 'transferencia') {
+            tauserStatusMessage.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle-fill"></i> Transferencia bancaria - No requiere verificación de stock en efectivo</div>';
+            tauserValido = true;
+        }
+        
         validarFormulario();
     }
 
     // Verificar Stock Tauser automáticamente
     function verificarStockTauser(tauserId) {
         if (!datosTransaccionCompletos()) {
+            return;
+        }
+
+        // Si el método de cobro es transferencia, no necesita verificar stock
+        if (metodoSeleccionado === 'transferencia') {
+            tauserStatusMessage.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle-fill"></i> Transferencia bancaria - No requiere verificación de stock en efectivo</div>';
+            tauserValido = true;
+            validarFormulario();
             return;
         }
 
@@ -407,8 +412,6 @@ document.addEventListener('DOMContentLoaded', function() {
             calculoActual = data;
 
             // Actualizar desglose completo
-            document.getElementById('precio-base-display').textContent = parseFloat(data.precio_base).toLocaleString('es-PY') + ' PYG';
-            document.getElementById('comision-moneda-display').textContent = parseFloat(data.comision).toLocaleString('es-PY') + ' PYG';
             document.getElementById('tasa-display').textContent = parseFloat(data.tasa_aplicada).toLocaleString('es-PY') + ' PYG';
 
             // Mostrar descuento solo si existe, limpiar siempre si no
@@ -418,7 +421,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.descuento_pct && parseFloat(data.descuento_pct) > 0) {
                 descuentoPctDisplay.textContent = parseFloat(data.descuento_pct).toFixed(2);
                 const descuentoValor = parseFloat(data.comision) * parseFloat(data.descuento_pct) / 100;
-                descuentoValorDisplay.textContent = '- ' + descuentoValor.toLocaleString('es-PY') + ' PYG';
+                descuentoValorDisplay.textContent = '+ ' + descuentoValor.toLocaleString('es-PY') + ' PYG';
                 descuentoRow.style.display = 'flex';
             } else {
                 descuentoPctDisplay.textContent = '0';

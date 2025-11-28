@@ -127,19 +127,11 @@
                             <div class="card mb-2">
                                 <div class="card-body p-2">
                                     <small class="text-muted d-block mb-2">Tasa de Cambio</small>
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <span>Precio Base:</span>
-                                        <strong id="precio-base-display" class="text-primary">-</strong>
-                                    </div>
                                     <div class="d-flex justify-content-between align-items-center" id="descuento-row" style="display: none !important;">
                                         <span class="text-success">
                                             <i class="bi bi-tag-fill"></i> Descuento (<span id="descuento-pct-display">0</span>%):
                                         </span>
                                         <strong class="text-success" id="descuento-valor-display">-</strong>
-                                    </div>
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <span>Comisión Moneda:</span>
-                                        <strong id="comision-moneda-display" class="text-warning">-</strong>
                                     </div>
                                     <hr class="my-2">
                                     <div class="d-flex justify-content-between align-items-center">
@@ -452,8 +444,6 @@ document.addEventListener('DOMContentLoaded', function() {
             calculoActual = data;
 
             // Actualizar desglose completo
-            document.getElementById('precio-base-display').textContent = parseFloat(data.precio_base).toLocaleString('es-PY') + ' PYG';
-            document.getElementById('comision-moneda-display').textContent = parseFloat(data.comision).toLocaleString('es-PY') + ' PYG';
             document.getElementById('tasa-display').textContent = parseFloat(data.tasa_aplicada).toLocaleString('es-PY') + ' PYG';
 
             // Mostrar descuento solo si existe, limpiar siempre si no
