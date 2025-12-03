@@ -1,4 +1,3 @@
-
 from django.shortcuts import render
 
 from django.utils import timezone
@@ -8,8 +7,10 @@ from commons.enums import EstadoTransaccionEnum, TipoTransaccionEnum
 
 from collections import defaultdict
 import json
-from collections import Counter
+from collections import Counter, defaultdict
 from clientes.models import Cliente
+from transaccion.models import Transaccion
+from monedas.models import Moneda
 
 def dashboard(request):
 	"""
@@ -156,4 +157,83 @@ def dashboard(request):
 	}
 	return render(request, 'control_ganancias/dashboard.html', context)
 
-# Create your views here.
+def reporte_transacciones(request):
+	# Filtros GET
+	fecha_desde = request.GET.get('fecha_desde')
+	fecha_hasta = request.GET.get('fecha_hasta')
+	tipo = request.GET.get('tipo')
+	estado = request.GET.get('estado')
+	moneda = request.GET.get('moneda')
+	cliente = request.GET.get('cliente')
+
+	# Totales para tarjetas (sin filtros)
+	total_transacciones = Transaccion.objects.count()
+	total_completadas = Transaccion.objects.filter(estado=EstadoTransaccionEnum.COMPLETADA).count()
+	total_pagadas = Transaccion.objects.filter(estado=EstadoTransaccionEnum.PAGADA).count()
+	total_pendientes = Transaccion.objects.filter(estado=EstadoTransaccionEnum.PENDIENTE).count()
+	total_canceladas = Transaccion.objects.filter(estado=EstadoTransaccionEnum.CANCELADA).count()
+	total_anuladas = Transaccion.objects.filter(estado=EstadoTransaccionEnum.ANULADA).count()
+
+	# Filtros para la tabla y gráfico
+	transacciones = Transaccion.objects.all()
+	if fecha_desde:
+		transacciones = transacciones.filter(fecha__date__gte=fecha_desde)
+	if fecha_hasta:
+		transacciones = transacciones.filter(fecha__date__lte=fecha_hasta)
+	if tipo:
+		transacciones = transacciones.filter(tipo=tipo)
+	if estado:
+		transacciones = transacciones.filter(estado=estado)
+	if moneda:
+		transacciones = transacciones.filter(moneda__codigo=moneda)
+	if cliente:
+		transacciones = transacciones.filter(cliente__id=cliente)
+
+	# Datos para gráfico de transacciones por día (según filtros)
+	transacciones_por_fecha = defaultdict(int)
+	for t in transacciones:
+		fecha_str = t.fecha.strftime('%d-%m-%Y')
+		transacciones_por_fecha[fecha_str] += 1
+	fechas_grafico = sorted(transacciones_por_fecha.keys(), key=lambda x: datetime.strptime(x, '%d-%m-%Y'))
+	cantidades_grafico = [transacciones_por_fecha[f] for f in fechas_grafico]
+	fechas_grafico_json = json.dumps(fechas_grafico)
+	cantidades_grafico_json = json.dumps(cantidades_grafico)
+
+	# Datos para gráfico de torta por tipo de transacción (compra/venta) según filtro de fecha
+	tipos_torta = [TipoTransaccionEnum.COMPRA, TipoTransaccionEnum.VENTA]
+	tipos_torta_labels = ['Compra', 'Venta']
+	transacciones_por_tipo_torta = [transacciones.filter(tipo=tipo).count() for tipo in tipos_torta]
+	tipos_torta_json = json.dumps(tipos_torta_labels)
+	transacciones_por_tipo_torta_json = json.dumps(transacciones_por_tipo_torta)
+
+	# Opciones para selects
+	monedas = Moneda.objects.all()
+	clientes = Cliente.objects.filter(transacciones__isnull=False).distinct()
+
+	# Poblar tabla
+	detalle_transacciones = transacciones.select_related('moneda', 'medio_pago', 'cliente')
+
+	context = {
+		'total_transacciones': total_transacciones,
+		'total_completadas': total_completadas,
+		'total_pagadas': total_pagadas,
+		'total_pendientes': total_pendientes,
+		'total_canceladas': total_canceladas,
+		'total_anuladas': total_anuladas,
+		'monedas': monedas,
+		'clientes': clientes,
+		'detalle_transacciones': detalle_transacciones,
+		'fechas_grafico': fechas_grafico_json,
+		'cantidades_grafico': cantidades_grafico_json,
+		'tipos_torta': tipos_torta_json,
+		'transacciones_por_tipo_torta': transacciones_por_tipo_torta_json,
+		'filtros': {
+			'fecha_desde': fecha_desde,
+			'fecha_hasta': fecha_hasta,
+			'tipo': tipo,
+			'estado': estado,
+			'moneda': moneda,
+			'cliente': cliente,
+		}
+	}
+	return render(request, 'control_ganancias/reporte_transacciones.html', context)

@@ -370,10 +370,16 @@
       <li class="nav-item">
         <a class="nav-link {% if request.resolver_match.url_name == 'dashboard_ganancias' %}active{% endif %}" href="{% url 'dashboard_ganancias' %}">
           <i class="nav-icon bi bi-graph-up"></i>
-          Reportes
+          Ganancias
         </a>
       </li>
       {% endif %}
+      <li class="nav-item">
+        <a class="nav-link {% if request.resolver_match.url_name == 'reporte_transacciones' %}active{% endif %}" href="{% url 'reporte_transacciones' %}">
+          <i class="nav-icon bi bi-graph-up"></i>
+          Reportes
+        </a>
+      </li>
 
     </ul>
 
