@@ -33,16 +33,14 @@ def dashboard(request):
 	"""
 	# Filtro por rango de fechas (máx 1 año)
 	today = timezone.now().date()
-	default_start = today - timedelta(days=30)
+	default_start = datetime(2024, 1, 1).date()
 	start_date = request.GET.get('start_date', default_start.strftime('%Y-%m-%d'))
 	end_date = request.GET.get('end_date', today.strftime('%Y-%m-%d'))
 
-	# Limitar rango a 1 año
+	# Permitir cualquier rango de fechas
 	try:
 		start_dt = datetime.strptime(start_date, '%Y-%m-%d').date()
 		end_dt = datetime.strptime(end_date, '%Y-%m-%d').date()
-		if (end_dt - start_dt).days > 365:
-			start_dt = end_dt - timedelta(days=365)
 	except Exception:
 		start_dt = default_start
 		end_dt = today
@@ -158,6 +156,30 @@ def dashboard(request):
 	return render(request, 'control_ganancias/dashboard.html', context)
 
 def reporte_transacciones(request):
+	"""
+	Vista para el reporte de transacciones.
+
+	Permite filtrar y visualizar transacciones por rango de fechas, tipo, estado, moneda y cliente.
+	Muestra totales por estado, gráficos de evolución diaria y por tipo de operación, y una tabla detallada exportable.
+
+	Parámetros GET:
+		- fecha_desde: Fecha inicial del filtro (YYYY-MM-DD)
+		- fecha_hasta: Fecha final del filtro (YYYY-MM-DD)
+		- tipo: Tipo de transacción ('compra' o 'venta')
+		- estado: Estado de la transacción ('pendiente', 'pagada', 'completada', 'cancelada', 'anulada')
+		- moneda: Código de moneda (ej: 'USD')
+		- cliente: ID del cliente
+
+	Contexto enviado al template:
+		- Totales por estado y tipo
+		- Listado de monedas y clientes
+		- Detalle de transacciones filtradas
+		- Datos para gráficos (fechas, cantidades, torta por tipo)
+		- Filtros aplicados
+
+	Retorna:
+		HttpResponse con el template 'control_ganancias/reporte_transacciones.html'
+	"""
 	# Filtros GET
 	fecha_desde = request.GET.get('fecha_desde')
 	fecha_hasta = request.GET.get('fecha_hasta')

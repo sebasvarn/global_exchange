@@ -374,12 +374,15 @@
         </a>
       </li>
       {% endif %}
+
+      {% if request.user|has_permission:'reporte_transacciones.view' %}
       <li class="nav-item">
         <a class="nav-link {% if request.resolver_match.url_name == 'reporte_transacciones' %}active{% endif %}" href="{% url 'reporte_transacciones' %}">
           <i class="nav-icon bi bi-graph-up"></i>
           Reportes
         </a>
       </li>
+      {% endif %}
 
     </ul>
 
