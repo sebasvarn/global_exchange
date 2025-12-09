@@ -594,17 +594,29 @@ def venta_moneda(request):
             elif metodo_cobro == 'transferencia':
                 # Cliente cobra por transferencia - usar MedioAcreditacion del cliente
                 tipo_metodo_override = 'transferencia'
-                
                 # Validar que tenga un medio de cobro configurado
                 if not medio_cobro_id:
                     messages.error(request, "Debe seleccionar una cuenta bancaria para recibir la transferencia")
                     return redirect("transacciones:venta_moneda")
-                
                 from medios_acreditacion.models import MedioAcreditacion
                 medio_cobro_obj = get_object_or_404(
                     MedioAcreditacion, 
                     pk=int(medio_cobro_id), 
-                    cliente=cliente
+                    cliente=cliente,
+                    tipo_medio='cuenta_bancaria'
+                )
+            elif metodo_cobro == 'billetera':
+                # Cliente cobra por billetera - usar MedioAcreditacion del cliente
+                tipo_metodo_override = 'billetera'
+                if not medio_cobro_id:
+                    messages.error(request, "Debe seleccionar una billetera para recibir el pago")
+                    return redirect("transacciones:venta_moneda")
+                from medios_acreditacion.models import MedioAcreditacion
+                medio_cobro_obj = get_object_or_404(
+                    MedioAcreditacion,
+                    pk=int(medio_cobro_id),
+                    cliente=cliente,
+                    tipo_medio='billetera'
                 )
             else:
                 messages.error(request, f"Método de cobro '{metodo_cobro}' no reconocido")
