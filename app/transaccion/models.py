@@ -162,7 +162,12 @@ class Transaccion(models.Model):
         """
         from transaccion.services import calcular_transaccion
         from decimal import Decimal
-        
+
+        tipo_metodo_override = None
+        # Si es venta, usar el tipo de medio_cobro para el override
+        if self.tipo == 'venta' and self.medio_cobro:
+            tipo_metodo_override = self.medio_cobro.tipo_medio
+
         # Recalcular con la cotización actual
         calculo_nuevo = calcular_transaccion(
             cliente=self.cliente,
@@ -170,21 +175,22 @@ class Transaccion(models.Model):
             moneda=self.moneda,
             monto_operado=self.monto_operado,
             medio_pago=self.medio_pago,
+            tipo_metodo_override=tipo_metodo_override
         )
-        
+
         monto_pyg_original = Decimal(str(self.monto_pyg))
         monto_pyg_nuevo = Decimal(str(calculo_nuevo['monto_pyg']))
         tasa_original = Decimal(str(self.tasa_aplicada))
         tasa_nueva = Decimal(str(calculo_nuevo['tasa_aplicada']))
-        
+
         diferencia_pyg = monto_pyg_nuevo - monto_pyg_original
         diferencia_porcentaje = Decimal('0')
         if monto_pyg_original > 0:
             diferencia_porcentaje = (diferencia_pyg / monto_pyg_original) * Decimal('100')
-        
+
         # Considerar que hay cambio si la diferencia es mayor a 1 PYG (para evitar diferencias por redondeo)
         ha_cambiado = abs(diferencia_pyg) > Decimal('1')
-        
+
         return {
             'ha_cambiado': ha_cambiado,
             'monto_pyg_original': monto_pyg_original,

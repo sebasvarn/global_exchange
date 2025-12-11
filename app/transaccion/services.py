@@ -49,11 +49,20 @@ def calcular_transaccion(cliente, tipo, moneda, monto_operado, medio_pago=None, 
     # Determinar el tipo de método de pago
     tipo_metodo = None
     
+    from commons.enums import PaymentTypeEnum
     if tipo_metodo_override:
-        # Caso especial: efectivo o tarjeta (no requieren PaymentMethod guardado)
-        tipo_metodo = tipo_metodo_override
+        # Usar siempre el valor del Enum para mapeo correcto
+        if tipo_metodo_override == "transferencia":
+            tipo_metodo = PaymentTypeEnum.CUENTA_BANCARIA.value
+        elif tipo_metodo_override == "billetera":
+            tipo_metodo = PaymentTypeEnum.BILLETERA.value
+        elif tipo_metodo_override == "efectivo":
+            tipo_metodo = PaymentTypeEnum.EFECTIVO.value
+        elif tipo_metodo_override == "tarjeta":
+            tipo_metodo = PaymentTypeEnum.TARJETA.value
+        else:
+            tipo_metodo = tipo_metodo_override
     elif medio_pago is not None:
-        # Si medio_pago es un ID (int o str), obtener el objeto PaymentMethod
         payment_method_obj = None
         if isinstance(medio_pago, (int, str)):
             try:
@@ -61,15 +70,10 @@ def calcular_transaccion(cliente, tipo, moneda, monto_operado, medio_pago=None, 
             except PaymentMethod.DoesNotExist:
                 raise ValidationError("El método de pago seleccionado no existe.")
         else:
-            payment_method_obj = medio_pago  # ya es objeto
-
+            payment_method_obj = medio_pago
         tipo_metodo = payment_method_obj.payment_type
-        # Mapear 'transferencia' a 'cuenta_bancaria' para la tabla de comisiones (si fuera necesario)
-        if tipo_metodo == "transferencia":
-            tipo_metodo = "cuenta_bancaria"
     else:
-        # Si no hay medio_pago ni tipo_metodo_override, usar 'efectivo' como default
-        tipo_metodo = "efectivo"
+        tipo_metodo = PaymentTypeEnum.EFECTIVO.value
 
     # 1) Segmento del cliente (fallback 'MIN')
     segmento = getattr(cliente, "tipo", "MIN").upper()
@@ -111,7 +115,10 @@ def calcular_transaccion(cliente, tipo, moneda, monto_operado, medio_pago=None, 
         cmp = ComisionMetodoPago.objects.get(tipo_metodo=tipo_metodo)
         porcentaje_metodo_pago = Decimal(str(cmp.porcentaje_comision))
         comision_metodo_pago = monto_pyg * porcentaje_metodo_pago / Decimal("100")
-        monto_pyg += comision_metodo_pago
+        if tipo == TipoTransaccionEnum.VENTA:
+            monto_pyg -= comision_metodo_pago
+        else:
+            monto_pyg += comision_metodo_pago
     except ComisionMetodoPago.DoesNotExist:
         pass  # Si no hay comisión configurada, no suma nada
 
