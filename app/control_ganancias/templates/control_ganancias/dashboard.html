@@ -69,23 +69,15 @@
             </div>
         </div>
         <div class="row g-3 mb-3">
-            <div class="col-lg-6 col-12">
-                <div class="card shadow-sm border-0 p-3 h-100">
-                    <div class="fw-semibold mb-2">Transacciones por Tipo</div>
-                    <canvas id="pieChart"></canvas>
-                </div>
-            </div>
-            <div class="col-lg-6 col-12">
-                <div class="card shadow-sm border-0 p-3 h-100">
-                    <div class="fw-semibold mb-2">Transacciones por Tipo de Cliente</div>
-                    <canvas id="pieChartCliente"></canvas>
-                </div>
-            </div>
-        </div>
+        <!-- Tortas eliminadas por solicitud -->
 
         <div class="card shadow-sm border-0 mb-3">
             <div class="card-body">
                 <div class="fw-semibold mb-2">Tabla de detalle</div>
+                                <div class="d-flex justify-content-end mb-2" style="gap: 0.5rem;">
+                                    <button id="btnExportExcel" class="btn btn-success btn-sm"><i class="bi bi-file-earmark-excel"></i> Exportar Excel</button>
+                                    <button id="btnExportPDF" class="btn btn-danger btn-sm"><i class="bi bi-file-earmark-pdf"></i> Exportar PDF</button>
+                                </div>
                 <div class="table-responsive">
                     <div class="row g-2 align-items-end mb-2" style="padding: 0 1rem;" id="filtrosTablaDetalle">
                         <div class="col-md-2 col-6 mb-2">
@@ -204,6 +196,41 @@
 
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS para Excel -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- jsPDF y autotable para PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.7.0/jspdf.plugin.autotable.min.js"></script>
+    <script>
+    // Exportar tabla filtrada a Excel y PDF
+    document.addEventListener('DOMContentLoaded', function() {
+        var btnExcel = document.getElementById('btnExportExcel');
+        if (btnExcel) {
+            btnExcel.addEventListener('click', function() {
+                var table = document.querySelector('table.table');
+                // Clonar tabla y eliminar filas ocultas
+                var clone = table.cloneNode(true);
+                Array.from(clone.querySelectorAll('tbody tr')).forEach(tr => {
+                    if (tr.style.display === 'none') tr.remove();
+                });
+                var wb = XLSX.utils.table_to_book(clone, {sheet: "Detalle"});
+                XLSX.writeFile(wb, 'detalle_transacciones.xlsx');
+            });
+        }
+        var btnPDF = document.getElementById('btnExportPDF');
+        if (btnPDF) {
+            btnPDF.addEventListener('click', function() {
+                var table = document.querySelector('table.table');
+                var rows = Array.from(table.querySelectorAll('tbody tr')).filter(tr => tr.style.display !== 'none');
+                var head = Array.from(table.querySelectorAll('thead th')).map(th => th.innerText);
+                var body = rows.map(tr => Array.from(tr.querySelectorAll('td')).map(td => td.innerText));
+                var doc = new window.jspdf.jsPDF();
+                doc.autoTable({ head: [head], body: body });
+                doc.save('detalle_transacciones.pdf');
+            });
+        }
+    });
+    </script>
     <script>
         // Serializar datos como JSON para evitar errores de sintaxis
         const chartFechas = JSON.parse('{{ fechas|safe|escapejs }}');
@@ -224,7 +251,23 @@
             },
             options: {
                 responsive: true,
-                plugins: { legend: { display: false } }
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: {
+                        ticks: {
+                            callback: function(value, index, ticks) {
+                                // chartFechas puede ser string tipo 'YYYY-MM-DD' o Date
+                                let fecha = this.getLabelForValue ? this.getLabelForValue(value) : value;
+                                if (typeof fecha === 'string' && fecha.length >= 10) {
+                                    // Espera formato 'YYYY-MM-DD'
+                                    const [y, m, d] = fecha.split('-');
+                                    return `${d}-${m}-${y.slice(2)}`;
+                                }
+                                return fecha;
+                            }
+                        }
+                    }
+                }
             }
         });
 
@@ -284,53 +327,6 @@
             barChartInstance.update();
         });
 
-        // Gráfico de torta: Transacciones por tipo
-        const chartTipos = JSON.parse('{{ tipos|safe|escapejs }}');
-        const chartTransaccionesPorTipo = JSON.parse('{{ transacciones_por_tipo|safe|escapejs }}');
-        const ctxPie = document.getElementById('pieChart').getContext('2d');
-        new Chart(ctxPie, {
-            type: 'doughnut',
-            data: {
-                labels: chartTipos,
-                datasets: [{
-                    label: 'Transacciones',
-                    data: chartTransaccionesPorTipo,
-                    backgroundColor: [
-                        'rgba(54, 162, 235, 0.7)',
-                        'rgba(255, 206, 86, 0.7)',
-                        'rgba(75, 192, 192, 0.7)',
-                        'rgba(255, 99, 132, 0.7)'
-                    ]
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: { legend: { display: true, position: 'bottom' } }
-            }
-        });
-
-        // Gráfico de torta: Transacciones por tipo de cliente (completadas + pagadas)
-        const chartTiposClientes = JSON.parse('{{ tipos_clientes|safe|escapejs }}');
-        const chartTransaccionesPorTipoCliente = JSON.parse('{{ transacciones_por_tipo_cliente|safe|escapejs }}');
-        const ctxPieCliente = document.getElementById('pieChartCliente').getContext('2d');
-        new Chart(ctxPieCliente, {
-            type: 'doughnut',
-            data: {
-                labels: chartTiposClientes,
-                datasets: [{
-                    label: 'Transacciones',
-                    data: chartTransaccionesPorTipoCliente,
-                    backgroundColor: [
-                        'rgba(54, 162, 235, 0.7)',
-                        'rgba(255, 206, 86, 0.7)',
-                        'rgba(75, 192, 192, 0.7)'
-                    ]
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: { legend: { display: true, position: 'bottom' } }
-            }
-        });
+        // Tortas eliminadas por solicitud
     </script>
     {% endblock %}
