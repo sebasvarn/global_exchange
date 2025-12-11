@@ -258,13 +258,8 @@
                       
                       <!-- Columna de Factura -->
                       <td class="text-center">
-                        <button class="btn btn-sm factura-btn" 
-                                onclick="abrirModalFactura({{ t.id }})"
-                                title="Gestionar Factura Electrónica">
-                          <i class="bi bi-receipt"></i> Factura
-                        </button>
-                        {% if t.factura_electronica %}
-                          <div class="mt-1">
+                        {% if estado != 'pendiente' and estado != 'cancelada' and estado != 'anulada' %}
+                          {% if t.factura_electronica %}
                             <span class="badge factura-status-badge 
                                 {% if t.factura_electronica.estado_sifen == 'APROBADO' %}bg-success
                                 {% elif t.factura_electronica.estado_sifen == 'PROCESANDO' %}bg-warning text-dark
@@ -272,7 +267,17 @@
                                 {% else %}bg-secondary{% endif %}">
                               {{ t.factura_electronica.estado_sifen|default:"PENDIENTE" }}
                             </span>
-                          </div>
+                                <button class="btn btn-sm btn-info ms-2" title="Ver Factura Electrónica"
+                                  onclick="abrirModalFactura({{ t.id }}, 'true')">
+                              <i class="bi bi-eye"></i> Ver Factura
+                            </button>
+                          {% else %}
+                              <button class="btn btn-sm factura-btn" 
+                                onclick="abrirModalFactura({{ t.id }}, 'false')"
+                                title="Generar Factura Electrónica">
+                              <i class="bi bi-receipt"></i> Generar Factura
+                            </button>
+                          {% endif %}
                         {% endif %}
                       </td>
 

@@ -166,22 +166,32 @@
         </ul>
       </div>
     </div>
-    {% if datos_transaccion.tipo|lower == 'venta' %}
-      <div class="alert alert-info mt-3">
-        <i class="bi bi-info-circle-fill"></i>
-        <strong>Importante:</strong>
-        El monto total de las denominaciones debe ser exactamente <span class="fw-bold">${{ datos_transaccion.monto_operado|floatformat:2 }}</span>.
+    {% if datos_transaccion.factura_electronica %}
+      <div class="alert alert-warning mt-3 text-center">
+        <i class="bi bi-receipt"></i>
+        Esta transacción ya tiene una factura asociada.<br>
       </div>
-{% else %}
-  {% if datos_transaccion.tipo|lower == 'compra' and datos_transaccion.medio_pago == 'Efectivo' %}
-    <div class="alert alert-info mt-3">
-      <i class="bi bi-info-circle-fill"></i>
-      <strong>Importante:</strong>
-      El monto total de las denominaciones debe ser exactamente <span class="fw-bold">₲{{ datos_transaccion.monto_pyg|floatformat:0 }}</span>.
-    </div>
-  {% endif %}
-    {% endif %}
-    <!-- ...el resto del contenido (formularios, botones, etc) permanece igual... -->
+      <div class="text-center mt-4">
+        <button type="button" id="btnRealizarTransaccion" class="btn btn-success">
+          Confirmar transacción
+        </button>
+      </div>
+    {% else %}
+      {% if datos_transaccion.tipo|lower == 'venta' %}
+        <div class="alert alert-info mt-3">
+          <i class="bi bi-info-circle-fill"></i>
+          <strong>Importante:</strong>
+          El monto total de las denominaciones debe ser exactamente <span class="fw-bold">${{ datos_transaccion.monto_operado|floatformat:2 }}</span>.
+        </div>
+      {% else %}
+        {% if datos_transaccion.tipo|lower == 'compra' and datos_transaccion.medio_pago == 'Efectivo' %}
+          <div class="alert alert-info mt-3">
+            <i class="bi bi-info-circle-fill"></i>
+            <strong>Importante:</strong>
+            El monto total de las denominaciones debe ser exactamente <span class="fw-bold">₲{{ datos_transaccion.monto_pyg|floatformat:0 }}</span>.
+          </div>
+        {% endif %}
+      {% endif %}
       {% if datos_transaccion.tipo|lower == 'compra' and datos_transaccion.medio_pago == 'Efectivo' or datos_transaccion.tipo|lower == 'venta' %}
         <form id="formDenominacionesVenta" class="mt-4">
           <h5>Detalle de entrega por denominaciones</h5>
@@ -208,7 +218,7 @@
             {% endfor %}
           </div>
           <div class="mt-3">
-            <strong>Total ingresado:</strong> <span id="totalDenominaciones">0.00</span> {{ datos_transaccion.moneda.codigo }}
+            <strong>Total ingresado:</strong> <span id="totalDenominaciones">0.00</span> {% if datos_transaccion.tipo|lower == 'compra' and datos_transaccion.medio_pago == 'Efectivo' %}PYG{% else %}{{ datos_transaccion.moneda.codigo }}{% endif %}
           </div>
           <div id="denominacionesError" class="alert alert-danger mt-2 d-none"></div>
           <div class="text-center mt-3">
@@ -228,6 +238,7 @@
           </div>
         {% endif %}
       {% endif %}
+    {% endif %}
   </div>
 </div>
 {% endif %}
@@ -303,19 +314,19 @@
         <p class="mb-3">¿Confirmar la transacción <strong>{{ datos_transaccion.codigo_verificacion }}</strong>?</p>
         
         <!-- Opción para generar factura -->
+        {% if not datos_transaccion.factura_electronica %}
         <div class="form-check form-switch mb-3">
           <input class="form-check-input" type="checkbox" id="generarFacturaCheck" checked>
           <label class="form-check-label" for="generarFacturaCheck">
             <i class="bi bi-receipt"></i> Generar Factura Electrónica
           </label>
         </div>
-        
         <small class="text-muted d-block mb-3">
           La factura se enviará automáticamente al SIFEN y estará disponible para descargar.
         </small>
-        
+        {% endif %}
         <div class="d-flex gap-2 justify-content-center">
-          <button class="btn btn-success" id="btnConfirmarConFactura">
+          <button class="btn btn-success" id="btnConfirmarConFactura" {% if datos_transaccion.factura_electronica %}style="display:none;"{% endif %}>
             <i class="bi bi-check-lg"></i> Sí, Confirmar
           </button>
           <button class="btn btn-secondary" id="btnConfirmarSinFactura">

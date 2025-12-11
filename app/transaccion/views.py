@@ -253,13 +253,13 @@ def transacciones_list(request):
         transacciones = (
             Transaccion.objects
             .filter(cliente__usuarios=request.user)
-            .select_related("cliente", "moneda", "medio_pago", "medio_cobro")
+            .select_related("cliente", "moneda", "medio_pago", "medio_cobro", "factura_electronica")
         )
         base = Transaccion.objects.filter(cliente__usuarios=request.user)
     else:
         transacciones = (
             Transaccion.objects
-            .select_related("cliente", "moneda", "medio_pago", "medio_cobro")
+            .select_related("cliente", "moneda", "medio_pago", "medio_cobro", "factura_electronica")
         )
         base = Transaccion.objects.all()
 
@@ -412,7 +412,7 @@ def transaccion_create(request):
                     moneda_operada,
                     monto_operado,
                     calculo["tasa_aplicada"],
-                    calculo["comision"],
+                    calculo["comision_final"],
                     calculo["monto_pyg"],
                     medio_pago,
                     tauser
@@ -512,7 +512,7 @@ def compra_moneda(request):
                 moneda,
                 monto,
                 calculo["tasa_aplicada"],
-                calculo["comision"],
+                calculo["comision_final"],
                 calculo["monto_pyg"],
                 medio_pago_obj,
                 tauser
@@ -540,7 +540,8 @@ def compra_moneda(request):
     # GET: mostrar formulario
     # Solo mostrar clientes asociados al usuario operador
     clientes = Cliente.objects.filter(usuarios=request.user).order_by("nombre")
-    monedas = Moneda.objects.filter(activa=True).order_by("nombre")
+    # Solo monedas activas que tengan precio base y comisiones asociadas
+    monedas = [m for m in Moneda.objects.filter(activa=True).order_by("nombre") if m.precios_comisiones.exists()]
     from tauser.models import Tauser
     tausers = Tauser.objects.filter(estado="activo")
     context = {
@@ -642,7 +643,7 @@ def venta_moneda(request):
                 moneda,
                 monto,
                 calculo["tasa_aplicada"],
-                calculo["comision"],
+                calculo["comision_final"],
                 calculo["monto_pyg"],
                 None,  # medio_pago=None para VENTA
                 tauser,
@@ -672,7 +673,15 @@ def venta_moneda(request):
     # GET: mostrar formulario
     # Solo mostrar clientes asociados al usuario operador
     clientes = Cliente.objects.filter(usuarios=request.user).order_by("nombre")
-    monedas = Moneda.objects.filter(activa=True).order_by("nombre")
+    # Solo monedas activas que tengan precio base y comisiones asociadas
+    monedas = [m for m in Moneda.objects.filter(activa=True).order_by("nombre") if m.precios_comisiones.exists()]
+    # Asegurar que PYG esté incluida aunque no tenga precios_comisiones
+    try:
+        moneda_pyg = Moneda.objects.get(codigo="PYG")
+        if moneda_pyg not in monedas:
+            monedas.append(moneda_pyg)
+    except Moneda.DoesNotExist:
+        pass
     from tauser.models import Tauser
     tausers = Tauser.objects.filter(estado="activo")
     context = {

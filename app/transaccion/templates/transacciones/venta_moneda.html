@@ -101,7 +101,7 @@
                                     {% if moneda.codigo != 'PYG' %}
                                         <option value="{{ moneda.id }}">{{ moneda.nombre }} ({{ moneda.codigo }})</option>
                                     {% else %}
-                                        <option value="{{ moneda.id }}" style="display:none;" disabled hidden>{{ moneda.nombre }} ({{ moneda.codigo }})</option>
+                                        <option value="{{ moneda.id }}" style="display:none;" data-pyg="1">{{ moneda.nombre }} ({{ moneda.codigo }})</option>
                                     {% endif %}
                                 {% endfor %}
                             </select>
@@ -112,14 +112,39 @@
                         <div class="mb-3">
                             <label for="monto_operado" class="form-label">Monto a Vender *</label>
                             <div class="input-group">
-                                <input type="number" 
-                                       name="monto_operado" 
-                                       id="monto_operado" 
-                                       class="form-control" 
-                                       step="0.01" 
-                                       min="0.01"
-                                       placeholder="Ej: 100.00"
-                                       required>
+                                        <input type="text" 
+                                            name="monto_operado" 
+                                            id="monto_operado" 
+                                            class="form-control" 
+                                            inputmode="numeric"
+                                            pattern="^[0-9]+$"
+                                            placeholder="Ej: 100"
+                                            autocomplete="off"
+                                            required>
+                                <script>
+                                // Solo permitir números enteros en el input de monto_operado
+                                document.addEventListener('DOMContentLoaded', function() {
+                                    var montoInput = document.getElementById('monto_operado');
+                                    if (montoInput) {
+                                        montoInput.addEventListener('input', function(e) {
+                                            // Eliminar todo lo que no sea dígito
+                                            this.value = this.value.replace(/[^0-9]/g, '');
+                                        });
+                                        montoInput.addEventListener('paste', function(e) {
+                                            e.preventDefault();
+                                        });
+                                        montoInput.addEventListener('keydown', function(e) {
+                                            // Permitir solo teclas numéricas y control
+                                            if (
+                                                !(e.key >= '0' && e.key <= '9') &&
+                                                !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)
+                                            ) {
+                                                e.preventDefault();
+                                            }
+                                        });
+                                    }
+                                });
+                                </script>
                                 <span class="input-group-text" id="moneda-simbolo">USD</span>
                             </div>
                             <small class="form-text text-muted">Monto que el cliente entrega en efectivo</small>
@@ -322,9 +347,13 @@ document.addEventListener('DOMContentLoaded', function() {
             tauserStatusMessage.innerHTML = '';
         }
         
-        // Si ya hay un tauser seleccionado y el método es transferencia, marcarlo como válido
-        if (tauserSelect.value && metodoSeleccionado === 'transferencia') {
-            tauserStatusMessage.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle-fill"></i> Transferencia bancaria - No requiere verificación de stock en efectivo</div>';
+        // Si ya hay un tauser seleccionado y el método es transferencia o billetera, marcarlo como válido
+        if (tauserSelect.value && (metodoSeleccionado === 'transferencia' || metodoSeleccionado === 'billetera')) {
+            tauserStatusMessage.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle-fill"></i> ' +
+                (metodoSeleccionado === 'transferencia'
+                    ? 'Transferencia bancaria'
+                    : 'Billetera digital') +
+                ' - No requiere verificación de stock en efectivo</div>';
             tauserValido = true;
         }
         
@@ -337,9 +366,13 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // Si el método de cobro es transferencia, no necesita verificar stock
-        if (metodoSeleccionado === 'transferencia') {
-            tauserStatusMessage.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle-fill"></i> Transferencia bancaria - No requiere verificación de stock en efectivo</div>';
+        // Si el método de cobro es transferencia o billetera, no necesita verificar stock
+        if (metodoSeleccionado === 'transferencia' || metodoSeleccionado === 'billetera') {
+            tauserStatusMessage.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle-fill"></i> ' +
+                (metodoSeleccionado === 'transferencia'
+                    ? 'Transferencia bancaria'
+                    : 'Billetera digital') +
+                ' - No requiere verificación de stock en efectivo</div>';
             tauserValido = true;
             validarFormulario();
             return;
