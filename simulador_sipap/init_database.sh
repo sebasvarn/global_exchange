@@ -20,7 +20,8 @@ else
     echo "📦 Creando tabla 'pagos' y estructura inicial..."
     
     # Ejecutar el script SQL
-    docker exec -i simulador_pagos_db psql -U simulador -d simulador_pagos < init_db.sql
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    docker exec -i simulador_pagos_db psql -U simulador -d simulador_pagos < "$SCRIPT_DIR/init_db.sql"
     
     if [ $? -eq 0 ]; then
         echo "✅ Base de datos inicializada correctamente"
