@@ -23,7 +23,7 @@ jobs:
           script: |
             set -e
 
-            cd /global_exchange
+            cd /home/deploy/global_exchange
 
             # Asegurar que estamos en main y actualizados
             git fetch --all

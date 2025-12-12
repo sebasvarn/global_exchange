@@ -181,25 +181,6 @@ services:
   # ==========================================================================
   # NGINX GLOBAL (Reverse Proxy único para todos los servicios)
   # ==========================================================================
-  nginx-global:
-    image: nginx:alpine
-    container_name: global_nginx
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx/global.conf:/etc/nginx/nginx.conf
-      - django_static:/app/staticfiles:ro
-      - ./sql-proxy01/volumes/web/kude:/kude:ro
-    depends_on:
-      django-app:
-        condition: service_healthy
-      sql-proxy-web:
-        condition: service_healthy
-      simulador-pagos:
-        condition: service_healthy
-    networks:
-      - global_network
-
 volumes:
   django_postgres_data:
   sql_proxy_postgres_data:
