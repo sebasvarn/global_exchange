@@ -27,3 +27,4 @@ sphinxcontrib-mermaid==1.0.0
 linkify-it-py==2.0.3
 
 stripe==14.0.1
+gunicorn==23.0.0

@@ -1,0 +1,36 @@
+name: Deploy (prod)
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy por SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script: |
+            set -e
+
+            cd /global_exchange
+
+            # Asegurar que estamos en main y actualizados
+            git fetch --all
+            git reset --hard origin/main
+
+            # Levantar/actualizar contenedores
+            ./start-global-prod.sh
+
+            # Limpieza opcional (evita llenar disco con layers viejos)
+            docker image prune -f

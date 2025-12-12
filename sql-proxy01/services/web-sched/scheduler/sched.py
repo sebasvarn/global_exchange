@@ -11,21 +11,23 @@ schedapp = Flask(__name__)
 schedapp.config.from_object("config.Config")
 dictConfig({
     'version': 1,
-    'formatters': {'default': {
-        'format': '%(asctime)s schedapp %(levelname)-8s %(filename)s(%(lineno)d) %(funcName)s(): %(message)s',
-    }},
+    'disable_existing_loggers': False,
+    'formatters': {
+        'default': {
+            'format': '%(asctime)s schedapp %(levelname)-8s %(filename)s(%(lineno)d) %(funcName)s(): %(message)s',
+        }
+    },
     'handlers': {
-        'file': {
-            'class': 'logging.FileHandler',
-            'filename': str(schedapp.config.get("APP_FOLDER"))+'/logs/app.log',
-            'formatter': 'default'
+        'console': {
+            'class': 'logging.StreamHandler',
+            'stream': 'ext://sys.stdout',
+            'formatter': 'default',
         }
     },
     'root': {
         'level': 'DEBUG',
-        'handlers': ['file']
-    },
-    'disable_existing_loggers': False
+        'handlers': ['console']
+    }
 })
 
 _SERVER = schedapp.config.get("WORKER_SERVER")

@@ -11,7 +11,7 @@ services:
     expose:
       - "8000"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fs http://localhost:8000/health/ || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS -H 'Host: globalexchange.dev' http://127.0.0.1:8000/health/ || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -63,9 +63,8 @@ services:
       context: ./sql-proxy01/services/web
       dockerfile: Dockerfile.test
     container_name: sql_proxy_web
-    command: gunicorn --bind 0.0.0.0:5000 manage:app --log-level debug --workers 3 --threads 4 --access-logfile /home/app/web-test/logs/access.log --error-logfile /home/app/web-test/logs/error.log
+    command: gunicorn --bind 0.0.0.0:5000 manage:app --log-level debug --workers 3 --threads 4 --access-logfile - --error-logfile -
     volumes:
-      - ./sql-proxy01/volumes/web/logs:/home/app/web-test/logs
       - ./sql-proxy01/volumes/web/kude:/kude
     expose:
       - "5000"
@@ -89,8 +88,6 @@ services:
       dockerfile: Dockerfile.test
     container_name: sql_proxy_scheduler
     command: flask run --host=0.0.0.0 --port=5001 --no-debugger --no-reload --with-threads 
-    volumes:
-      - ./sql-proxy01/volumes/web-sched/logs:/home/app/sched-test/logs
     expose:
       - "5001"
     env_file:
