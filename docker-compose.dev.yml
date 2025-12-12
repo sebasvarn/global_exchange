@@ -63,10 +63,7 @@ services:
       context: ./sql-proxy01/services/web
       dockerfile: Dockerfile.test
     container_name: sql_proxy_web
-    command: >
-      sh -c "chown -R 1000:1000 /home/app/web-test/logs &&
-            chmod -R 775 /home/app/web-test/logs && 
-            gunicorn --bind 0.0.0.0:5000 manage:app --log-level debug --workers 3 --threads 4 --access-logfile /home/app/web-test/logs/access.log --error-logfile /home/app/web-test/logs/error.log
+    command: gunicorn --bind 0.0.0.0:5000 manage:app --log-level debug --workers 3 --threads 4 --access-logfile /home/app/web-test/logs/access.log --error-logfile /home/app/web-test/logs/error.log
     volumes:
       - ./sql-proxy01/volumes/web/logs:/home/app/web-test/logs
       - ./sql-proxy01/volumes/web/kude:/kude
