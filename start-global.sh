@@ -5,7 +5,7 @@ set -e
 # CONFIGURACIÓN
 # ============================================================================
 PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
-COMPOSE_FILE="$PROJECT_ROOT/docker-compose.global.yml"
+COMPOSE_FILE="$PROJECT_ROOT/docker-compose.dev.yml"
 LOGFILE="$PROJECT_ROOT/deploy.log"
 DATE=$(date "+%Y-%m-%d %H:%M:%S")
 

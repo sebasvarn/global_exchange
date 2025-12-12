@@ -1,0 +1,219 @@
+services:
+  # ==========================================================================
+  # APP DJANGO PRINCIPAL (Global Exchange) - PROD
+  # ==========================================================================
+  django-app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile.prod   # idealmente luego creás un Dockerfile.prod
+    container_name: global_exchange_django
+    # En prod NO exponemos el puerto directo, solo dentro de la red
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8000/health/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    volumes:
+      - django_static:/app/staticfiles
+      - django_logs:/app/logs
+    environment:
+      - DJANGO_SETTINGS_MODULE=global_exchange.settings.prod
+      - PYTHONPATH=/app
+      - WAIT_FOR_DB=true
+      - RUN_MIGRATIONS=true
+      - COLLECT_STATIC=true
+      - CREATE_SUPERUSER=false
+    env_file:
+      - ./app/.env.prod
+    depends_on:
+      django-db:
+        condition: service_healthy
+    networks:
+      - global_network
+
+  django-db:
+    image: postgres:15
+    container_name: global_exchange_db
+    volumes:
+      - django_postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=db_globalex
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=masterkey
+    # En prod, si no necesitás conectarte desde afuera, NO abras el puerto
+    # ports:
+    #   - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d db_globalex"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - global_network
+
+  # ==========================================================================
+  # SQL PROXY SERVICES - PROD
+  # ==========================================================================
+  sql-proxy-web:
+    build:
+      context: ./sql-proxy01/services/web
+      dockerfile: Dockerfile.test
+    container_name: sql_proxy_web
+    command: gunicorn --bind 0.0.0.0:5000 manage:app --log-level debug --workers 3 --threads 4 --access-logfile /home/app/web-test/logs/access.log --error-logfile /home/app/web-test/logs/error.log
+    volumes:
+      - ./sql-proxy01/volumes/web/logs:/home/app/web-test/logs
+      - ./sql-proxy01/volumes/web/kude:/kude
+    expose:
+      - "5000"
+    env_file:
+      - ./sql-proxy01/.env.prod 
+    depends_on:
+      sql-proxy-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "timeout", "5", "bash", "-c", "echo > /dev/tcp/localhost/5000 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks:
+      - global_network
+
+  sql-proxy-web-sched:
+    build:
+      context: ./sql-proxy01/services/web-sched
+      dockerfile: Dockerfile.test
+    container_name: sql_proxy_scheduler
+    command: flask run --host=0.0.0.0 --port=5001 --no-debugger --no-reload --with-threads 
+    volumes:
+      - ./sql-proxy01/volumes/web-sched/logs:/home/app/sched-test/logs
+    expose:
+      - "5001"
+    env_file:
+      - ./sql-proxy01/.env-sched.test
+    depends_on:
+      sql-proxy-web:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "timeout", "5", "bash", "-c", "echo > /dev/tcp/localhost/5001 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks:
+      - global_network
+
+  sql-proxy-db:
+    image: postgres:17-bullseye
+    container_name: sql_proxy_db
+    volumes:
+      - sql_proxy_postgres_data:/var/lib/postgresql/data/
+    env_file:
+      - ./sql-proxy01/.env.test.db
+    # Igual que antes: si no hace falta, no expongas el puerto
+    # ports:
+    #   - "45432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fs_proxy_user -d fs_proxy_bd"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - global_network
+
+  # ==========================================================================
+  # SIMULADOR SIPAP (SERVICIO COMPLETO) - PROD
+  # ==========================================================================
+  simulador-pagos:
+    build:
+      context: ./simulador_sipap
+      dockerfile: Dockerfile
+    container_name: simulador_pagos_api
+    expose:
+      - "8080"
+    volumes:
+      - simulador_logs:/app/logs
+    environment:
+      - DATABASE_URL=postgresql://simulador:simulador123@simulador-pagos-db:5432/simulador_pagos
+      - WAIT_FOR_DB=true
+      - INIT_DB=true
+    depends_on:
+      simulador-pagos-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - global_network
+    env_file:
+      - ./simulador_sipap/.env.prod
+
+  simulador-pagos-db:
+    image: postgres:15-alpine
+    container_name: simulador_pagos_db
+    environment:
+      POSTGRES_DB: simulador_pagos
+      POSTGRES_USER: simulador
+      POSTGRES_PASSWORD: simulador123
+    # Igual: puerto cerrado hacia afuera en prod
+    # ports:
+    #   - "5433:5432"
+    volumes:
+      - simulador_postgres_data:/var/lib/postgresql/data
+      - ./simulador_sipap/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U simulador -d simulador_pagos"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - global_network
+
+  # ==========================================================================
+  # CADDY (Reverse Proxy + TLS para todos los servicios)
+  # ==========================================================================
+  caddy:
+    image: caddy:2
+    container_name: global_caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+      - django_static:/var/www/django_static:ro
+      - ./sql-proxy01/volumes/web/kude:/var/www/kude:ro
+    depends_on:
+      django-app:
+        condition: service_healthy
+      sql-proxy-web:
+        condition: service_healthy
+      simulador-pagos:
+        condition: service_healthy
+    networks:
+      - global_network
+
+volumes:
+  django_postgres_data:
+  sql_proxy_postgres_data:
+  simulador_postgres_data:
+  django_static:
+  django_logs:
+  simulador_logs:
+  caddy_data:
+  caddy_config:
+
+networks:
+  global_network:
+    driver: bridge
