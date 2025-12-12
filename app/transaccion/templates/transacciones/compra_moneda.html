@@ -106,14 +106,39 @@
                         <div class="mb-3">
                             <label for="monto_operado" class="form-label">Monto a Comprar *</label>
                             <div class="input-group">
-                                <input type="number" 
-                                       name="monto_operado" 
-                                       id="monto_operado" 
-                                       class="form-control" 
-                                       step="0.01" 
-                                       min="0.01"
-                                       placeholder="Ej: 100.00"
-                                       required>
+                                        <input type="text" 
+                                            name="monto_operado" 
+                                            id="monto_operado" 
+                                            class="form-control" 
+                                            inputmode="numeric"
+                                            pattern="^[0-9]+$"
+                                            placeholder="Ej: 100"
+                                            autocomplete="off"
+                                            required>
+                                <script>
+                                // Solo permitir números enteros en el input de monto_operado
+                                document.addEventListener('DOMContentLoaded', function() {
+                                    var montoInput = document.getElementById('monto_operado');
+                                    if (montoInput) {
+                                        montoInput.addEventListener('input', function(e) {
+                                            // Eliminar todo lo que no sea dígito
+                                            this.value = this.value.replace(/[^0-9]/g, '');
+                                        });
+                                        montoInput.addEventListener('paste', function(e) {
+                                            e.preventDefault();
+                                        });
+                                        montoInput.addEventListener('keydown', function(e) {
+                                            // Permitir solo teclas numéricas y control
+                                            if (
+                                                !(e.key >= '0' && e.key <= '9') &&
+                                                !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)
+                                            ) {
+                                                e.preventDefault();
+                                            }
+                                        });
+                                    }
+                                });
+                                </script>
                                 <span class="input-group-text" id="moneda-simbolo">USD</span>
                             </div>
                             <small class="form-text text-muted">Ingrese el monto en la moneda seleccionada</small>

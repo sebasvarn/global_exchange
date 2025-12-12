@@ -196,6 +196,8 @@
                                 Efectivo (Tauser)
                             {% elif metodo_cobro == 'transferencia' %}
                                 Transferencia Bancaria
+                            {% elif metodo_cobro == 'billetera' %}
+                                Billetera Digital
                             {% endif %}
                         {% endif %}
                     </div>
@@ -215,13 +217,13 @@
                            class="btn btn-primary btn-action">
                             <i class="bi bi-credit-card"></i> Procesar Pago con Tarjeta
                         </a>
-                    {% elif metodo_pago == 'efectivo' or metodo_cobro == 'efectivo' or metodo_cobro == 'transferencia' %}
+                    {% elif metodo_pago == 'efectivo' or metodo_cobro == 'efectivo' or metodo_cobro == 'transferencia' or metodo_cobro == 'billetera' %}
                         <!-- Efectivo o Venta: Ir a Terminal Tauser -->
                         <a href="{% url 'tauser:tramitar_transacciones' %}" 
                            class="btn btn-success btn-action">
                             <i class="bi bi-cash-stack"></i> Ir a Terminal Tauser
                         </a>
-                        {% if metodo_cobro == 'transferencia' %}
+                        {% if metodo_cobro == 'transferencia' or metodo_cobro == 'billetera' %}
                         <div class="alert alert-info mt-3">
                             <i class="bi bi-info-circle-fill me-2"></i>
                             <small><strong>Nota:</strong> Una vez confirmado en el terminal, se procesará automáticamente la transferencia SIPAP a la cuenta del cliente.</small>

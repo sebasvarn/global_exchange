@@ -369,6 +369,7 @@ def tramitar_transacciones(request):
                             "fecha_pago": getattr(tx, 'fecha_pago', None),
                             "datos_metodo_pago": getattr(tx, 'datos_metodo_pago', None),
                             "estado": tx.estado,
+                            "factura_electronica": hasattr(tx, 'factura_electronica'),
                         }
 
                         if tx.tauser:
@@ -534,6 +535,18 @@ def tramitar_transacciones(request):
                                 # FACTURA
                                 if generar_factura:
                                     from facturacion.services import ServicioFacturacion
+
+                                    # Asignar datos fiscales si no existen
+                                    if not hasattr(tx, 'datos_fiscales') or not tx.datos_fiscales:
+                                        tx.datos_fiscales = {
+                                            "nombre": request.POST.get("fact_nombre") or "SIN NOMBRE",
+                                            "cedula": request.POST.get("fact_cedula") or "",
+                                            "ruc": request.POST.get("fact_ruc") or "",
+                                            "dv": request.POST.get("fact_dv") or "",
+                                            "email": request.POST.get("fact_email") or "",
+                                            "direccion": request.POST.get("fact_direccion") or "",
+                                        }
+                                        tx.save()
 
                                     if hasattr(tx, 'factura_electronica'):
                                         mensaje = f"Transacción #{tx.id} completada. Ya existe factura: {tx.factura_electronica.cdc}{mensaje_adicional}"
@@ -726,7 +739,8 @@ def tramitar_transacciones(request):
                                 # CAPTURAR DATOS FISCALES
                                 # =====================
 
-                                tx.datos_fiscales = {
+                                # Soportar datos fiscales por POST o JSON (AJAX)
+                                datos_fiscales = {
                                     "nombre": request.POST.get("fact_nombre"),
                                     "cedula": request.POST.get("fact_cedula"),
                                     "ruc": request.POST.get("fact_ruc"),
@@ -734,6 +748,21 @@ def tramitar_transacciones(request):
                                     "email": request.POST.get("fact_email"),
                                     "direccion": request.POST.get("fact_direccion"),
                                 }
+                                if not datos_fiscales["nombre"]:
+                                    try:
+                                        body = json.loads(request.body)
+                                        df = body.get("datos_fiscales", {})
+                                        datos_fiscales = {
+                                            "nombre": df.get("nombre"),
+                                            "cedula": df.get("cedula"),
+                                            "ruc": df.get("ruc"),
+                                            "dv": df.get("dv"),
+                                            "email": df.get("email"),
+                                            "direccion": df.get("direccion"),
+                                        }
+                                    except Exception:
+                                        pass
+                                tx.datos_fiscales = datos_fiscales
                                 tx.save()
 
                                 from facturacion.services import ServicioFacturacion
