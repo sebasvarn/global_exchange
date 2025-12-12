@@ -25,6 +25,7 @@ sphinx-rtd-theme==3.0.2
 myst-parser==4.0.1
 sphinxcontrib-mermaid==1.0.0
 linkify-it-py==2.0.3
+astroid<4
 
 stripe==14.0.1
 gunicorn==23.0.0
