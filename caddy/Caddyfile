@@ -1,5 +1,5 @@
 # Django: Global Exchange
-globalexchange.tu-dominio.com {
+globalexchange.dev {
     encode gzip
 
     # Archivos estáticos de Django
@@ -11,21 +11,5 @@ globalexchange.tu-dominio.com {
     # Todo lo demás va al backend Django
     handle {
         reverse_proxy django-app:8000
-    }
-}
-
-# SQL Proxy Web
-sqlproxy.tu-dominio.com {
-    encode gzip
-    handle {
-        reverse_proxy sql-proxy-web:5000
-    }
-}
-
-# Simulador SIPAP
-simulador.tu-dominio.com {
-    encode gzip
-    handle {
-        reverse_proxy simulador-pagos:8080
     }
 }
