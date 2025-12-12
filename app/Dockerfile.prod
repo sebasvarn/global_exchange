@@ -26,7 +26,9 @@ RUN mkdir -p logs staticfiles
 COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
 
-# Colectar archivos estáticos
+
+
+# Collect static files (DJANGO_SECRET_KEY will be provided at runtime via .env.prod)
 RUN python manage.py collectstatic --noinput --settings=global_exchange.settings.prod
 
 # Crear usuario no root
