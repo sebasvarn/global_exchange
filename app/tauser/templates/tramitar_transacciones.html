@@ -416,9 +416,95 @@
 {% block extra_js %}
 <script>
 document.addEventListener("DOMContentLoaded", () => {
+    // =================== MODAL CAMBIO DE COTIZACIÓN ===================
+    const btnAceptarCambioCotizacion = document.getElementById("btnAceptarCambioCotizacion");
+    const btnCancelarCambioCotizacion = document.querySelector("#modalCambioCotizacion .btn-danger");
+    const modalCambioCotizacion = document.getElementById("modalCambioCotizacion");
+    if (btnAceptarCambioCotizacion && modalCambioCotizacion) {
+      btnAceptarCambioCotizacion.addEventListener("click", async function() {
+        // Oculta el modal
+        modalCambioCotizacion.style.display = "none";
 
-    /* ============================================================
-       =====================  MODALES  ============================
+        // Prepara los datos para reenviar el POST con la confirmación
+        const csrftoken = document.cookie.split("; ")
+          .find(row => row.startsWith("csrftoken="))
+          ?.split("=")[1];
+
+        const codigo = document.getElementById("codigo_verificacion").value.trim();
+        const data = new URLSearchParams();
+        data.append("codigo_verificacion", codigo);
+        data.append("accion", "concluir_venta");
+        data.append("confirmar_cambio_cotizacion", "si");
+
+        // Si hay denominaciones, agrega los valores actuales de los inputs
+        const formDenominaciones = document.getElementById("formDenominacionesVenta");
+        if (formDenominaciones) {
+          const inputs = formDenominaciones.querySelectorAll("input[type='number']");
+          inputs.forEach(i => data.append(i.name, i.value));
+        }
+
+        // Muestra modal de procesando
+        modalProcesando.show();
+
+        // Envía el POST
+        const response = await fetch(window.location.href, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "X-CSRFToken": csrftoken
+          },
+          body: data
+        });
+
+        const result = await response.json();
+        modalProcesando.hide();
+
+        if (result.success) {
+          modalExito.show();
+          document.getElementById("btnCerrarExito").onclick = () => location.reload();
+        } else {
+          alert(result.error || "Ocurrió un error al procesar la transacción.");
+        }
+      });
+    }
+
+    // Botón cancelar: cancelar la transacción
+    if (btnCancelarCambioCotizacion && modalCambioCotizacion) {
+      btnCancelarCambioCotizacion.addEventListener("click", async function() {
+        modalCambioCotizacion.style.display = "none";
+
+        const csrftoken = document.cookie.split("; ")
+          .find(row => row.startsWith("csrftoken="))
+          ?.split("=")[1];
+
+        const codigo = document.getElementById("codigo_verificacion").value.trim();
+        const data = new URLSearchParams();
+        data.append("codigo_verificacion", codigo);
+        data.append("accion", "cancelar");
+
+        modalProcesando.show();
+
+        const response = await fetch(window.location.href, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "X-CSRFToken": csrftoken
+          },
+          body: data
+        });
+
+        const result = await response.json();
+        modalProcesando.hide();
+
+        if (result.success) {
+          // Redirigir al listado o recargar
+          location.reload();
+        } else {
+          alert(result.error || "Ocurrió un error al cancelar la transacción.");
+        }
+      });
+    }
+       /*=====================  MODALES  ============================
        ============================================================ */
     const modalConfirmar = new bootstrap.Modal(document.getElementById("modalConfirmar"));
     const modalProcesando = new bootstrap.Modal(document.getElementById("modalProcesando"));
