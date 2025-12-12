@@ -3,7 +3,7 @@ import os
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parents[2]
-load_dotenv(BASE_DIR / '.env.dev')
+load_dotenv(BASE_DIR / '.env.prod')
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-not-secure")
 DEBUG = os.getenv("DJANGO_DEBUG", "True") == "True"
