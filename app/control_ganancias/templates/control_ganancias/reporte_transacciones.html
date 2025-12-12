@@ -1,0 +1,286 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+<div class="container py-4" style="max-width: 1400px;">
+    <div class="mb-3">
+        <h2 class="fw-bold mb-3" style="color:#2176c1;"><i class="bi bi-file-earmark-text"></i> Reporte de Transacciones</h2>
+    </div>
+    <div class="row g-3 mb-4">
+        <div class="col-md-2 col-6">
+            <div class="card text-white" style="background:#5a5ad1;">
+                <div class="card-body text-center">
+                    <div class="fs-5">Total</div>
+                    <div class="fs-1 fw-bold">{{ total_transacciones }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-6">
+            <div class="card text-white" style="background:#5a5ad1;">
+                <div class="card-body text-center">
+                    <div class="fs-5">Completadas</div>
+                    <div class="fs-1 fw-bold">{{ total_completadas }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-6">
+            <div class="card text-white bg-success h-100">
+                <div class="card-body text-center">
+                    <div class="fs-5">Pagadas</div>
+                    <div class="fs-1 fw-bold">{{ total_pagadas }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-6">
+            <div class="card text-white bg-warning h-100">
+                <div class="card-body text-center">
+                    <div class="fs-5">Pendientes</div>
+                    <div class="fs-1 fw-bold">{{ total_pendientes }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-6">
+            <div class="card text-white" style="background:#6c757d;">
+                <div class="card-body text-center">
+                    <div class="fs-5">Canceladas</div>
+                    <div class="fs-1 fw-bold">{{ total_canceladas }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-6">
+            <div class="card text-white bg-danger h-100">
+                <div class="card-body text-center">
+                    <div class="fs-5">Anuladas</div>
+                    <div class="fs-1 fw-bold">{{ total_anuladas }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="d-flex justify-content-end mb-3" style="gap: 0.5rem;">
+        <button class="btn btn-success" id="btnExportExcel"><i class="bi bi-file-earmark-excel"></i> Exportar Excel</button>
+        <button class="btn btn-danger" id="btnExportPDF"><i class="bi bi-file-earmark-pdf"></i> Exportar PDF</button>
+    </div>
+    <div class="card mb-4">
+        <div class="card-body">
+            <form class="row g-3 align-items-end">
+                <div class="col-md-2 col-6">
+                    <label class="form-label">Fecha Desde</label>
+                    <input type="date" class="form-control" name="fecha_desde" value="{{ filtros.fecha_desde|default:'' }}">
+                </div>
+                <div class="col-md-2 col-6">
+                    <label class="form-label">Fecha Hasta</label>
+                    <input type="date" class="form-control" name="fecha_hasta" value="{{ filtros.fecha_hasta|default:'' }}">
+                </div>
+                <div class="col-md-2 col-6">
+                    <label class="form-label">Tipo</label>
+                    <select class="form-select" name="tipo">
+                        <option value="">Todos los tipos</option>
+                        <option value="compra" {% if filtros.tipo == 'compra' %}selected{% endif %}>Compra</option>
+                        <option value="venta" {% if filtros.tipo == 'venta' %}selected{% endif %}>Venta</option>
+                    </select>
+                </div>
+                <div class="col-md-2 col-6">
+                    <label class="form-label">Estado</label>
+                    <select class="form-select" name="estado">
+                        <option value="">Todos los estados</option>
+                        <option value="pagada" {% if filtros.estado == 'pagada' %}selected{% endif %}>Pagada</option>
+                        <option value="pendiente" {% if filtros.estado == 'pendiente' %}selected{% endif %}>Pendiente</option>
+                        <option value="cancelada" {% if filtros.estado == 'cancelada' %}selected{% endif %}>Cancelada</option>
+                        <option value="anulada" {% if filtros.estado == 'anulada' %}selected{% endif %}>Anulada</option>
+                        <option value="completada" {% if filtros.estado == 'completada' %}selected{% endif %}>Completada</option>
+                    </select>
+                </div>
+                <div class="col-md-2 col-6">
+                    <label class="form-label">Moneda</label>
+                    <select class="form-select" name="moneda">
+                        <option value="">Todas las monedas</option>
+                        {% for m in monedas %}
+                            {% if m.codigo != 'PYG' %}
+                                <option value="{{ m.codigo }}" {% if filtros.moneda == m.codigo %}selected{% endif %}>{{ m.codigo }}</option>
+                            {% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2 col-6">
+                    <label class="form-label">Cliente</label>
+                    <select class="form-select" name="cliente">
+                        <option value="">Todos los clientes</option>
+                        {% for c in clientes %}
+                            <option value="{{ c.id }}" {% if filtros.cliente == c.id|stringformat:'s' %}selected{% endif %}>{{ c.nombre }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2 col-6 d-flex gap-2">
+                    <button type="reset" class="btn btn-outline-secondary w-100">Limpiar</button>
+                </div>
+                <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    const form = document.querySelector('form.row');
+                    form.querySelectorAll('input,select').forEach(function(el) {
+                        if (el.type !== 'reset') {
+                            el.addEventListener('change', function() {
+                                form.submit();
+                            });
+                        }
+                    });
+                    // Limpiar filtros: recargar la página sin parámetros GET
+                    const btnReset = form.querySelector('button[type="reset"]');
+                    if (btnReset) {
+                        btnReset.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            window.location.href = window.location.pathname;
+                        });
+                    }
+                });
+                </script>
+            </form>
+        </div>
+    </div>
+    <div class="row g-3 mb-4">
+        <div class="col-lg-8 col-12">
+            <div class="card h-100">
+                <div class="card-header fw-semibold"><i class="bi bi-graph-up"></i> Transacciones en el período seleccionado</div>
+                <div class="card-body">
+                    <canvas id="lineChart"></canvas>
+                    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+                    <script>
+                    const fechas = JSON.parse('{{ fechas_grafico|escapejs }}');
+                    const cantidades = JSON.parse('{{ cantidades_grafico|escapejs }}');
+                    const ctxLine = document.getElementById('lineChart').getContext('2d');
+                    new Chart(ctxLine, {
+                        type: 'line',
+                        data: {
+                            labels: fechas,
+                            datasets: [{
+                                label: 'Transacciones por día',
+                                data: cantidades,
+                                borderColor: 'rgba(54, 162, 235, 1)',
+                                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                                fill: true,
+                                tension: 0.3
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: { legend: { display: false } }
+                        }
+                    });
+                    </script>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4 col-12">
+            <div class="card h-100">
+                <div class="card-header fw-semibold"><i class="bi bi-pie-chart"></i> Por Tipo de Operación</div>
+                <div class="card-body">
+                    <canvas id="pieChart"></canvas>
+                    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+                    <script>
+                    const tiposTorta = JSON.parse('{{ tipos_torta|escapejs }}');
+                    const cantidadesTorta = JSON.parse('{{ transacciones_por_tipo_torta|escapejs }}');
+                    const ctxPie = document.getElementById('pieChart').getContext('2d');
+                    new Chart(ctxPie, {
+                        type: 'pie',
+                        data: {
+                            labels: tiposTorta,
+                            datasets: [{
+                                data: cantidadesTorta,
+                                backgroundColor: [
+                                    'rgba(54, 162, 235, 0.7)',
+                                    'rgba(255, 99, 132, 0.7)'
+                                ],
+                                borderColor: [
+                                    'rgba(54, 162, 235, 1)',
+                                    'rgba(255, 99, 132, 1)'
+                                ],
+                                borderWidth: 2
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                legend: { position: 'bottom' },
+                                title: {
+                                    display: false
+                                }
+                            }
+                        }
+                    });
+                    </script>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-body table-responsive">
+            <table class="table table-striped align-middle" id="tablaTransacciones">
+                <thead>
+                    <tr>
+                        <th>ID Transacción</th>
+                        <th>Fecha</th>
+                        <th>Cliente</th>
+                        <th>Tipo</th>
+                        <th>Estado</th>
+                        <th>Moneda Origen</th>
+                        <th>Monto Origen</th>
+                        <th>Moneda Destino</th>
+                        <th>Monto Destino</th>
+                        <th>Retiro</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in detalle_transacciones %}
+                    <tr>
+                        <td>{{ t.codigo_verificacion }}</td>
+                        <td>{{ t.fecha|date:'d/m/Y H:i' }}</td>
+                        <td>{{ t.cliente }}</td>
+                        <td>{{ t.get_tipo_display }}</td>
+                        <td>{{ t.get_estado_display }}</td>
+                        {% if t.tipo == 'venta' %}
+                            <td>{{ t.moneda.codigo }}</td>
+                            <td>{{ t.monto_operado|floatformat:2 }}</td>
+                            <td>PYG</td>
+                            <td>{{ t.monto_pyg|floatformat:2 }}</td>
+                        {% else %}
+                            <td>PYG</td>
+                            <td>{{ t.monto_pyg|floatformat:2 }}</td>
+                            <td>{{ t.moneda.codigo }}</td>
+                            <td>{{ t.monto_operado|floatformat:2 }}</td>
+                        {% endif %}
+                        <td>{% if t.tauser %}{{ t.tauser }}{% else %}No aplica{% endif %}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="10" class="text-center">No hay transacciones para los filtros seleccionados.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+<!-- Scripts para exportar tabla -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.7.0/jspdf.plugin.autotable.min.js"></script>
+<script>
+document.getElementById('btnExportExcel').addEventListener('click', function() {
+    var wb = XLSX.utils.table_to_book(document.getElementById('tablaTransacciones'), {sheet: "Transacciones"});
+    XLSX.writeFile(wb, 'reporte_transacciones.xlsx');
+});
+
+document.getElementById('btnExportPDF').addEventListener('click', function() {
+    var { jsPDF } = window.jspdf;
+    var doc = new jsPDF('l', 'pt', 'a4');
+    doc.autoTable({
+        html: '#tablaTransacciones',
+        theme: 'grid',
+        headStyles: { fillColor: [33, 118, 193] },
+        margin: { top: 40 },
+        styles: { fontSize: 8 },
+        didDrawPage: function (data) {
+            doc.setFontSize(14);
+            doc.text('Reporte de Transacciones', 40, 30);
+        }
+    });
+    doc.save('reporte_transacciones.pdf');
+});
+</script>
+{% endblock %}

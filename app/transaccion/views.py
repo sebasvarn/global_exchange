@@ -253,13 +253,13 @@ def transacciones_list(request):
         transacciones = (
             Transaccion.objects
             .filter(cliente__usuarios=request.user)
-            .select_related("cliente", "moneda", "medio_pago", "medio_cobro")
+            .select_related("cliente", "moneda", "medio_pago", "medio_cobro", "factura_electronica")
         )
         base = Transaccion.objects.filter(cliente__usuarios=request.user)
     else:
         transacciones = (
             Transaccion.objects
-            .select_related("cliente", "moneda", "medio_pago", "medio_cobro")
+            .select_related("cliente", "moneda", "medio_pago", "medio_cobro", "factura_electronica")
         )
         base = Transaccion.objects.all()
 
@@ -412,7 +412,7 @@ def transaccion_create(request):
                     moneda_operada,
                     monto_operado,
                     calculo["tasa_aplicada"],
-                    calculo["comision"],
+                    calculo["comision_final"],
                     calculo["monto_pyg"],
                     medio_pago,
                     tauser
@@ -512,7 +512,7 @@ def compra_moneda(request):
                 moneda,
                 monto,
                 calculo["tasa_aplicada"],
-                calculo["comision"],
+                calculo["comision_final"],
                 calculo["monto_pyg"],
                 medio_pago_obj,
                 tauser
@@ -540,7 +540,8 @@ def compra_moneda(request):
     # GET: mostrar formulario
     # Solo mostrar clientes asociados al usuario operador
     clientes = Cliente.objects.filter(usuarios=request.user).order_by("nombre")
-    monedas = Moneda.objects.filter(activa=True).order_by("nombre")
+    # Solo monedas activas que tengan precio base y comisiones asociadas
+    monedas = [m for m in Moneda.objects.filter(activa=True).order_by("nombre") if m.precios_comisiones.exists()]
     from tauser.models import Tauser
     tausers = Tauser.objects.filter(estado="activo")
     context = {
@@ -594,17 +595,29 @@ def venta_moneda(request):
             elif metodo_cobro == 'transferencia':
                 # Cliente cobra por transferencia - usar MedioAcreditacion del cliente
                 tipo_metodo_override = 'transferencia'
-                
                 # Validar que tenga un medio de cobro configurado
                 if not medio_cobro_id:
                     messages.error(request, "Debe seleccionar una cuenta bancaria para recibir la transferencia")
                     return redirect("transacciones:venta_moneda")
-                
                 from medios_acreditacion.models import MedioAcreditacion
                 medio_cobro_obj = get_object_or_404(
                     MedioAcreditacion, 
                     pk=int(medio_cobro_id), 
-                    cliente=cliente
+                    cliente=cliente,
+                    tipo_medio='cuenta_bancaria'
+                )
+            elif metodo_cobro == 'billetera':
+                # Cliente cobra por billetera - usar MedioAcreditacion del cliente
+                tipo_metodo_override = 'billetera'
+                if not medio_cobro_id:
+                    messages.error(request, "Debe seleccionar una billetera para recibir el pago")
+                    return redirect("transacciones:venta_moneda")
+                from medios_acreditacion.models import MedioAcreditacion
+                medio_cobro_obj = get_object_or_404(
+                    MedioAcreditacion,
+                    pk=int(medio_cobro_id),
+                    cliente=cliente,
+                    tipo_medio='billetera'
                 )
             else:
                 messages.error(request, f"Método de cobro '{metodo_cobro}' no reconocido")
@@ -630,7 +643,7 @@ def venta_moneda(request):
                 moneda,
                 monto,
                 calculo["tasa_aplicada"],
-                calculo["comision"],
+                calculo["comision_final"],
                 calculo["monto_pyg"],
                 None,  # medio_pago=None para VENTA
                 tauser,
@@ -660,7 +673,15 @@ def venta_moneda(request):
     # GET: mostrar formulario
     # Solo mostrar clientes asociados al usuario operador
     clientes = Cliente.objects.filter(usuarios=request.user).order_by("nombre")
-    monedas = Moneda.objects.filter(activa=True).order_by("nombre")
+    # Solo monedas activas que tengan precio base y comisiones asociadas
+    monedas = [m for m in Moneda.objects.filter(activa=True).order_by("nombre") if m.precios_comisiones.exists()]
+    # Asegurar que PYG esté incluida aunque no tenga precios_comisiones
+    try:
+        moneda_pyg = Moneda.objects.get(codigo="PYG")
+        if moneda_pyg not in monedas:
+            monedas.append(moneda_pyg)
+    except Moneda.DoesNotExist:
+        pass
     from tauser.models import Tauser
     tausers = Tauser.objects.filter(estado="activo")
     context = {

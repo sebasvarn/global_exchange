@@ -6,28 +6,42 @@
 {% block extra_css %}
 <style>
     .card-venta {
-        border-left: 4px solid #dc3545;
-    }
-    .card-tauser-venta{
-        border-left: 4px solid orange;
+        border-left: 4px solid #28a745;
     }
     .metodo-cobro-card {
         cursor: pointer;
         transition: all 0.3s;
         border: 2px solid #e0e0e0;
+        border-radius: 12px;
+        background: #fff;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
     }
     .metodo-cobro-card:hover {
-        border-color: #dc3545;
+        border-color: #28a745;
         transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 12px rgba(40,167,69,0.08);
     }
     .metodo-cobro-card.selected {
-        border-color: #dc3545;
-        background-color: #fff5f5;
+        border-color: #28a745;
+        background-color: #f0f8f4;
     }
     .metodo-icon {
-        font-size: 3rem;
-        color: #dc3545;
+        font-size: 2rem;
+        color: #28a745;
+    }
+    .metodo-cobro-card .card-body {
+        padding: 1rem;
+    }
+    .metodo-cobro-card h5 {
+        font-size: 1rem;
+        margin-top: 0.5rem;
+    }
+    .metodo-cobro-card p {
+        font-size: 0.85rem;
+        margin-bottom: 0.25rem;
+    }
+    .metodo-cobro-card small {
+        font-size: 0.75rem;
     }
 </style>
 {% endblock %}
@@ -87,7 +101,7 @@
                                     {% if moneda.codigo != 'PYG' %}
                                         <option value="{{ moneda.id }}">{{ moneda.nombre }} ({{ moneda.codigo }})</option>
                                     {% else %}
-                                        <option value="{{ moneda.id }}" style="display:none;" disabled hidden>{{ moneda.nombre }} ({{ moneda.codigo }})</option>
+                                        <option value="{{ moneda.id }}" style="display:none;" data-pyg="1">{{ moneda.nombre }} ({{ moneda.codigo }})</option>
                                     {% endif %}
                                 {% endfor %}
                             </select>
@@ -98,14 +112,39 @@
                         <div class="mb-3">
                             <label for="monto_operado" class="form-label">Monto a Vender *</label>
                             <div class="input-group">
-                                <input type="number" 
-                                       name="monto_operado" 
-                                       id="monto_operado" 
-                                       class="form-control" 
-                                       step="0.01" 
-                                       min="0.01"
-                                       placeholder="Ej: 100.00"
-                                       required>
+                                        <input type="text" 
+                                            name="monto_operado" 
+                                            id="monto_operado" 
+                                            class="form-control" 
+                                            inputmode="numeric"
+                                            pattern="^[0-9]+$"
+                                            placeholder="Ej: 100"
+                                            autocomplete="off"
+                                            required>
+                                <script>
+                                // Solo permitir números enteros en el input de monto_operado
+                                document.addEventListener('DOMContentLoaded', function() {
+                                    var montoInput = document.getElementById('monto_operado');
+                                    if (montoInput) {
+                                        montoInput.addEventListener('input', function(e) {
+                                            // Eliminar todo lo que no sea dígito
+                                            this.value = this.value.replace(/[^0-9]/g, '');
+                                        });
+                                        montoInput.addEventListener('paste', function(e) {
+                                            e.preventDefault();
+                                        });
+                                        montoInput.addEventListener('keydown', function(e) {
+                                            // Permitir solo teclas numéricas y control
+                                            if (
+                                                !(e.key >= '0' && e.key <= '9') &&
+                                                !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)
+                                            ) {
+                                                e.preventDefault();
+                                            }
+                                        });
+                                    }
+                                });
+                                </script>
                                 <span class="input-group-text" id="moneda-simbolo">USD</span>
                             </div>
                             <small class="form-text text-muted">Monto que el cliente entrega en efectivo</small>
@@ -115,7 +154,6 @@
                         <!-- Resumen del Cálculo -->
                         <div id="calculo-resumen" class="alert alert-light border" style="display: none;">
                             <h6 class="text-danger"><i class="bi bi-calculator-fill"></i> Desglose de Cálculo</h6>
-                            
                             <div class="card mb-2">
                                 <div class="card-body p-2">
                                     <small class="text-muted d-block mb-2">Tasa de Cambio</small>
@@ -129,6 +167,18 @@
                                     <div class="d-flex justify-content-between align-items-center">
                                         <strong>Tasa Aplicada:</strong>
                                         <strong class="text-info" id="tasa-display">-</strong>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card mb-2">
+                                <div class="card-body p-2">
+                                    <small class="text-muted d-block mb-2">Comisiones Adicionales</small>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span>
+                                            <i class="bi bi-credit-card"></i> <span id="metodo-nombre-display">Método de Cobro</span> <span id="porcentaje-metodo-row">(<span id="porcentaje-metodo-display">0</span>%)</span>:
+                                        </span>
+                                        <strong class="text-danger" id="comision-metodo-display">₲ 0</strong>
                                     </div>
                                 </div>
                             </div>
@@ -163,30 +213,41 @@
                         <p class="text-muted mb-3">¿Cómo desea recibir el pago?</p>
 
                         <div class="row" id="metodos-cobro-container">
-                            <!-- Efectivo -->
-                            <div class="col-12 mb-3">
-                                <div class="card metodo-cobro-card" data-metodo="efectivo" data-requiere-terminal="true">
-                                    <div class="card-body text-center">
-                                        <div class="metodo-icon">
-                                            <i class="bi bi-cash-stack"></i>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <div class="card metodo-cobro-card" data-metodo="efectivo" data-requiere-terminal="true">
+                                        <div class="card-body text-center">
+                                            <div class="metodo-icon">
+                                                <i class="bi bi-cash-stack"></i>
+                                            </div>
+                                            <h5 class="mt-2">Efectivo</h5>
+                                            <p class="text-muted mb-0">Recibir en la caja (Tauser)</p>
+                                            <small class="text-success">✓ Entrega inmediata</small>
                                         </div>
-                                        <h5 class="mt-2">Efectivo</h5>
-                                        <p class="text-muted mb-0">Recibir en la caja (Tauser)</p>
-                                        <small class="text-success">✓ Entrega inmediata</small>
                                     </div>
                                 </div>
-                            </div>
-
-                            <!-- Transferencia -->
-                            <div class="col-12 mb-3">
-                                <div class="card metodo-cobro-card" data-metodo="transferencia">
-                                    <div class="card-body text-center">
-                                        <div class="metodo-icon">
-                                            <i class="bi bi-bank"></i>
+                                <div class="col-md-6 mb-3">
+                                    <div class="card metodo-cobro-card" data-metodo="transferencia">
+                                        <div class="card-body text-center">
+                                            <div class="metodo-icon">
+                                                <i class="bi bi-bank"></i>
+                                            </div>
+                                            <h5 class="mt-2">Transferencia</h5>
+                                            <p class="text-muted mb-0">Transferencia a su cuenta bancaria</p>
+                                            <small class="text-info">⚡ Validado por SIPAP</small>
                                         </div>
-                                        <h5 class="mt-2">Transferencia</h5>
-                                        <p class="text-muted mb-0">Transferencia a su cuenta bancaria</p>
-                                        <small class="text-info">⏱ Procesamiento 24-48hs</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="card metodo-cobro-card" data-metodo="billetera">
+                                        <div class="card-body text-center">
+                                            <div class="metodo-icon">
+                                                <i class="bi bi-wallet2"></i>
+                                            </div>
+                                            <h5 class="mt-2">Billetera Digital</h5>
+                                            <p class="text-muted mb-0">Cobro en billetera electrónica</p>
+                                            <small class="text-info">⚡ Validado por SIPAP</small>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -201,7 +262,7 @@
                             </select>
                             <div class="mt-2">
                                 <a href="{% url 'medios_acreditacion:medios_by_client' %}" class="btn btn-sm btn-outline-primary" target="_blank">
-                                    <i class="bi bi-plus-circle"></i> Agregar nueva cuenta
+                                    <i class="bi bi-plus-circle"></i> Agregar nuevo medio
                                 </a>
                             </div>
                         </div>
@@ -286,9 +347,13 @@ document.addEventListener('DOMContentLoaded', function() {
             tauserStatusMessage.innerHTML = '';
         }
         
-        // Si ya hay un tauser seleccionado y el método es transferencia, marcarlo como válido
-        if (tauserSelect.value && metodoSeleccionado === 'transferencia') {
-            tauserStatusMessage.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle-fill"></i> Transferencia bancaria - No requiere verificación de stock en efectivo</div>';
+        // Si ya hay un tauser seleccionado y el método es transferencia o billetera, marcarlo como válido
+        if (tauserSelect.value && (metodoSeleccionado === 'transferencia' || metodoSeleccionado === 'billetera')) {
+            tauserStatusMessage.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle-fill"></i> ' +
+                (metodoSeleccionado === 'transferencia'
+                    ? 'Transferencia bancaria'
+                    : 'Billetera digital') +
+                ' - No requiere verificación de stock en efectivo</div>';
             tauserValido = true;
         }
         
@@ -301,9 +366,13 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // Si el método de cobro es transferencia, no necesita verificar stock
-        if (metodoSeleccionado === 'transferencia') {
-            tauserStatusMessage.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle-fill"></i> Transferencia bancaria - No requiere verificación de stock en efectivo</div>';
+        // Si el método de cobro es transferencia o billetera, no necesita verificar stock
+        if (metodoSeleccionado === 'transferencia' || metodoSeleccionado === 'billetera') {
+            tauserStatusMessage.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle-fill"></i> ' +
+                (metodoSeleccionado === 'transferencia'
+                    ? 'Transferencia bancaria'
+                    : 'Billetera digital') +
+                ' - No requiere verificación de stock en efectivo</div>';
             tauserValido = true;
             validarFormulario();
             return;
@@ -382,12 +451,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Agregar información del método de cobro si está seleccionado
         if (metodoSeleccionado) {
-            // Siempre enviar tipo_metodo para calcular comisión
-            payload.tipo_metodo = metodoSeleccionado;
-            
-            // Si es transferencia y hay medio de cobro seleccionado, enviarlo
-            if (metodoSeleccionado === 'transferencia' && medioCobroIdInput.value) {
-                payload.medio_cobro_id = medioCobroIdInput.value;
+            if (metodoSeleccionado === 'efectivo') {
+                payload.tipo_metodo = 'efectivo';
+            } else if (metodoSeleccionado === 'transferencia') {
+                payload.tipo_metodo = 'cuenta_bancaria';
+                if (medioCobroIdInput.value) {
+                    payload.medio_cobro_id = medioCobroIdInput.value;
+                }
+            } else if (metodoSeleccionado === 'billetera') {
+                payload.tipo_metodo = 'billetera';
+                if (medioCobroIdInput.value) {
+                    payload.medio_cobro_id = medioCobroIdInput.value;
+                }
+            } else {
+                payload.tipo_metodo = metodoSeleccionado;
             }
         } else {
             // Default: efectivo
@@ -429,6 +506,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 descuentoRow.style.display = 'none';
             }
 
+            // Comisiones adicionales
+            const metodoNombreDisplay = document.getElementById('metodo-nombre-display');
+            const porcentajeMetodoDisplay = document.getElementById('porcentaje-metodo-display');
+            const comisionMetodoDisplay = document.getElementById('comision-metodo-display');
+            const porcentajeMetodoRow = document.getElementById('porcentaje-metodo-row');
+            let nombreMetodo = 'Método de Cobro';
+            if (metodoSeleccionado === 'efectivo') {
+                nombreMetodo = 'Efectivo';
+                porcentajeMetodoDisplay.textContent = '0.00';
+                comisionMetodoDisplay.textContent = '';
+                porcentajeMetodoRow.style.display = 'inline';
+            } else {
+                if (metodoSeleccionado === 'transferencia') nombreMetodo = 'Transferencia';
+                else if (metodoSeleccionado === 'billetera') nombreMetodo = 'Billetera Digital';
+                porcentajeMetodoDisplay.textContent = data.porcentaje_metodo_pago ? parseFloat(data.porcentaje_metodo_pago).toFixed(2) : '0.00';
+                comisionMetodoDisplay.textContent = '₲ ' + (data.comision_metodo_pago ? parseFloat(data.comision_metodo_pago).toLocaleString('es-PY') : '0');
+                porcentajeMetodoRow.style.display = (parseFloat(data.porcentaje_metodo_pago) > 0) ? 'inline' : 'none';
+            }
+            metodoNombreDisplay.textContent = nombreMetodo;
+
             // Total
             document.getElementById('total-display').textContent = '₲ ' + parseFloat(data.monto_pyg).toLocaleString('es-PY');
 
@@ -455,9 +552,22 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             medioClienteSelect.innerHTML = '<option value="">Seleccionar...</option>';
-            
-            if (data.medios && data.medios.length > 0) {
-                data.medios.forEach(medio => {
+
+            // Filtrar medios según método seleccionado
+            let tipoFiltrar = null;
+            if (metodoSeleccionado === 'transferencia') {
+                tipoFiltrar = 'cuenta_bancaria';
+            } else if (metodoSeleccionado === 'billetera') {
+                tipoFiltrar = 'billetera';
+            }
+
+            let mediosFiltrados = data.medios;
+            if (tipoFiltrar) {
+                mediosFiltrados = data.medios.filter(m => m.tipo === tipoFiltrar);
+            }
+
+            if (mediosFiltrados.length > 0) {
+                mediosFiltrados.forEach(medio => {
                     const option = document.createElement('option');
                     option.value = medio.id;
                     option.textContent = medio.descripcion;
@@ -479,12 +589,12 @@ document.addEventListener('DOMContentLoaded', function() {
             metodosCobro.forEach(c => c.classList.remove('selected'));
             this.classList.add('selected');
             metodoSeleccionado = this.dataset.metodo;
-            
+
             // Actualizar el campo hidden metodo_cobro
             document.getElementById('metodo_cobro').value = metodoSeleccionado;
 
-            // Mostrar medios del cliente si seleccionó transferencia
-            if (metodoSeleccionado === 'transferencia' && clienteSelect.value) {
+            // Mostrar medios del cliente si seleccionó transferencia o billetera
+            if ((metodoSeleccionado === 'transferencia' || metodoSeleccionado === 'billetera') && clienteSelect.value) {
                 mediosClienteContainer.style.display = 'block';
                 cargarMediosCliente();
             } else {
