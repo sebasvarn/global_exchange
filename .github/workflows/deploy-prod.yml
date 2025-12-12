@@ -30,6 +30,7 @@ jobs:
             git reset --hard origin/main
 
             # Levantar/actualizar contenedores
+            chmod +x start-global-prod.sh
             ./start-global-prod.sh
 
             # Limpieza opcional (evita llenar disco con layers viejos)
